@@ -67,5 +67,7 @@
     "The Figma Starter MCP quota was exhausted, so final editing and visual verification used the authorized Chrome Figma session instead of an MCP metadata re-read.",
     "The six 840x560 review boards are image references in Figma; their editable SVG sources remain versioned under design/figma-boards/."
   ],
-  "pending": []
+  "pending": [
+    "Re-place the revised local Responsive Screens board in Figma after the Starter MCP quota resets."
+  ]
 }

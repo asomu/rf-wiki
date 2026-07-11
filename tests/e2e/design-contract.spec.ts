@@ -44,11 +44,11 @@ for (const route of appRoutes.filter((entry) => entry.labId !== undefined)) {
   test(`${route.path} lab controls expose at least 44 × 44 CSS px hit targets`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(route.path);
-    const rail = page.locator('.lesson-lab-rail');
-    await rail.scrollIntoViewIfNeeded();
+    const labBlock = page.locator('.lesson-lab-block');
+    await labBlock.scrollIntoViewIfNeeded();
     await expect(page.locator(`[data-lab-id="${route.labId}"]`)).toBeAttached({ timeout: 15_000 });
 
-    const failures = await rail.locator([
+    const failures = await labBlock.locator([
       'button',
       'input:not([type="radio"])',
       'select',

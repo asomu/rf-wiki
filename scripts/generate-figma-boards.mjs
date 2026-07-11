@@ -167,10 +167,37 @@ function coreScreensBoard() {
 }
 
 function responsiveBoard() {
-  const desktop = [r(28, 90, 410, 410, C.surface, C.rule, 5), t(40, 112, '1440 · Split Lab', 10, C.muted, 600), r(40, 128, 70, 356, C.canvas, C.rule, 3), r(120, 128, 176, 356, C.surface, C.rule, 3), r(306, 128, 120, 356, C.dark, C.dark, 3), t(75, 151, 'MAP', 7, C.muted, 500, "text-anchor='middle'"), t(208, 151, 'LESSON', 7, C.muted, 500, "text-anchor='middle'"), tm(366, 151, 'LAB', 7, C.darkMuted, 500, "text-anchor='middle'"), line(132, 171, 282, 171), line(132, 186, 269, 186), line(132, 216, 284, 216), line(132, 232, 276, 232), `<path d="M318 300 C340 252 362 354 386 268 S410 322 416 288" fill="none" stroke="${C.tealBright}" stroke-width="2"/>`].join('');
-  const tablet = [r(458, 90, 184, 410, C.surface, C.rule, 5), t(470, 112, '1024 · Lab after context', 10, C.muted, 600), r(470, 128, 160, 55, C.canvas, C.rule, 3), r(470, 193, 160, 122, C.dark, C.dark, 3), r(470, 325, 160, 159, C.surface, C.rule, 3), t(550, 159, 'CONTEXT', 7, C.muted, 500, "text-anchor='middle'"), tm(550, 212, 'SETTINGS → RESULT', 7, C.darkMuted, 500, "text-anchor='middle'"), line(484, 349, 616, 349), line(484, 365, 607, 365), line(484, 398, 616, 398)].join('');
-  const mobile = [r(662, 90, 150, 410, C.surface, C.rule, 5), t(674, 112, '390 · one learning action', 10, C.muted, 600), ...[['설정',C.canvas,C.ink],['예측','#E7F2F0',C.teal],['결과',C.dark,C.darkInk],['해석',C.surface,C.ink]].map(([label,fill,color],i)=>{const y=128+i*86;return `${r(674,y,126,72,fill,fill===C.surface?C.rule:fill,3)}${t(737,y+40,label,9,color,600,"text-anchor='middle'")}`;})].join('');
-  return svg('Responsive Screens', '폭이 줄어도 DOM과 focus 순서는 설정 → 예측 → 결과 → 해석으로 유지한다.', 'SCREENS / 07', desktop + tablet + mobile);
+  const desktop = [
+    r(28, 90, 410, 410, C.surface, C.rule, 5),
+    t(40, 112, '1440 · Inline lesson lab', 10, C.muted, 600),
+    r(40, 128, 70, 356, C.canvas, C.rule, 3),
+    r(120, 128, 306, 356, C.surface, C.rule, 3),
+    t(75, 151, 'MAP', 7, C.muted, 500, "text-anchor='middle'"),
+    t(208, 151, 'LESSON', 7, C.muted, 500, "text-anchor='middle'"),
+    line(132, 171, 282, 171),
+    line(132, 186, 269, 186),
+    line(132, 216, 284, 216),
+    line(132, 232, 276, 232),
+    r(132, 258, 282, 204, C.dark, C.dark, 4),
+    tm(146, 280, 'INLINE LAB · CONTROL → LINKED VIEWS', 7, C.darkMuted, 600),
+    `<path d="M148 392 C188 314 230 438 274 338 S350 420 398 326" fill="none" stroke="${C.tealBright}" stroke-width="2"/>`,
+  ].join('');
+  const tablet = [
+    r(458, 90, 184, 410, C.surface, C.rule, 5),
+    t(470, 112, '1024 · Single flow', 10, C.muted, 600),
+    r(470, 128, 160, 55, C.canvas, C.rule, 3),
+    r(470, 193, 160, 70, C.surface, C.rule, 3),
+    r(470, 273, 160, 132, C.dark, C.dark, 3),
+    r(470, 415, 160, 69, C.surface, C.rule, 3),
+    t(550, 159, 'CONTEXT', 7, C.muted, 500, "text-anchor='middle'"),
+    t(550, 232, 'INTUITION PRIMER', 7, C.muted, 500, "text-anchor='middle'"),
+    tm(550, 294, 'LAB', 8, C.darkMuted, 600, "text-anchor='middle'"),
+    tm(550, 316, 'SETTINGS → RESULT', 7, C.darkMuted, 500, "text-anchor='middle'"),
+    line(484, 439, 616, 439),
+    line(484, 455, 607, 455),
+  ].join('');
+  const mobile = [r(662, 90, 150, 410, C.surface, C.rule, 5), t(674, 112, '390 · Vertical lab flow', 10, C.muted, 600), ...[['설정',C.canvas,C.ink],['예측','#E7F2F0',C.teal],['결과',C.dark,C.darkInk],['해석',C.surface,C.ink]].map(([label,fill,color],i)=>{const y=128+i*86;return `${r(674,y,126,72,fill,fill===C.surface?C.rule:fill,3)}${t(737,y+40,label,9,color,600,"text-anchor='middle'")}`;})].join('');
+  return svg('Responsive Screens', '학습 문서는 하나의 흐름을 유지하고 실험 내부 순서는 설정 → 예측 → 결과 → 해석으로 고정한다.', 'SCREENS / 07', desktop + tablet + mobile);
 }
 
 function reviewBoard() {

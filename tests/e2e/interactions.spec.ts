@@ -102,7 +102,7 @@ test('VNA tabs preserve one-port state and expose the two-port completion lab', 
   await expect(resistance).toHaveValue('100');
 });
 
-test('mobile lesson visual order matches DOM and keyboard order', async ({ page }) => {
+test('mobile lesson follows map → context → depth → intuition primer → lab → bench', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/learn/spectrum-iq/');
   await expect(page.locator('[data-lab-id="spectrum"]')).toBeAttached({ timeout: 15_000 });
@@ -111,7 +111,6 @@ test('mobile lesson visual order matches DOM and keyboard order', async ({ page 
     const selectors = [
       '.learning-map',
       '.lesson-intro',
-      '.lesson-lab-rail',
       '.layer-rail',
       '.lesson-article',
     ];
@@ -130,15 +129,29 @@ test('mobile lesson visual order matches DOM and keyboard order', async ({ page 
   expect(sections.map(({ selector }) => selector)).toEqual([
     '.learning-map',
     '.lesson-intro',
-    '.lesson-lab-rail',
     '.layer-rail',
     '.lesson-article',
   ]);
   expect(sections.map(({ domIndex }) => domIndex)).toEqual([...sections.map(({ domIndex }) => domIndex)].sort((a, b) => a - b));
   expect(sections.map(({ top }) => top)).toEqual([...sections.map(({ top }) => top)].sort((a, b) => a - b));
+
+  const learningSequence = await page.locator('.lesson-content').evaluate((content) => {
+    const intuition = content.querySelector<HTMLElement>('#intuition');
+    const lab = content.querySelector<HTMLElement>('.lesson-lab-block');
+    const bench = content.querySelector<HTMLElement>('#bench');
+    if (!intuition || !lab || !bench) throw new Error('Missing inline lesson sequence');
+    const box = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY };
+    };
+    return { intuition: box(intuition), lab: box(lab), bench: box(bench) };
+  });
+  expect(learningSequence.lab.top).toBeGreaterThan(learningSequence.intuition.top);
+  expect(learningSequence.lab.bottom).toBeLessThanOrEqual(learningSequence.intuition.bottom);
+  expect(learningSequence.bench.top).toBeGreaterThanOrEqual(learningSequence.intuition.bottom);
 });
 
-test('desktop lesson preserves the three-column split lab', async ({ page }) => {
+test('desktop lesson uses compact navigation and a full-width inline lab', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/learn/spectrum-iq/');
 
@@ -152,17 +165,23 @@ test('desktop lesson preserves the three-column split lab', async ({ page }) => 
     return {
       map: box('.learning-map'),
       intro: box('.lesson-intro'),
-      lab: box('.lesson-lab-rail'),
       layers: box('.layer-rail'),
       article: box('.lesson-article'),
     };
   });
 
+  const lab = await page.locator('.lesson-lab-block').evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width };
+  });
+
   expect(layout.map.x).toBeLessThan(layout.intro.x);
-  expect(layout.lab.x).toBeGreaterThan(layout.intro.x + layout.intro.width);
   expect(layout.layers.x).toBeCloseTo(layout.intro.x, 0);
   expect(layout.article.x).toBeCloseTo(layout.intro.x, 0);
-  expect(layout.lab.y).toBeCloseTo(layout.intro.y, 0);
+  expect(lab.x).toBeCloseTo(layout.article.x, 0);
+  expect(lab.width).toBeCloseTo(layout.article.width, 0);
+  expect(lab.width).toBeGreaterThan(900);
+  expect(lab.y).toBeGreaterThan(layout.intro.y);
 });
 
 test('lab completion requires prediction, a real control change, and explanation', async ({ page }) => {

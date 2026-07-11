@@ -1,0 +1,34 @@
+---
+import CouplerLab from '../simulators/CouplerLab';
+import FrequencyLab from '../simulators/FrequencyLab';
+import IQLab from '../simulators/IQLab';
+import LoadPullLab from '../simulators/LoadPullLab';
+import ResourceGridLab from '../simulators/ResourceGridLab';
+import SpectrumIQLab from '../simulators/SpectrumIQLab';
+import VnaSmithLab from '../simulators/VnaSmithLab';
+
+export type LessonLabId =
+  | 'frequency'
+  | 'spectrum'
+  | 'iq'
+  | 'resource-grid'
+  | 'smith'
+  | 'coupler'
+  | 'load-pull';
+
+export interface Props {
+  labId: LessonLabId;
+}
+
+const { labId } = Astro.props;
+---
+
+<section class="lesson-lab-block" id="interactive-lab" aria-label="인터랙티브 실험">
+  {labId === 'frequency' && <FrequencyLab client:idle />}
+  {labId === 'spectrum' && <SpectrumIQLab client:idle />}
+  {labId === 'iq' && <IQLab client:idle />}
+  {labId === 'resource-grid' && <ResourceGridLab client:idle />}
+  {labId === 'smith' && <VnaSmithLab client:idle />}
+  {labId === 'coupler' && <CouplerLab client:idle />}
+  {labId === 'load-pull' && <LoadPullLab client:idle />}
+</section>

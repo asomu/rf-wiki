@@ -13,7 +13,7 @@ const { title, formula } = Astro.props;
     <strong>{title}</strong>
   </summary>
   <div class="formula-disclosure__body">
-    {formula && <pre class="formula-readout"><code>{formula}</code></pre>}
+    {formula && <pre class="formula-readout" tabindex="0" aria-label={`${title} 수식`}><code>{formula}</code></pre>}
     <slot />
   </div>
 </details>

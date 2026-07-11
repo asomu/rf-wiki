@@ -14,7 +14,7 @@ for (const route of appRoutes.filter((entry) => entry.labId !== undefined)) {
     page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
 
     await page.goto(route.path);
-    await page.locator('.lesson-lab-rail').scrollIntoViewIfNeeded();
+    await page.locator('.lesson-lab-block').scrollIntoViewIfNeeded();
     const lab = page.locator(`[data-lab-id="${route.labId}"]`);
     await expect(lab).toBeAttached({
       timeout: 15_000,

@@ -47,7 +47,7 @@ status: "ready"
 ---
 
 import LessonLayer from '../../components/astro/LessonLayer.astro';
-import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import LessonLab from '../../components/astro/LessonLab.astro';
 import Definition from '../../components/astro/Definition.astro';
 import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
 import MeasurementNote from '../../components/astro/MeasurementNote.astro';
@@ -90,16 +90,7 @@ reference plane에서 incident wave에 대한 reflected wave의 복소 비다. m
 
 이상적인 lossless 50 Ω cable을 DUT 앞에 추가하면 DUT 자체 `|Γ|`은 변하지 않지만 measurement reference plane이 cable 입력으로 이동한다. round-trip phase가 더해져 Smith 점은 같은 반지름 위를 회전한다. 실제 cable은 loss가 있으므로 돌아오는 파가 감쇠되어 점이 조금 중심 쪽으로 감긴다.
 
-<PredictionChallenge
-  question="동일한 mismatched load 앞에 lossless 50 Ω cable을 추가하고 calibration plane은 그대로 두면 Smith trace는 어떻게 변할까?"
-  choices={[
-    "|Γ|는 유지되고 cable의 왕복 electrical length만큼 점이 같은 VSWR circle 위를 회전한다",
-    "load가 자동으로 50 Ω가 되어 중앙으로 이동한다",
-    "주파수와 관계없이 S11이 정확히 6 dB 커진다"
-  ]}
-  answer={0}
-  explanation="matched lossless line은 reflection magnitude를 바꾸지 않고 phase를 지연시킨다. 실제 line loss가 있으면 측정 plane에서 보이는 |Γ|는 작아진다."
-/>
+<LessonLab labId="smith" />
 
 ## VSWR가 화면에서 의미하는 것
 

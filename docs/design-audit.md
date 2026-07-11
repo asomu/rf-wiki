@@ -19,7 +19,7 @@ The trunk test passes 6/6: RF Wiki identity, page title, primary sections, local
 |---|---|---:|---|
 | 1 | Visibility of system status | 3 | Current module/layer, prediction lock, retry, live feedback, and saved completion are visible. |
 | 2 | Match with the real world | 4 | Source → DUT → Acquisition → DSP/Math → Display follows bench reasoning. |
-| 3 | User control and freedom | 3 | Search, breadcrumbs, lab-first responsive order, layer anchors, and prediction retry provide exits. |
+| 3 | User control and freedom | 3 | Search, breadcrumbs, inline lab, layer anchors, and prediction retry provide exits. |
 | 4 | Consistency and standards | 4 | One visual and interaction grammar spans all six modules. |
 | 5 | Error prevention | 3 | Constrained controls, safe defaults, disabled premature actions, and measurement warnings prevent common mistakes. |
 | 6 | Recognition rather than recall | 4 | Signal Spine, Linked Views, direct labels, glossary, and Cause/Effect Ledger keep context visible. |
@@ -37,13 +37,13 @@ The trunk test passes 6/6: RF Wiki identity, page title, primary sections, local
 
 ### Fixed
 
-1. **P1 — Responsive experiment arrived too late.** The layer rail previously pushed the lab below a long introduction. Responsive order is now `module → question/context → lab → depth anchors → detailed lesson`, placing the lab at y≈565 px on a 390 px viewport.
+1. **P1 — Article and sticky lab competed as two lessons.** The permanent right rail is removed. Each simulator now appears inside the intuition layer at the exact concept checkpoint it explains, followed by the remaining intuition detail and then bench/theory.
 2. **P2 — Prediction lock had weak recovery.** Checked choices now lock explicitly and expose `다시 선택`; resetting also clears lesson completion eligibility.
 3. **P2 — Keyboard-triggered decorative motion.** Skip links and keyboard button activation are immediate. Pointer press feedback is limited to fine pointers; reduced motion removes transforms. Paint-property transitions and the lab hover lift were removed.
 4. **P2 — Two 12 px one-off labels escaped the type scale.** Signal Spine detail and readout labels now use `--font-size-data`.
 5. **P1 — Light-surface accent contrast.** Teal and oxide were adjusted to `#08746E` and `#925E00`, yielding 5.13:1 and 5.01:1 against the canvas while dark-instrument trace colors remain unchanged.
-6. **P1 — Lab containment and hydration.** Lab columns use `minmax(0, 1fr)`, plots scroll locally, all React islands hydrate without console errors, and SVG titles are React 19-safe.
-7. **P1 — Visual order and focus order diverged on narrow screens.** The DOM now follows the same `map → intro → lab → layer rail → article` order as the responsive grid while explicit desktop coordinates preserve the three-column split lab.
+6. **P1 — Lab containment and hydration.** Lab columns use `minmax(0, 1fr)`, plots scale without horizontal scroll, all React islands hydrate without console errors, and SVG titles are React 19-safe.
+7. **P1 — Three-column layout forced nested scrolling.** Desktop now uses compact wayfinding plus one main document. At 1180 px and below the map collapses; the Lab remains inline instead of becoming a second document before the article.
 8. **P1 — Completion could be saved after prediction alone.** Completion now requires a correct prediction, a later real control change, and a 24-character explanation that names a causal link, the affected stage, the observed result, and the trade-off. Reset and later control changes clear the completion flag; explanation text is never persisted.
 9. **P1 — RF pull surfaces contradicted the lesson.** Load/source-pull now separate Pout/gain, PAE, EVM and ACLR optima, distinguish fixed available source power from fixed accepted DUT power, and label the selected and metric-optimum Γ independently.
 10. **P1 — RF convention drift.** OFDM uses the documented forward-unscaled/inverse-`1/N` convention end to end; Smith reference-plane direction, coupler useful-port excess loss, and analyzer attenuation diagnostics now match their equations and tests.
@@ -55,8 +55,8 @@ The trunk test passes 6/6: RF Wiki identity, page title, primary sections, local
 
 ### Accepted trade-offs
 
-- Lessons remain deep because this is a reference Wiki, not a short tutorial. The first causal lab now precedes the depth rail, and the three anchors expose the expert path without hiding standards or measurement uncertainty.
-- The Signal Spine is a keyboard-focusable horizontal scroller in the narrow lab rail so full stage names remain legible. It intentionally does not compress labels into unexplained abbreviations.
+- Lessons remain deep because this is a reference Wiki, not a short tutorial. A short concept primer now reaches the causal Lab before the rest of the intuition detail, while the three anchors preserve the expert path.
+- Signal Spine uses five columns when space permits and a vertical five-stage path on mobile. It has no horizontal carousel or hidden stages.
 - The whole site does not implement dark mode; only instrument surfaces are dark, as required by the product contract.
 
 ### Figma verification and retained limitation
@@ -74,9 +74,9 @@ All eight named logical canvases are now populated and visually verified in `RF 
   - six lab hydration checks with zero console/page errors
   - 7 representative screens × 1440/1024/390 plus IQ, VNA two-port and search-result states = 24 screenshot regressions
   - visual-baseline RGB contract: expected dimensions and zero unexplained compositor-black pixels
-- RF/component unit tests: 87/87 across 21 files
-- Astro typecheck: 114 files, zero errors, warnings or hints
-- Static build: 9 pages; Pagefind indexed 8 content pages and 5,033 words
+- RF/component unit tests: 88/88 across 21 files
+- Astro typecheck: 115 files, zero errors, warnings or hints
+- Static build: 9 pages; Pagefind indexed 8 content pages and 5,485 words
 - Lighthouse mobile production build:
   - Home: Performance 99, Accessibility 100, CLS 0.0022
   - Spectrum/IQ: Performance 99, Accessibility 100, CLS 0.0029

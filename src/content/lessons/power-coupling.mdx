@@ -44,7 +44,7 @@ status: "ready"
 ---
 
 import LessonLayer from '../../components/astro/LessonLayer.astro';
-import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import LessonLab from '../../components/astro/LessonLab.astro';
 import Definition from '../../components/astro/Definition.astro';
 import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
 import MeasurementNote from '../../components/astro/MeasurementNote.astro';
@@ -89,16 +89,7 @@ forward 방향 port naming을 다음처럼 고정하자.
 - **Isolation 45 dB:** forward input에 대해 port 4 leakage가 input보다 45 dB 낮다.
 - **Directivity 25 dB:** wanted coupled sample이 unwanted isolated leakage보다 25 dB 크다. `45 − 20 = 25 dB`다.
 
-<PredictionChallenge
-  question="30 dBm forward input, coupling 20 dB, forward isolation 45 dB인 matched coupler에서 이상적인 coupled와 isolated port power는?"
-  choices={[
-    "Coupled 10 dBm, isolated −15 dBm, directivity 25 dB",
-    "Coupled 50 dBm, isolated 75 dBm, directivity 65 dB",
-    "Coupled 10 dBm, isolated 15 dBm, directivity −5 dB"
-  ]}
-  answer={0}
-  explanation="Loss quantities는 input에서 빼서 port power를 구한다. Directivity는 isolation−coupling이므로 25 dB다."
-/>
+<LessonLab labId="coupler" />
 
 ## insertion, coupling, isolation은 같은 ‘loss’가 아니다
 

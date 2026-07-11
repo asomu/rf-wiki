@@ -1,13 +1,6 @@
 ---
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import LessonReferences from '../../components/astro/LessonReferences.astro';
-import CouplerLab from '../../components/simulators/CouplerLab';
-import FrequencyLab from '../../components/simulators/FrequencyLab';
-import IQLab from '../../components/simulators/IQLab';
-import LoadPullLab from '../../components/simulators/LoadPullLab';
-import ResourceGridLab from '../../components/simulators/ResourceGridLab';
-import SpectrumIQLab from '../../components/simulators/SpectrumIQLab';
-import VnaSmithLab from '../../components/simulators/VnaSmithLab';
 import LessonLayout from '../../layouts/LessonLayout.astro';
 import { isPublishedLesson } from '../../lib/content-publication';
 
@@ -41,14 +34,4 @@ const { data } = lesson;
     standards={data.standards}
     references={data.references}
   />
-
-  <div slot="lab" class="lesson-lab-slot">
-    {data.labId === 'frequency' && <FrequencyLab client:idle />}
-    {data.labId === 'spectrum' && <SpectrumIQLab client:idle />}
-    {data.labId === 'iq' && <IQLab client:idle />}
-    {data.labId === 'resource-grid' && <ResourceGridLab client:idle />}
-    {data.labId === 'smith' && <VnaSmithLab client:idle />}
-    {data.labId === 'coupler' && <CouplerLab client:idle />}
-    {data.labId === 'load-pull' && <LoadPullLab client:idle />}
-  </div>
 </LessonLayout>

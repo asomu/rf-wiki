@@ -108,7 +108,9 @@ components:
 
 밝은 실험실에서 엔지니어가 흰 측정 기록지와 짙은 계측 화면을 번갈아 보는 장면이 물리적 기준이다. 문서 surface는 설명과 사고를 위한 차가운 중립 배경이고, instrument surface는 실제로 신호를 조작하고 관찰하는 작업대다. 장식은 제거하고, 정렬·직접 라벨·수치의 정확성으로 신뢰를 만든다.
 
-1440px에서는 12-column grid 안에 224–248px 학습 지도, 600–720px 설명, 440–520px sticky lab을 둔다. 최대 폭은 1480px이다. 1024px 이하에서는 lab이 해당 설명 직후로 이동한다. 390px에서는 `설정 → 예측 → 결과 → 해석` 순서를 고정하고 학습 지도는 현재 위치를 보존하는 drawer가 된다. 본문은 65–72ch를 넘지 않는다.
+1440px에서는 12-column grid 안에 240–256px의 compact 학습 지도와 하나의 main document를 둔다. 최대 폭은 1480px이며 본문 prose는 65–72ch를 넘지 않는다. 학습 지도는 module 번호와 짧은 제목으로 위치만 안내하고, 현재 row에서만 필요할 때 dominant question을 보인다. main document는 `핵심 직관 → inline lab → 직관 확장 → 실무 조작·해석 → 수식·규격`의 한 흐름으로 읽힌다. lab은 intuition layer 안에서 짧은 핵심 개념 설명 직후에 main document 폭을 사용하며 permanent sticky rail로 분리하지 않는다.
+
+페이지에는 document scroll 하나만 둔다. desktop의 inline lab은 control column과 넓은 Linked Views 영역을 나란히 사용한다. 1024px 이하에서는 학습 지도가 현재 위치를 보존하는 drawer가 되고 lab은 같은 문서 위치에서 세로로 재배치된다. 390px에서는 `설정 → 예측 → 결과 → Ledger → 설명` 순서를 고정하고 Signal Spine을 세로로 표시한다. 학습 지도와 lab 어느 쪽도 내용을 보기 위해 가로 스크롤을 요구하지 않는다.
 
 Signal Spine, Linked Views, Cause/Effect Ledger가 모든 실험의 공통 문법이다. Control을 바꾸면 Source → DUT → Acquisition → DSP/Math → Display 중 영향을 받는 stage만 활성화되고, 동일 상태가 time/frequency/IQ/grid/Smith/power view에 함께 반영된다. 변화의 직접 효과, 화면 결과, 비용을 하나의 ledger로 설명한다.
 
@@ -120,7 +122,7 @@ Motion은 상태와 신호 전달을 설명할 때만 사용한다. press 100–
 - IBM Plex Sans KR와 IBM Plex Mono 두 family만 사용하는 단단한 위계
 - 그래프 옆 직접 라벨과 축·단위·reference 조건의 상시 노출
 - 색, dash, marker, 텍스트가 함께 전달하는 물리 역할
-- 읽기보다 예측과 관찰이 먼저인 split-lab 구성
+- 직관과 실험, bench 해석이 한 document scroll 안에서 이어지는 단일 학습 흐름
 
 ## Colors
 
@@ -186,7 +188,7 @@ Motion은 상태와 신호 전달을 설명할 때만 사용한다. press 100–
 
 ### Signal Spine
 
-Source → DUT → Acquisition → DSP/Math → Display를 한 줄로 표시한다. 현재 control 변화가 영향을 주는 stage만 teal outline과 짧은 상태 문장으로 활성화한다. flow animation은 사용자가 pause할 수 있고 reduced motion에서는 색과 marker 이동만 남긴다.
+Source → DUT → Acquisition → DSP/Math → Display를 desktop에서는 한 줄, 좁은 화면에서는 위에서 아래로 표시한다. 현재 control 변화가 영향을 주는 stage만 teal outline과 짧은 상태 문장으로 활성화한다. stage 이름을 읽기 위해 가로 스크롤을 만들지 않는다. flow animation은 사용자가 pause할 수 있고 reduced motion에서는 색과 marker 이동만 남긴다.
 
 ### Linked Views
 
@@ -195,6 +197,12 @@ Source → DUT → Acquisition → DSP/Math → Display를 한 줄로 표시한�
 ### Cause/Effect Ledger
 
 항상 `변경 → 직접 효과 → 화면 결과 → 비용/한계` 네 행을 같은 순서로 표시한다. 별도 callout card로 반복하지 않고 simulator 하단의 단일 ledger만 사용한다.
+
+### Lesson Lab
+
+각 lesson의 interactive lab은 intuition layer 안에서 짧은 핵심 개념 설명 직후, 나머지 직관 세부 설명 전에 한 번만 둔다. lab은 별도의 두 번째 lesson이 아니라, 방금 만든 mental model을 계산 state로 즉시 검증한 뒤 같은 intuition 흐름과 bench 해석으로 넘기는 interactive figure다. user-facing title은 generic 영문 이름보다 관찰 대상을 직접 말한다. 예를 들어 foundation lesson은 `주파수·케이블 위상 실험`으로 표시한다.
+
+Desktop lab 내부는 controls와 Linked Views를 나란히 두되, lab 전체는 main document의 사용 가능한 폭을 쓴다. simulator가 prediction, control unlock, results, Cause/Effect Ledger와 explanation completion을 소유한다. 같은 질문이나 정답을 prose의 정적 challenge로 다시 만들지 않는다. mobile에서는 `controls → prediction → results → Ledger → explanation` 순서를 유지한다.
 
 ### Buttons
 
@@ -219,11 +227,11 @@ Source → DUT → Acquisition → DSP/Math → Display를 한 줄로 표시한�
 
 ### Navigation
 
-Desktop은 학습 지도, breadcrumb, search를 지속적으로 보여준다. 현재 모듈과 현재 lesson을 서로 다른 위계로 표시한다. mobile drawer가 닫혀도 현재 위치와 다음 단계가 상단에 남는다. visited와 unvisited reference link는 서로 다른 색/밑줄 상태를 가진다.
+Desktop은 compact 학습 지도, breadcrumb, search를 지속적으로 보여준다. 학습 지도는 wayfinding만 담당하며 각 row에는 module 번호와 짧은 제목을 표시한다. 현재 row만 lesson의 질문을 보조 정보로 펼칠 수 있다. 모든 module의 긴 질문을 동시에 노출하거나 학습 지도 안에 가로 스크롤을 만들지 않는다. 현재 모듈과 현재 lesson을 서로 다른 위계로 표시한다. mobile drawer가 닫혀도 현재 위치와 다음 단계가 상단에 남는다. visited와 unvisited reference link는 서로 다른 색/밑줄 상태를 가진다.
 
 ### Prediction Challenge
 
-조작 전에 방향 또는 형태를 예측하게 한다. 정답을 즉시 공개하지 않고 control 조작 후 관찰 근거를 선택하거나 짧게 설명하도록 한다. 실패 상태는 “틀림”이 아니라 놓친 stage와 다시 움직일 marker를 가리킨다.
+Interactive lab 안에서 조작 전에 방향 또는 형태를 예측하게 한다. 정답을 즉시 공개하지 않고 control 조작 후 관찰 근거를 선택하거나 짧게 설명하도록 한다. 실패 상태는 “틀림”이 아니라 놓친 stage와 다시 움직일 marker를 가리킨다. lab과 별개인 prose challenge로 같은 예측을 반복하지 않는다.
 
 ## Do's and Don'ts
 
@@ -235,6 +243,7 @@ Desktop은 학습 지도, breadcrumb, search를 지속적으로 보여준다. �
 - **Do** reference plane, impedance, bandwidth, calibration, uncertainty를 결과와 함께 표시한다.
 - **Do** 1440px, 1024px, 390px과 200% zoom에서 `설정 → 예측 → 결과 → 해석` 순서를 검증한다.
 - **Do** 사용자 질문이 새 lesson으로 추가될 때 기존 Signal Spine, Linked Views, Ledger 문법을 재사용한다.
+- **Do** intuition layer의 짧은 핵심 설명 직후에 inline lab을 배치하고, 남은 직관 세부 설명과 bench layer에서 관찰 결과를 확장·해석한다.
 
 ### Don't:
 
@@ -246,5 +255,7 @@ Desktop은 학습 지도, breadcrumb, search를 지속적으로 보여준다. �
 - **Don't** Lucide 아이콘을 반복해 빈 공간을 채우거나 decorative grid를 실제 plot 밖에 그린다.
 - **Don't** “Master RF”, “Built for engineers” 같은 marketing 문구를 쓴다.
 - **Don't** 같은 설명을 card, callout, tooltip에 반복한다.
+- **Don't** permanent lab rail과 본문을 서로 다른 lesson처럼 경쟁시키거나 같은 예측을 두 번 묻는다.
+- **Don't** navigation이나 Signal Spine을 읽기 위해 가로 스크롤을 요구한다.
 - **Don't** 설명과 범례를 관찰 지점에서 떼어 놓거나 색만으로 trace를 구분한다.
 - **Don't** 움직임 자체를 목적으로 animation을 추가하거나 keyboard 반복 동작에 animation을 넣는다.

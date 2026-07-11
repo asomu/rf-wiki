@@ -82,9 +82,8 @@ async function waitForScenario(page: Page, scenario: VisualScenario) {
   }
 
   await waitForDesignFonts(page);
-  // Keep page scroll at zero. The responsive contract intentionally places the
-  // lab directly after lesson context; capturing that first viewport verifies
-  // the real entry order and avoids headless compositor artifacts after scroll.
+  // Keep page scroll at zero so the first viewport verifies the lesson context
+  // before the inline lab, and avoids headless compositor artifacts after scroll.
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 

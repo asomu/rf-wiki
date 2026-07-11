@@ -20,10 +20,7 @@ try {
   process.exit(1);
 }
 
-const required = [
-  '<PredictionChallenge',
-  'references:'
-];
+const required = ['references:'];
 const expectedLayerOrder = ['intuition', 'bench', 'theory'];
 const lessonLayerPattern = /<LessonLayer\b[^>]*\blevel\s*=\s*["'](intuition|bench|theory)["'][^>]*>/g;
 const errors = [];
@@ -70,6 +67,27 @@ for (const file of files) {
   }
   for (const marker of required) {
     if (!source.includes(marker)) errors.push(`${path.basename(file)} is missing ${marker}`);
+  }
+
+  if (frontmatter.labId) {
+    const labMarker = `<LessonLab labId="${frontmatter.labId}"`;
+    if (!source.includes("import LessonLab from '../../components/astro/LessonLab.astro'")) {
+      errors.push(`${path.basename(file)} must import LessonLab for its inline simulator.`);
+    }
+    if (!source.includes(labMarker)) {
+      errors.push(`${path.basename(file)} must place ${labMarker} /> in the lesson flow.`);
+    }
+    if (source.includes('<PredictionChallenge')) {
+      errors.push(`${path.basename(file)} duplicates prediction outside LessonLab.`);
+    }
+
+    const intuitionStart = source.search(/<LessonLayer\b[^>]*\blevel\s*=\s*["']intuition["']/);
+    const intuitionClose = source.indexOf('</LessonLayer>', intuitionStart);
+    const benchStart = source.search(/<LessonLayer\b[^>]*\blevel\s*=\s*["']bench["']/);
+    const labStart = source.indexOf(labMarker);
+    if (intuitionStart < 0 || intuitionClose < 0 || benchStart < 0 || labStart < intuitionStart || labStart > intuitionClose) {
+      errors.push(`${path.basename(file)} must place LessonLab inside intuition before bench.`);
+    }
   }
 }
 

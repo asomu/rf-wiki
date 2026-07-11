@@ -142,13 +142,23 @@ references:
 
 `status: draft`는 production static route에서 제외되며 Pagefind 검색과 학습 navigation에도 노출되지 않습니다. Draft에는 scaffold의 TODO를 남겨도 되지만, `status: ready`에 TODO가 하나라도 있으면 `npm run check:content`가 실패합니다. 참조·수치·실험을 검증한 뒤에만 status를 `ready`로 바꾸세요.
 
-## 7. 세 개의 LessonLayer
+## 7. 세 개의 LessonLayer와 inline LessonLab
 
-모든 lesson은 아래 세 layer를 각각 정확히 한 번, 이 순서로 갖습니다. `scripts/check-content.mjs`는 `intuition → bench → theory`의 순서와 중복을 함께 검사합니다.
+모든 lesson은 아래 세 layer를 각각 정확히 한 번 갖습니다. `labId`가 있는 lesson은 intuition layer 안에서 짧은 핵심 개념 설명 직후, 나머지 직관 세부 설명 전에 `LessonLab`을 정확히 한 번 배치합니다. 문서 흐름은 `intuition 핵심 → LessonLab → intuition 확장 → bench → theory`이며, `scripts/check-content.mjs`가 위치, 중복과 frontmatter `labId` 일치를 검사합니다.
 
 ~~~mdx
+import LessonLab from '../../components/astro/LessonLab.astro';
+
 <LessonLayer level="intuition" title="무엇이 보이나?">
-  ...
+  ## 먼저 붙잡을 핵심 그림
+
+  짧은 핵심 개념 설명과 예측할 control을 적되 정답은 공개하지 않는다.
+
+  <LessonLab labId="frequency" />
+
+  ## 실험 뒤에 넓힐 직관
+
+  linked view에서 관찰한 내용을 용어, 비교와 한계로 확장한다.
 </LessonLayer>
 
 <LessonLayer level="bench" title="무엇을 바꾸고 어떻게 읽을까?">
@@ -160,12 +170,16 @@ references:
 </LessonLayer>
 ~~~
 
+`LessonLab`의 `labId`는 frontmatter `labId`와 같아야 합니다. intuition `</LessonLayer>` 밖이나 bench 앞에 별도 block으로 두지 않습니다. `labId`가 없는 prose-only lesson에서는 `LessonLab` import와 element를 모두 생략하고 `intuition → bench → theory` 순서를 유지합니다. Topic React simulator를 MDX에서 직접 import하지 않습니다.
+
 ### Intuition
 
 - 한 장면, 한 움직임, 한 결과로 시작합니다.
 - 용어를 먼저 쌓기보다 “설정값을 바꾸면 무엇이 이동하는가”를 보여 줍니다.
 - 물리적 비유는 대응 관계와 한계를 함께 씁니다.
-- 조작 전에 `PredictionChallenge`를 둡니다.
+- 짧은 핵심 설명에서 독자가 lab 결과를 예측할 수 있도록 control과 관찰할 방향을 설명하되 정답을 공개하지 않습니다.
+- 핵심 설명 직후 `LessonLab`을 배치하고, 그 뒤에 용어, 비교, 오해와 측정 한계를 확장합니다.
+- 별도의 정적 `PredictionChallenge`를 넣지 않습니다. prediction gate와 정답 상태는 같은 intuition layer의 `LessonLab` simulator가 소유합니다.
 
 ### Bench: 실무 조작·해석
 
@@ -184,7 +198,7 @@ references:
 
 ## 8. MDX helper 계약
 
-Scaffold가 import하는 helper는 정적 Astro component라 별도 client JavaScript를 만들지 않습니다.
+Scaffold가 import하는 prose helper는 정적 Astro component라 별도 client JavaScript를 만들지 않습니다. `LessonLab`만 frontmatter와 같은 simulator island를 해당 문서 위치에 연결합니다.
 
 ### LessonLayer
 
@@ -197,21 +211,24 @@ Scaffold가 import하는 helper는 정적 Astro component라 별도 client JavaS
 - `level`: `intuition | bench | theory`
 - `title`: required string
 
-### PredictionChallenge
+### LessonLab
 
 ~~~mdx
-<PredictionChallenge
-  question="RBW를 10분의 1로 줄이면?"
-  choices={["noise per RBW 약 10 dB 감소", "주파수 간격 10배 증가", "source power 10 dB 감소"]}
-  answer={0}
-  explanation="바뀐 것은 analyzer filter 폭이다."
-/>
+<LessonLayer level="intuition" title="RBW를 줄이면 무엇이 달라질까?">
+  White noise를 더 좁은 분석 filter로 적분하면 marker에 포함되는 noise power가 줄어든다. 먼저 어느 stage가 바뀌는지 예상한다.
+
+  <LessonLab labId="spectrum" />
+
+  이제 filter shape, ENBW와 sweep time의 관계를 linked view 관찰에 연결한다.
+</LessonLayer>
 ~~~
 
-- `question`: required
-- `choices`: readonly string array
-- `answer`: 정답 index number 또는 answer string
-- `explanation`: 직접 바뀐 stage부터 설명
+- `labId`: required simulator enum이며 frontmatter `labId`와 정확히 같아야 함
+- 위치: intuition layer 안의 짧은 핵심 개념 설명 직후, 나머지 직관 세부 설명 전
+- 역할: controls, prediction, calculated results, Linked Views, Cause/Effect Ledger와 explanation completion을 하나의 state로 소유
+- 금지: 같은 예측을 정적 `PredictionChallenge`, prose 정답, 별도 callout으로 반복
+
+Prediction 문구와 선택지는 topic simulator 안에서 계산 scenario와 함께 관리합니다. 그래야 control unlock, 결과 state와 완료 판정이 서로 다른 답을 갖지 않습니다.
 
 ### Definition
 
@@ -250,7 +267,7 @@ Scaffold가 import하는 helper는 정적 Astro component라 별도 client JavaS
 
 ## 9. labId와 simulator 연결
 
-`labId`가 없으면 lesson은 본문만 렌더링합니다. 현재 `src/pages/learn/[...slug].astro` 연결은 다음과 같습니다.
+`labId`가 없으면 lesson은 본문만 렌더링합니다. `labId`가 있으면 MDX의 intuition layer 안에서 핵심 설명 바로 다음에 동일한 값의 `<LessonLab labId="…" />`을 둡니다. `LessonLab`이 현재 연결하는 island는 다음과 같습니다.
 
 | labId | React island | 용도 |
 |---|---|---|
@@ -270,8 +287,8 @@ Scaffold가 import하는 helper는 정적 Astro component라 별도 client JavaS
 2. numeric unit test와 deterministic expected value 작성
 3. plot을 `src/components/plots/`에 구현
 4. simulator orchestration을 `src/components/simulators/`에 구현
-5. `content.config.ts`의 labId enum과 learn route mapping을 함께 변경
-6. controls → model → linked views → ledger → prediction/explanation 순서 검증
+5. `content.config.ts`의 labId enum과 `LessonLab` mapping을 함께 변경
+6. 초기 controls 읽기 → prediction gate → control 변경 → model → linked views → ledger → explanation 순서 검증
 
 UI component에서 공식을 다시 구현하지 않습니다.
 
@@ -332,8 +349,8 @@ npm run test:e2e
 수동으로 확인할 항목:
 
 1. `/learn/<slug>/`가 static build에 생성되는가?
-2. 세 layer와 PredictionChallenge가 keyboard로 읽히고 조작되는가?
-3. labId가 정확한 island를 보여 주는가?
+2. 세 layer와 inline LessonLab이 keyboard로 읽히고 조작되는가?
+3. frontmatter와 `LessonLab`의 labId가 같고 정확한 island를 보여 주는가?
 4. 예상과 결과가 같은 계산 state를 설명하는가?
 5. standard/vendor source가 각 claim을 직접 뒷받침하는가?
 6. Pagefind build 후 title, symbol과 핵심 용어로 검색되는가?

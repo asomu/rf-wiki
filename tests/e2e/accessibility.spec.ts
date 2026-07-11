@@ -8,8 +8,8 @@ test.beforeEach(async ({ page }) => {
 
 async function hydrateLessonLab(page: Page, route: AppRoute): Promise<void> {
   if (!route.labId) return;
-  const rail = page.locator('.lesson-lab-rail');
-  await rail.scrollIntoViewIfNeeded();
+  const labBlock = page.locator('.lesson-lab-block');
+  await labBlock.scrollIntoViewIfNeeded();
   await expect(page.locator(`[data-lab-id="${route.labId}"]`)).toBeAttached({ timeout: 15_000 });
 }
 

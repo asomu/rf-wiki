@@ -49,7 +49,7 @@ status: "ready"
 ---
 
 import LessonLayer from '../../components/astro/LessonLayer.astro';
-import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import LessonLab from '../../components/astro/LessonLab.astro';
 import Definition from '../../components/astro/Definition.astro';
 import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
 import MeasurementNote from '../../components/astro/MeasurementNote.astro';
@@ -97,16 +97,7 @@ RB는 “데이터 12개”가 아니다. 한 RB 안에도 DM-RS, control 또는
 - 둘 다 IFFT에 넣는 bin 집합을 바꾸므로 time waveform의 sample-by-sample 모양과 PAPR도 달라질 수 있다.
 - total channel power를 고정했으면 RB를 늘릴수록 subcarrier당 평균 power는 낮아진다. PSD 기준을 고정하면 total power는 늘어난다. 장비의 power normalization을 확인해야 한다.
 
-<PredictionChallenge
-  question="NR 100 MHz, SCS 30 kHz, 273-RB carrier에서 allocation을 RB size 100으로 유지하고 start offset을 0에서 86으로 바꾸면 가장 직접적인 변화는?"
-  choices={[
-    "약 36 MHz의 allocation 폭은 유지되고 spectrum의 중심이 낮은 쪽에서 carrier 중심 근처로 이동한다",
-    "RB 하나의 폭이 360 kHz에서 720 kHz로 늘어난다",
-    "channel bandwidth가 자동으로 200 MHz가 된다"
-  ]}
-  answer={0}
-  explanation="한 RB의 폭은 12×30 kHz=360 kHz다. size 100은 약 36 MHz를 유지하고, start offset만 allocation의 위치를 바꾼다."
-/>
+<LessonLab labId="resource-grid" />
 
 ## LTE와 NR의 숫자를 먼저 분리하자
 

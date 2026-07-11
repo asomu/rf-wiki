@@ -3,10 +3,9 @@ import { curriculum, getCurriculumModule, type CurriculumModuleId } from '../../
 
 export interface Props {
   currentModule?: CurriculumModuleId;
-  currentLessonTitle?: string;
 }
 
-const { currentModule, currentLessonTitle } = Astro.props;
+const { currentModule } = Astro.props;
 const current = getCurriculumModule(currentModule);
 ---
 
@@ -19,10 +18,9 @@ const current = getCurriculumModule(currentModule);
 
     <div class="learning-map__body">
       <div class="learning-map__heading">
-        <p>전체 학습 지도</p>
+        <p>학습 경로</p>
         <span>{curriculum.length}개 축</span>
       </div>
-      {currentLessonTitle && <p class="learning-map__current">현재 질문<br /><strong>{currentLessonTitle}</strong></p>}
       <nav aria-label="학습 모듈">
         <ol>
           {curriculum.map((module) => {
@@ -31,9 +29,9 @@ const current = getCurriculumModule(currentModule);
               <li class:list={{ 'is-current': isCurrent }}>
                 <a href={module.representativeLessonHref} aria-current={isCurrent ? 'page' : undefined}>
                   <span class="module-index">{String(module.order).padStart(2, '0')}</span>
-                  <span>
+                  <span class="learning-map__label">
                     <strong>{module.shortTitle}</strong>
-                    <small>{module.question}</small>
+                    {isCurrent && <small>{module.question}</small>}
                   </span>
                 </a>
               </li>
@@ -50,7 +48,7 @@ const current = getCurriculumModule(currentModule);
   (() => {
     const disclosure = document.currentScript?.previousElementSibling?.querySelector('.learning-map__disclosure');
     if (!(disclosure instanceof HTMLDetailsElement)) return;
-    const compact = window.matchMedia('(max-width: 1024px)');
+    const compact = window.matchMedia('(max-width: 1180px)');
     const sync = () => {
       if (compact.matches) disclosure.removeAttribute('open');
       else disclosure.setAttribute('open', '');

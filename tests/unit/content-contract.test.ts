@@ -26,12 +26,15 @@ async function runContentCheck(source: string) {
 
 const readyLesson = (body: string) => `---
 status: "ready"
+labId: "frequency"
 references:
   - title: "Fixture"
 ---
 
+import LessonLab from '../../components/astro/LessonLab.astro';
+
 <LessonLayer level="intuition" title="intuition">
-<PredictionChallenge />
+<LessonLab labId="frequency" />
 </LessonLayer>
 <LessonLayer level="bench" title="bench"></LessonLayer>
 <LessonLayer level="theory" title="theory"></LessonLayer>

@@ -41,7 +41,7 @@ status: "ready"
 ---
 
 import LessonLayer from '../../components/astro/LessonLayer.astro';
-import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import LessonLab from '../../components/astro/LessonLab.astro';
 import Definition from '../../components/astro/Definition.astro';
 import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
 import MeasurementNote from '../../components/astro/MeasurementNote.astro';
@@ -71,16 +71,7 @@ Spectrum Analyzer의 trace는 입력 신호 그 자체가 아니다. **입력 �
 
 `RBW 100 kHz → 10 kHz`로 줄이면 일정한 spectral density의 noise가 filter에 들어오는 폭이 10분의 1이 된다. 이상적으로 marker noise power는 약 10 dB 낮아진다. 두 가까운 tone도 더 잘 분리된다. 대신 swept measurement는 filter가 settling할 시간을 기다려야 해 sweep이 길어지고, FFT 방식도 같은 해상도를 위해 더 긴 record가 필요하다.
 
-<PredictionChallenge
-  question="두 CW 사이가 30 kHz이고 noise가 평탄하다. RBW를 100 kHz에서 10 kHz로 줄이면 어떤 관찰이 가장 타당할까?"
-  choices={[
-    "두 tone이 더 잘 분리되고, noise per RBW는 약 10 dB 낮아지며, 측정 시간은 늘어날 수 있다",
-    "두 tone의 실제 주파수 간격이 300 kHz로 늘어난다",
-    "source의 total noise power가 10 dB 줄어든다"
-  ]}
-  answer={0}
-  explanation="바뀐 것은 analyzer의 분석 filter다. DUT의 tone 간격과 total noise 생성량이 아니라 분해능, 표시 noise power, 시간 비용이 달라진다."
-/>
+<LessonLab labId="spectrum" />
 
 ## Spectrum trace가 말해 주는 것과 숨기는 것
 

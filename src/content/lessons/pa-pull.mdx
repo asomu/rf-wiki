@@ -46,7 +46,7 @@ status: "ready"
 ---
 
 import LessonLayer from '../../components/astro/LessonLayer.astro';
-import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import LessonLab from '../../components/astro/LessonLab.astro';
 import Definition from '../../components/astro/Definition.astro';
 import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
 import MeasurementNote from '../../components/astro/MeasurementNote.astro';
@@ -85,16 +85,7 @@ DUT input reference plane에서 source reflection coefficient `ΓS`를 바꾸며
 
 따라서 “optimum load”는 metric, frequency, bias, drive, waveform, harmonic termination을 붙이지 않으면 불완전한 말이다.
 
-<PredictionChallenge
-  question="50 Ω에서 Pout이 최대가 아니어서 ΓL을 PAE contour의 peak로 이동했다. 반드시 함께 좋아진다고 말할 수 없는 것은?"
-  choices={[
-    "EVM과 ACLR, 최대 Pout, stability는 별도 contour와 조건으로 다시 확인해야 한다",
-    "PAE는 선택한 측정점에서 정의에 따라 계산할 수 있다",
-    "tuner가 DUT에 제시한 ΓL은 calibration plane 기준으로 기록해야 한다"
-  ]}
-  answer={0}
-  explanation="한 metric의 optimum은 다른 metric의 optimum을 보장하지 않는다. 특히 load가 바뀌면 compression, phase distortion, stability margin과 delivered power가 함께 달라진다."
-/>
+<LessonLab labId="load-pull" />
 
 ## `S22*`에 conjugate match하면 끝이라는 오해
 

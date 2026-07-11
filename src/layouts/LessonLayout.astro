@@ -31,7 +31,7 @@ const layerItems = [
 
 <BaseLayout title={title} description={description} currentPath={Astro.url.pathname} bodyClass="lesson-page">
   <main class="lesson-shell">
-    <LearningMap currentModule={moduleId} currentLessonTitle={title} />
+    <LearningMap currentModule={moduleId} />
 
     <div class="lesson-intro" data-pagefind-body>
       <Breadcrumbs
@@ -52,15 +52,6 @@ const layerItems = [
         <p>{description}</p>
       </header>
     </div>
-
-    <aside class="lesson-lab-rail" id="interactive-lab" aria-label="인터랙티브 실험">
-      <slot name="lab">
-        <div class="lab-placeholder">
-          <p class="data-label">LAB / 준비 상태</p>
-          <p>이 단원의 실험은 본문에서 계산 조건을 확인한 뒤 시작합니다.</p>
-        </div>
-      </slot>
-    </aside>
 
     <nav class="layer-rail" aria-label="학습 깊이">
       <ol>
