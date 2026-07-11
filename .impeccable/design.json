@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-11T00:00:00+09:00",
+  "title": "Design System: RF Wiki — Precision Lab",
+  "extensions": {
+    "colorMeta": {
+      "canvas": { "role": "neutral", "displayName": "Lab Canvas", "canonical": "#F2F5F5", "tonalRamp": ["#162126", "#2D393E", "#49575C", "#68767B", "#91A0A4", "#C9D3D5", "#E8EEEE", "#F2F5F5"] },
+      "active": { "role": "primary", "displayName": "Forward Teal", "canonical": "#08746E", "tonalRamp": ["#07312F", "#07504C", "#086962", "#08746E", "#26A198", "#48C3B8", "#9DE3DC", "#E1F7F4"] },
+      "reference": { "role": "secondary", "displayName": "Reference Oxide", "canonical": "#925E00", "tonalRamp": ["#3B2800", "#664300", "#875700", "#925E00", "#D08B18", "#F0B441", "#F8D98E", "#FFF2D2"] },
+      "reverse": { "role": "semantic", "displayName": "Reverse Red", "canonical": "#B94339", "tonalRamp": ["#491B18", "#732721", "#96352E", "#B94339", "#DA584F", "#F06A60", "#F7AAA4", "#FCE4E2"] }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Korean Prose", "purpose": "17px/1.75 explanatory reading with a 65–72ch cap." },
+      "data": { "displayName": "Instrument Data", "purpose": "Tabular numeric readouts, units, variables and SCPI." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 6px 12px rgba(16,25,27,.14)", "purpose": "Only for content that physically floats above the page." },
+      { "name": "focus", "value": "0 0 0 3px rgba(10,129,122,.28)", "purpose": "Keyboard focus visibility." }
+    ],
+    "motion": [
+      { "name": "press", "value": "120ms cubic-bezier(0.23,1,0.32,1)", "purpose": "Immediate press feedback." },
+      { "name": "state", "value": "160ms cubic-bezier(0.23,1,0.32,1)", "purpose": "Interruptible trace and control state changes." },
+      { "name": "panel", "value": "220ms cubic-bezier(0.23,1,0.32,1)", "purpose": "Occasional panel transitions only." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "390px" },
+      { "name": "stack-lab", "value": "1024px" },
+      { "name": "desktop", "value": "1440px" }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "The Calibrated Bench",
+    "overview": "Bright lab documentation and a dark instrument surface share one state. Ornament is removed so alignment, direct labels and numeric truth carry trust.",
+    "keyCharacteristics": ["Functional light/dark surface contrast", "Two-family IBM Plex typography", "Signal Spine + Linked Views + Cause/Effect Ledger"],
+    "rules": [
+      { "name": "Physical Meaning", "body": "Every non-neutral color must name a physical role.", "section": "colors" },
+      { "name": "Three Cue", "body": "Critical traces use color, line/marker and a direct label.", "section": "colors" },
+      { "name": "Flat Bench", "body": "Resting surfaces are flat; elevation communicates real stacking or interaction.", "section": "elevation" }
+    ],
+    "dos": ["Do keep control, changed stage, resulting view and interpretation in one visual field."],
+    "donts": ["Don't use beige notes, purple gradients, glassmorphism, marketing heroes, generic card grids or decorative motion."]
+  }
+}

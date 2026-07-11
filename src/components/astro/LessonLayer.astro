@@ -1,0 +1,27 @@
+---
+export interface Props {
+  level: 'intuition' | 'bench' | 'theory';
+  title: string;
+}
+
+const { level, title } = Astro.props;
+const levels = {
+  intuition: { index: '1', label: '직관', prompt: '무엇이 보이나?' },
+  bench: { index: '2', label: '실무 조작·해석', prompt: '무엇을 바꿀까?' },
+  theory: { index: '3', label: '수식·규격', prompt: '어떻게 검증할까?' }
+} as const;
+const meta = levels[level];
+---
+
+<section class="lesson-layer" id={level} data-pagefind-body>
+  <header class="lesson-layer__heading">
+    <span class="lesson-layer__index">{meta.index}</span>
+    <div>
+      <p>{meta.label} · {meta.prompt}</p>
+      <h2>{title}</h2>
+    </div>
+  </header>
+  <div class="lesson-layer__body">
+    <slot />
+  </div>
+</section>

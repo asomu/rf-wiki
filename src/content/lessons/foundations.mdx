@@ -1,0 +1,234 @@
+---
+title: "주파수는 무엇을 세는가?"
+description: "시간 파형, 회전하는 IQ 벡터, dB와 50 Ω 전력을 하나의 신호 그림으로 연결한다."
+module: "foundations"
+order: 1
+estimatedMinutes: 55
+prerequisites: []
+outcomes:
+  - "주기, 주파수, 위상, 파장을 서로 변환하고 무엇이 실제로 달라졌는지 말할 수 있다."
+  - "I와 Q를 회전 벡터의 두 좌표로 읽고 magnitude와 phase를 계산할 수 있다."
+  - "dBm, dB, 전압, 50 Ω 전력의 기준을 혼동하지 않고 bench 설정을 검증할 수 있다."
+concepts:
+  - "frequency"
+  - "period"
+  - "phase"
+  - "complex envelope"
+  - "decibel"
+  - "50 ohm reference"
+equipmentContext:
+  source: "Keysight Signal Studio 또는 RF signal generator의 CW 출력"
+  dut: "50 Ω 동축 케이블과 feed-through termination"
+  analyzer: "Keysight X-Series signal analyzer의 Spectrum Analyzer 모드"
+standards:
+  - "BIPM SI Brochure 9th edition"
+references:
+  - title: "The International System of Units (SI Brochure), 9th edition"
+    organization: "BIPM"
+    url: "https://www.bipm.org/en/publications/si-brochure"
+    kind: "standard"
+  - title: "Spectrum Analysis Basics, Application Note 150"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06714/application-notes/5952-0292.pdf"
+    kind: "application-note"
+labId: "frequency"
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import Definition from '../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+RF를 처음 배울 때 가장 먼저 붙잡아야 할 것은 “몇 GHz인가”가 아니라 **무엇이 시간에 따라 반복되고 있는가**다. 이 단원에서는 같은 CW 신호를 시간 파형, 복소 평면, 전력 readout으로 번갈아 본다.
+
+<LessonLayer level="intuition" title="1 GHz라는 숫자는 어떤 움직임을 말할까?">
+
+## 먼저 한 장면을 떠올리자
+
+신호 발생기에서 나온 정현파를 원의 둘레를 일정한 속도로 도는 점이라고 생각하자. 점의 가로 좌표를 I, 세로 좌표를 Q라고 두면 점은 복소 평면을 회전한다. 이 점의 가로 그림자만 시간축에 그리면 익숙한 cosine 파형이 된다.
+
+- 한 바퀴를 도는 데 걸린 시간이 **주기 `T`**다.
+- 1초에 돈 바퀴 수가 **주파수 `f`**다.
+- 지금 원의 어느 각도에 있는지가 **위상 `φ`**다.
+- 전송선에서 같은 위상이 다시 나타날 때까지의 거리가 **파장 `λ`**다.
+
+<Definition term="주파수 frequency">
+초당 반복 횟수다. `1 Hz`는 1초에 1회, `1 GHz`는 1초에 10억 회 반복한다. 주파수는 신호의 크기를 말하지 않는다.
+</Definition>
+
+<Definition term="위상 phase">
+반복 운동 안에서의 위치다. 같은 주파수·같은 크기의 두 신호도 출발 각도가 다르면 합쳤을 때 커지거나 작아진다. 계측 기준 시점이 바뀌어도 위상은 바뀔 수 있다.
+</Definition>
+
+### 주파수를 두 배로 바꾸면 무엇이 그대로일까?
+
+`1 GHz` CW를 `2 GHz`로 바꾸면 1 ns 동안 보이던 한 주기가 0.5 ns로 짧아진다. 자유공간 파장도 약 300 mm에서 150 mm로 짧아진다. 하지만 generator level을 그대로 두었다면 신호의 명목 전력은 그대로다. 실제 케이블 출력은 주파수에 따른 케이블 손실과 mismatch 때문에 조금 달라질 수 있다.
+
+<PredictionChallenge
+  question="50 Ω load에 +0 dBm으로 설정한 CW의 주파수만 1 GHz에서 2 GHz로 바꾸면, 이상적인 모델에서 가장 먼저 달라지는 것은?"
+  choices={[
+    "주기와 파장이 각각 절반이 된다",
+    "전력이 자동으로 2배가 된다",
+    "I와 Q의 최대 크기가 반드시 절반이 된다"
+  ]}
+  answer={0}
+  explanation="주파수는 반복 속도를 바꾼다. 이상적인 50 Ω source/load에서 level을 유지하면 평균 전력과 복소 벡터의 반지름은 유지된다."
+/>
+
+## I와 Q는 두 개의 별도 신호가 아니라 한 상태의 두 좌표다
+
+복소 신호를 `x = I + jQ`로 쓰면 magnitude는 원점에서 점까지의 거리이고 phase는 양의 I축에서 잰 각도다.
+
+| I | Q | magnitude | phase | 머릿속 그림 |
+|---:|---:|---:|---:|---|
+| 1 | 0 | 1 | 0° | 오른쪽 |
+| 0 | 1 | 1 | +90° | 위쪽 |
+| -1 | 0 | 1 | ±180° | 왼쪽 |
+| 1 | 1 | √2 | +45° | 오른쪽 위 |
+
+`I=1, Q=1`의 magnitude가 2가 아닌 `√2`인 이유는 직교한 두 축의 길이를 피타고라스 정리로 합치기 때문이다. phase는 단순히 `Q/I`가 아니라 사분면을 보존하는 `atan2(Q, I)`로 구해야 한다.
+
+## dB는 값이 아니라 비율을 말한다
+
+`dB`만 적혀 있으면 두 양의 **비율**이다. `dBm`은 그 비율의 분모를 1 mW로 고정한 절대 전력이다.
+
+- 전력이 10배면 `+10 dB`, 100배면 `+20 dB`다.
+- 전력이 2배면 약 `+3.01 dB`다.
+- 같은 impedance에서 전압이 2배면 전력은 4배이므로 `+6.02 dB`다.
+- `0 dBm = 1 mW`, `+10 dBm = 10 mW`, `-30 dBm = 1 µW`다.
+
+50 Ω에서 `0 dBm`의 정현파는 약 `223.6 mV rms`, `316.2 mV peak`, `632.5 mV peak-to-peak`다. 이 세 전압을 섞으면 3 dB 또는 6 dB 차이처럼 보이는 오류가 생긴다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="CW를 만들고 SA에서 단위까지 검증해 보자">
+
+## Signal Spine: Source → Cable → Acquisition → Display
+
+이번 실험의 상태는 단순하다.
+
+1. **Source** — generator가 `1.000 GHz`, `-10.0 dBm`, CW를 합성한다.
+2. **DUT** — 50 Ω cable과 connector가 주파수 의존 손실·위상 지연을 더한다.
+3. **Acquisition** — X-Series input attenuator, preselector, mixer가 선택한 대역을 IF로 옮긴다.
+4. **DSP/Math** — RBW filter와 detector가 표시할 크기를 만든다.
+5. **Display** — marker가 주파수와 dBm을 읽는다.
+
+주파수 control을 바꾸면 Source부터 Display까지 활성화된다. reference level만 바꾸면 실제 source와 DUT 신호는 바뀌지 않고 Acquisition과 Display의 headroom만 달라진다.
+
+## 안전한 Keysight-style CW 측정 순서
+
+### 1. 연결 전 power budget을 쓴다
+
+`예상 analyzer input = source level − cable loss − attenuator loss + DUT gain`으로 최악 조건을 계산한다. PA나 active DUT라면 analyzer의 maximum safe input보다 충분히 낮도록 외부 attenuator와 DC block 필요 여부를 먼저 결정한다.
+
+### 2. generator를 RF Off 상태로 설정한다
+
+- Frequency: `1 GHz`
+- Amplitude: `-20 dBm`에서 시작
+- Modulation: Off 또는 CW
+- Amplitude reference: 50 Ω load 기준인지 확인
+
+Signal Studio를 쓰지 않아도 되는 순수 CW다. Signal Studio의 waveform scaling이나 crest factor가 끼어들지 않게 한다.
+
+### 3. X-Series SA를 넓게 찾고 좁게 읽는다
+
+- Mode: Spectrum Analyzer
+- Center Frequency: `1 GHz`
+- Span: 처음에는 `100 MHz`
+- Reference Level: 예상 peak보다 `10–20 dB` 높게
+- Input Attenuation: Auto로 시작하되 mixer level을 확인
+- Preamp: 강한 CW에서는 Off
+- RBW: `100 kHz`로 시작
+- Detector: Peak 또는 Normal
+
+신호를 찾았으면 `Peak Search`, `Marker → CF`, span을 `1 MHz`, RBW를 `10 kHz`처럼 단계적으로 줄인다. span과 RBW를 한 번에 매우 작게 만들면 잘못된 center에서 신호를 놓치거나 sweep이 불필요하게 느려진다.
+
+### 4. source RF On 후 세 조건을 함께 기록한다
+
+marker 숫자만 기록하지 않는다.
+
+| 기록 항목 | 예 | 이유 |
+|---|---|---|
+| source 설정 | `1.000 GHz, -10.0 dBm` | 입력 조건 |
+| analyzer 조건 | `Atten 10 dB, RBW 10 kHz, Preamp Off` | 내부 noise·compression 조건 |
+| reference plane | cable 끝, adapter 포함 | 어느 위치의 전력인지 |
+| marker 결과 | `999.9998 MHz, -10.7 dBm` | 관측값 |
+| 보정·불확도 | cable loss 0.5 dB, amplitude uncertainty | 해석 범위 |
+
+`-10.7 dBm`을 보고 source가 0.7 dB 틀렸다고 바로 결론 내리지 않는다. cable loss, connector repeatability, analyzer amplitude accuracy, mismatch uncertainty를 분리해야 한다.
+
+## 50 Ω와 Hi-Z 표시가 왜 다를까?
+
+RF generator의 amplitude는 보통 **정합된 50 Ω load에 전달될 값**으로 정의된다. 50 Ω source의 open-circuit 전압은 정합 load 전압의 두 배다. 따라서 Hi-Z oscilloscope로 직접 읽으면 설정값으로 예상한 load 전압보다 약 두 배, 즉 `+6 dB` 크게 보일 수 있다. 이것은 generator가 6 dB 강해진 것이 아니라 load condition이 달라진 것이다.
+
+<MeasurementNote title="reference plane 없이 정확한 dBm은 없다">
+Source display, cable 입력, cable 출력, DUT 입력, analyzer connector는 서로 다른 reference plane이다. cable loss 보정을 켰다면 보정값의 부호와 적용 plane을 함께 기록한다. 50 Ω nominal만으로 mismatch uncertainty가 사라지지는 않는다.
+</MeasurementNote>
+
+## 자주 하는 오해를 trace와 분리해서 보자
+
+| 오해 | 실제 원인 확인법 |
+|---|---|
+| `GHz`가 높으면 전력이 더 세다 | 주파수와 amplitude는 독립 control이다. 다만 경로 손실은 주파수 의존적이다. |
+| reference level을 내리면 source가 약해진다 | input 신호는 그대로고 analyzer display와 내부 gain/attenuation 조건이 달라진다. |
+| `0 dBm`은 0 V다 | 1 mW다. 50 Ω에서 223.6 mV rms다. |
+| phase 180°는 신호가 사라진 뜻이다 | 하나의 신호는 반대 방향 벡터다. 같은 크기의 0° 신호와 더할 때만 상쇄된다. |
+| 케이블을 길게 하면 주파수가 낮아진다 | 주파수는 유지되고 phase delay와 loss가 증가한다. |
+
+## Bench에서 스스로 설명할 문장
+
+“주파수를 `1 GHz → 2 GHz`로 바꾸자 Source의 회전 속도가 두 배가 되었고 주기와 파장은 절반이 되었다. analyzer marker는 새 주파수로 이동했다. 이상적 모델의 power는 같지만 실제 readout 차이는 cable loss와 mismatch의 주파수 의존성을 확인해야 한다.”
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="수식의 기준을 명시하면 단위 혼동이 사라진다">
+
+<FormulaDisclosure title="주기·주파수·파장" formula="f = 1/T,   λ = vₚ/f">
+`f`의 단위는 Hz, `T`는 s, `vₚ`는 m/s, `λ`는 m다. 자유공간에서는 `vₚ ≈ c`지만 cable에서는 velocity factor 때문에 더 느리다. 같은 물리 길이도 주파수가 높아질수록 더 큰 electrical length가 된다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="실수 RF와 complex envelope" formula="v(t) = Re{ A(t) · exp[j(2πfct + φ(t))] },   A(t) = I(t) + jQ(t)">
+`fc`는 carrier frequency다. `I(t), Q(t)`는 carrier보다 천천히 변하는 complex envelope 좌표다. `|A| = √(I²+Q²)`, `∠A = atan2(Q,I)`다. 장비가 IQ를 내보낼 때 I/Q ordering, Q sign, full-scale normalization, sample rate를 반드시 명시해야 한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="전력 dB와 전압 dB" formula="GdB = 10 log₁₀(P₂/P₁),   GdB = 20 log₁₀(V₂/V₁) (same impedance)">
+전압에 `20 log`를 쓰는 것은 `P = Vrms²/R`이고 두 측정의 impedance가 같다는 전제가 있기 때문이다. impedance가 다르면 전압비만으로 power gain을 계산할 수 없다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="dBm과 50 Ω 정현파" formula="PdBm = 10 log₁₀(P/1 mW),   Vrms = √(PR),   Vpeak = √2·Vrms">
+예를 들어 `P = 1 mW`, `R = 50 Ω`이면 `Vrms = √0.05 ≈ 0.2236 V`다. 평균 전력, rms 전압, peak 전압의 정의를 같은 행에 기록한다.
+</FormulaDisclosure>
+
+## 수치 sanity check
+
+| 조건 | 계산 | 결과 |
+|---|---|---:|
+| `f = 1 GHz` | `T = 1/f` | `1 ns` |
+| 자유공간 `1 GHz` | `λ = c/f` | 약 `0.300 m` |
+| velocity factor 0.70 cable | `λcable = 0.70c/f` | 약 `0.210 m` |
+| `P = -10 dBm` | `10^(-10/10) mW` | `0.1 mW` |
+| 50 Ω, `-10 dBm` | `√(0.0001·50)` | `70.7 mV rms` |
+| 전력 4배 | `10 log₁₀(4)` | `+6.02 dB` |
+
+## 이 단원의 convention
+
+- 정현파 전압은 별도 표기가 없으면 rms다.
+- RF power는 평균 실전력이며 50 Ω nominal reference를 사용한다.
+- phase는 `I + jQ`, counter-clockwise positive, degree로 표시한다.
+- cable wavelength는 phase velocity를 사용하며 group velocity와 같다고 자동 가정하지 않는다.
+- dBm은 absolute power, dB는 ratio다.
+
+이 convention이 다음 단원의 FFT, VNA의 power wave, IQ capture와 이어진다. 다른 장비나 파일 형식이 Q sign 또는 FFT normalization을 다르게 쓰면 틀린 것이 아니라 **기준이 다른 것**일 수 있다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+다음 네 문장을 숫자 없이도 설명할 수 있어야 한다.
+
+1. 주파수를 바꾸면 time view와 wavelength가 왜 같이 바뀌는가?
+2. `I=0, Q=1`은 왜 magnitude 1, phase +90°인가?
+3. 50 Ω에서 `0 dBm`을 voltage로 바꿀 때 왜 rms와 peak를 구분해야 하는가?
+4. SA marker가 source setting보다 0.7 dB 낮을 때 어떤 reference plane과 불확도를 먼저 점검할 것인가?

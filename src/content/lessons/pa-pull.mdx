@@ -1,0 +1,300 @@
+---
+title: "Load-pull contour의 가장 좋은 점은 왜 하나가 아닐까?"
+description: "PA의 compression, AM-AM/AM-PM, PAE·EVM·ACLR trade-off와 source/load impedance sweep을 Smith Chart 위의 실제 power flow로 해석한다."
+module: "pa-pull"
+order: 6
+estimatedMinutes: 100
+prerequisites:
+  - "vna-smith"
+  - "power-coupling"
+  - "ofdm-lte-nr"
+outcomes:
+  - "small-signal S-parameter와 driven large-signal PA 거동의 적용 범위를 구분할 수 있다."
+  - "source-pull과 load-pull이 각각 어느 plane의 Γ를 바꾸며 어떤 지표를 최적화하는지 설명할 수 있다."
+  - "Pout, gain, PAE, AM-AM, AM-PM, EVM, ACLR contour가 서로 다른 optimum을 갖는 이유를 말할 수 있다."
+  - "K/μ stability와 stability circle을 절대 보장이 아닌 조건부 사전 점검으로 사용할 수 있다."
+concepts:
+  - "power amplifier compression"
+  - "AM-AM and AM-PM"
+  - "power-added efficiency"
+  - "stability factor"
+  - "source-pull"
+  - "load-pull"
+  - "harmonic termination"
+  - "large-signal contours"
+equipmentContext:
+  source: "Keysight Signal Studio/vector signal generator와 calibrated driver chain"
+  dut: "connectorized biased RF power amplifier와 fixture"
+  analyzer: "Keysight PNA-X/load-pull test set, X-Series/89600 VSA와 DC power analyzer"
+standards:
+  - "3GPP TS 38.104 Release 17"
+references:
+  - title: "Investigating Load Pull and DC Simulations of a Cree FET"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-04329/application-notes/5991-4154.pdf"
+    kind: "application-note"
+  - title: "Theory of Load and Source Pull Measurement"
+    organization: "Maury Microwave"
+    url: "https://maurymw.com/resources/theory-of-load-and-source-pull-measurement/"
+    kind: "vendor"
+  - title: "ETSI TS 138 104 V17.10.0 — 5G NR; Base Station radio transmission and reception"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/138100_138199/138104/17.10.00_60/ts_138104v171000p.pdf"
+    kind: "standard"
+labId: "load-pull"
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import Definition from '../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+50 Ω에서 PA를 한 번 재고 “출력 40 dBm, PAE 46%”라고 말하면 그 PA의 한 점만 본 것이다. 실제 antenna, filter, switch가 만드는 load impedance가 달라지면 transistor의 voltage/current swing, compression, harmonic waveform과 열이 함께 바뀐다. Load-pull은 이 변화를 Smith Chart의 여러 `ΓL`에서 반복 측정해 **성능 지형도**로 만든다.
+
+<LessonLayer level="intuition" title="왜 최대 Pout, 최대 PAE, 최소 EVM의 위치가 다를까?">
+
+## PA는 큰 신호에서 선형 2-port가 아니다
+
+작은 신호 영역에서는 output이 input에 비례하고 gain이 거의 일정하다. drive를 높이면 device의 voltage/current 한계와 bias가 waveform을 눌러 gain compression이 시작된다.
+
+- **AM-AM:** input magnitude가 커질 때 output magnitude가 얼마나 따라오는가
+- **AM-PM:** input magnitude가 커질 때 output phase가 얼마나 회전하는가
+- **Compression:** small-signal 직선 extrapolation보다 actual output이 낮아지는 양
+- **Memory effect:** 같은 순간 amplitude라도 이전 symbol, bias network, thermal state에 따라 output이 달라지는 현상
+
+OFDM은 peak가 평균보다 훨씬 클 수 있어 average power가 같아도 CW와 compression 양상이 다르다. PA가 peak를 누르면 constellation의 바깥 symbol이 안쪽으로 당겨지고 phase도 amplitude-dependent하게 돌아 EVM과 ACLR이 나빠진다.
+
+<Definition term="load-pull">
+DUT output reference plane에서 PA가 바라보는 load reflection coefficient `ΓL`을 여러 점으로 바꾸며 Pout, gain, efficiency, linearity 등을 측정하는 방법이다.
+</Definition>
+
+<Definition term="source-pull">
+DUT input reference plane에서 source reflection coefficient `ΓS`를 바꾸며 accepted drive, gain, noise, stability, linearity와 성능 민감도를 측정하는 방법이다. input tuner를 움직이는 동안 generator available power와 DUT accepted input power를 구분해야 한다.
+</Definition>
+
+## Smith Chart의 contour는 등고선이다
+
+각 `ΓL` 점에서 Pout을 측정해 같은 값끼리 연결하면 output-power contour가 된다. PAE, gain, EVM, ACLR도 각각 별도 지형도를 만든다.
+
+- 최대 Pout은 큰 voltage/current swing이 가능한 load 쪽에 있을 수 있다.
+- 최대 PAE는 DC power 대비 RF 증가가 가장 효율적인 다른 load에 있을 수 있다.
+- 최소 EVM/ACLR은 compression과 waveform distortion이 더 작은, 다소 back-off된 load에 있을 수 있다.
+- gain flatness나 ruggedness까지 포함하면 선택점은 다시 달라진다.
+
+따라서 “optimum load”는 metric, frequency, bias, drive, waveform, harmonic termination을 붙이지 않으면 불완전한 말이다.
+
+<PredictionChallenge
+  question="50 Ω에서 Pout이 최대가 아니어서 ΓL을 PAE contour의 peak로 이동했다. 반드시 함께 좋아진다고 말할 수 없는 것은?"
+  choices={[
+    "EVM과 ACLR, 최대 Pout, stability는 별도 contour와 조건으로 다시 확인해야 한다",
+    "PAE는 선택한 측정점에서 정의에 따라 계산할 수 있다",
+    "tuner가 DUT에 제시한 ΓL은 calibration plane 기준으로 기록해야 한다"
+  ]}
+  answer={0}
+  explanation="한 metric의 optimum은 다른 metric의 optimum을 보장하지 않는다. 특히 load가 바뀌면 compression, phase distortion, stability margin과 delivered power가 함께 달라진다."
+/>
+
+## `S22*`에 conjugate match하면 끝이라는 오해
+
+small-signal S22는 특정 bias, frequency, 작은 excitation, 다른 port match 조건에서 잰 선형 반사다. 큰 신호 PA에서는 device waveform과 effective output impedance가 drive level에 따라 달라진다. 최대 power load는 small-signal `conj(S22)`로 얻은 match와 보통 같다고 보장할 수 없다.
+
+S-parameter는 시작점, 안정성·matching network 설계의 선형 정보다. Load-pull은 실제 drive와 bias에서 큰 신호 성능을 측정하는 다음 단계다.
+
+## Source-pull과 load-pull은 독립 knob가 아니다
+
+input match가 바뀌면 transistor에 accepted되는 drive와 phase가 변하고, 그 결과 output optimum load도 달라질 수 있다. output load가 바뀌면 reverse transmission과 nonlinear feedback을 통해 input 거동도 달라질 수 있다. 실무에서는 한쪽을 nominal optimum에 둔 뒤 다른 쪽을 sweep하고, 필요하면 반복해 수렴시킨다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="안전성과 reference plane을 확보한 뒤 contour를 만들자">
+
+## Signal Spine
+
+`Waveform source → input tuner/driver → DUT/fixture → output tuner → coupler/receiver/load`
+
+동시에 DC supply가 bias voltage/current를 제공하고 thermal system이 junction state에 영향을 준다. analyzer의 spectrum/IQ만 보지 말고 incident/reflected waves와 DC를 같은 timestamp·state로 묶는다.
+
+## 0. 측정 전에 멈춰야 할 위험
+
+- DUT absolute maximum voltage, current, dissipation, junction temperature
+- tuner가 만드는 높은 VSWR에서의 peak voltage/current
+- unstable termination에서 oscillation 가능성
+- output tuner loss와 reflected power가 driver/PA로 돌아가는 경로
+- bias sequencing, gate current, thermal runaway
+- analyzer/sensor/coupler power limit
+
+Load-pull은 고반사 상태를 의도적으로 만든다. current limit, fast shutdown, isolator/attenuator, thermal monitoring과 safe region을 먼저 정한다.
+
+## 1. Small-signal S-parameter와 stability를 넓게 본다
+
+목표 frequency 한 점만 보지 않고 operating band와 잠재 out-of-band oscillation 영역을 측정한다. bias는 실제 조건에 맞추되 small-signal power로 유지한다.
+
+- `S11/S22`: input/output match의 시작점
+- `S21`: forward small-signal gain
+- `S12`: reverse isolation/feedback
+- `K, |Δ|, μ, μ′`: linear two-port unconditional stability의 충분조건 점검
+- source/load stability circles: Smith Chart 안 위험 영역의 후보
+
+`K>1` 하나만 확인하고 모든 주파수·bias·large-signal termination에서 안전하다고 결론 내리지 않는다.
+
+## 2. tuner와 fixture를 DUT plane으로 calibration한다
+
+Tuner가 내부에서 설정한 impedance가 아니라 **DUT pin/connector plane에 실제 제시된 Γ**가 필요하다.
+
+1. cable, coupler, fixture, tuner의 S-parameter와 loss를 측정한다.
+2. tuner state별 reflection coefficient를 characterization한다.
+3. reference plane을 DUT input/output으로 de-embed한다.
+4. power sensors/receivers와 DC measurement를 calibration한다.
+5. verification impedance를 재현해 magnitude·phase repeatability를 확인한다.
+
+큰 `|Γ|`에서는 tuner loss와 phase uncertainty가 contour 좌표와 delivered power 모두를 크게 흔든다.
+
+## 3. 50 Ω baseline을 만든다
+
+- Bias: Vd/Vg 또는 Vcc/Iq
+- Temperature와 soak time
+- Frequency, waveform, bandwidth, sample rate
+- Input available/forward/accepted power
+- Output forward/reflected/load-delivered power
+- Small-signal 또는 transducer/operating gain 중 선택
+- DC power, PAE, drain efficiency
+- EVM, ACLR, occupied bandwidth
+
+CW baseline과 NR/LTE modulated baseline을 구분한다. waveform의 PAPR, clipping, DPD state, random seed와 averaging time을 기록한다.
+
+## 4. Load-pull sweep
+
+1. `ΓS`와 input drive definition을 고정한다.
+2. 안전한 작은 `|ΓL|` grid부터 시작한다.
+3. tuner state가 settle한 뒤 actual `ΓL`을 읽는다.
+4. DUT-plane incident/reflected waves로 accepted/delivered power를 계산한다.
+5. Pout, gain, DC, PAE, harmonics, EVM/ACLR을 같은 state에 저장한다.
+6. compression/temperature가 안정화되도록 dwell과 sweep order를 관리한다.
+7. 일부 state를 재측정해 drift와 hysteresis를 확인한다.
+
+Contour interpolation은 측정하지 않은 점의 추정이다. contour peak가 grid edge에 있으면 더 넓은 coverage가 필요하고, sparse grid의 날카로운 peak를 실제 optimum으로 믿지 않는다.
+
+## 5. Source-pull sweep
+
+candidate `ΓL`을 고정하고 `ΓS`를 움직인다. generator 설정 power가 같아도 input mismatch 때문에 DUT accepted input이 변한다. 두 가지 비교 방법을 명시한다.
+
+- **Constant available source power:** 실제 source/tuner system이 주는 조건을 비교
+- **Constant DUT accepted input power:** input mismatch 영향을 보정해 device excitation을 비교
+
+source-pull에서는 driver linearity와 reverse power, tuner loss를 함께 본다. noise figure optimum source impedance는 maximum gain 또는 large-signal linearity optimum과 다를 수 있다.
+
+## 6. Harmonic load/source pull
+
+fundamental `ΓL(f0)`가 같아도 `2f0`, `3f0` impedance가 달라지면 drain voltage/current waveform과 PAE가 달라진다. harmonic tuner 또는 active injection으로 harmonic termination을 제어할 수 있다. “load impedance 10+j20 Ω”라고 쓸 때 어느 harmonic의 값인지 붙인다.
+
+## contour를 선택하는 실제 의사결정
+
+예를 들어 다음처럼 specification mask를 겹친다.
+
+- Pout `≥ 39.5 dBm`
+- PAE `≥ 45%`
+- Gain compression `≤ 2 dB`
+- EVM `≤ project limit`
+- ACLR `≤ project limit`
+- Stability/ruggedness safe region 안
+- matching network가 bandwidth와 tolerance 안에서 구현 가능한 영역
+
+모든 조건의 교집합에서 제조·온도 변화에 둔감한 완만한 지점을 선택한다. 가장 높은 단일 peak보다 contour가 넓고 경사가 작은 지점이 production에 더 나을 수 있다.
+
+<MeasurementNote title="Contour의 매끈함은 측정 정확도를 뜻하지 않는다">
+Interpolation은 튜너 state 사이를 부드럽게 그리지만 tuner loss, Γ phase, power calibration, DC accuracy, thermal drift, waveform statistics의 불확도를 제거하지 않는다. 각 contour에는 measured points, interpolation 영역, uncertainty 또는 repeatability를 함께 표시한다.
+</MeasurementNote>
+
+## Keysight-style Tx/PA 분석 흐름
+
+### Waveform 생성
+
+Signal Studio에서 Release 17 LTE/NR waveform, RB allocation, modulation, PAPR reduction/DPD 상태를 고정한다. vector generator의 output correction과 driver chain linearity를 확인한다.
+
+### PA와 tuner
+
+PNA-X 또는 load-pull system이 tuner state, a/b wave, power meter calibration을 DUT plane으로 연결한다. bias와 temperature를 동기 기록한다.
+
+### Spectrum/IQ 분석
+
+X-Series 또는 89600 VSA에서 channel power, ACLR, spectrum, EVM, constellation, EVM vs subcarrier/symbol을 본다. 같은 Γ state에서 PA output power만 보고 waveform quality를 놓치지 않는다.
+
+### 결과 해석
+
+Load를 바꾼 뒤 spectrum regrowth와 constellation radial compression이 함께 증가하면 AM-AM과 memory effect를 의심한다. constellation angle error가 amplitude에 따라 늘면 AM-PM을 본다. 특정 band edge EVM만 나빠지면 matching network/tuner의 frequency response와 memory effect를 확인한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="PA metric과 stability 식의 적용 조건을 고정하자">
+
+<FormulaDisclosure title="power gain과 compression" formula="Gp,dB = Pout,dBm−Pin,dBm,   C = (Pin,dBm+Gss,dB)−Pout,dBm">
+`Gss`는 같은 bias/frequency의 small-signal gain extrapolation이다. `C=1 dB`가 되는 output 또는 input을 각각 OP1dB/IP1dB라고 부른다. `Pin`이 source available인지 DUT accepted인지 label한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="PAE와 drain efficiency" formula="PAE = (Pout−Pin)/PDC,   ηD = Pout/PDC">
+모두 linear watt로 계산한다. `Pout`은 지정 load plane에 delivered된 fundamental 또는 total RF power인지 명시한다. PAE는 input RF power를 빼므로 gain이 낮을 때 drain efficiency와 차이가 커진다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="load/source reflection과 impedance" formula="ΓL = (ZL−Z0)/(ZL+Z0),   ΓS = (ZS−Z0)/(ZS+Z0)">
+`Z0=50 Ω` real reference를 가정한다. tuner display와 DUT plane 사이의 fixture를 de-embed하지 않으면 같은 Γ label이 실제 transistor plane에서는 다른 impedance가 된다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Rollett stability factor" formula="Δ=S11S22−S12S21,   K=(1−|S11|²−|S22|²+|Δ|²)/(2|S12S21|)">
+linear two-port가 특정 frequency에서 모든 passive source/load termination에 대해 unconditionally stable한 충분조건으로 흔히 `K>1`과 `|Δ|<1`을 함께 사용한다. 측정 noise로 S12가 매우 작을 때 K가 과도하게 민감할 수 있다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="μ stability measure" formula="μ=(1−|S11|²)/(|S22−ΔS11*|+|S12S21|)">
+input-side `μ>1`과 대응 output-side `μ′>1`을 함께 확인한다. 이것도 측정한 bias, frequency, small-signal 상태의 결과이며 nonlinear oscillation과 모든 out-of-band condition을 자동 보장하지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="transducer gain의 mismatch 의존성" formula="GT = |S21|²(1−|ΓS|²)(1−|ΓL|²) / |(1−S11ΓS)(1−S22ΓL)−S12S21ΓSΓL|²">
+linear small-signal two-port 식이다. load/source match가 실제 delivered gain에 어떻게 들어오는지 보여 주지만 compressed PA의 large-signal contour를 대체하지 않는다.
+</FormulaDisclosure>
+
+## Stability circle을 읽는 법
+
+Stability circle은 `|Γin|=1` 또는 `|Γout|=1` 경계다. 원 안/밖 중 어느 쪽이 stable인지는 `ΓS=0` 또는 `ΓL=0` 같은 known test point에서 stability를 평가해 결정한다. Smith Chart에 원만 그리고 무조건 내부가 불안정하다고 외우지 않는다.
+
+Load-pull path가 stability circle에 접근하면 oscillation spectrum, DC current jump, gain discontinuity, hysteresis를 감시한다. 측정 system의 own oscillation과 DUT oscillation을 termination/control test로 구분한다.
+
+## 수치 예: 같은 40 dBm도 power 정의가 다르다
+
+- DUT accepted input: `30 dBm = 1 W`
+- Load delivered output: `40 dBm = 10 W`
+- DC: `28 V × 0.70 A = 19.6 W`
+- Operating gain: `10 W / 1 W = 10`, 즉 `10 dB`
+- PAE: `(10−1)/19.6 = 45.9%`
+- Drain efficiency: `10/19.6 = 51.0%`
+
+만약 output plane의 forward wave가 10.5 W이고 load reflection이 0.5 W라면 load delivered/accepted net power는 10.0 W다. 어떤 값을 Pout으로 사용했는지 contour metadata에 적어야 PAE가 재현된다.
+
+## AM-AM, AM-PM과 EVM/ACLR의 연결
+
+complex baseband 모델을 `y = A(|x|) exp(j[angle(x)+Φ(|x|)])`로 쓰자.
+
+- `A(|x|)`가 직선에서 눌리면 radial error와 in-band EVM이 생긴다.
+- `Φ(|x|)`가 amplitude에 따라 변하면 tangential error가 생긴다.
+- nonlinear polynomial과 memory가 modulation 성분을 섞어 channel 밖 spectral regrowth, 즉 ACLR 악화를 만든다.
+- load impedance는 device voltage/current waveform을 바꾸므로 `A`와 `Φ` 곡선도 바꾼다.
+
+## 이 단원의 convention과 한계
+
+- `ΓS`, `ΓL`은 DUT connector/pin reference plane에서의 값
+- `Pin`은 available, forward, accepted 중 하나를 label
+- `Pout`은 outgoing wave, load-delivered net, fundamental 또는 total 중 하나를 label
+- contour마다 frequency, bias, drive, waveform, temperature, harmonic termination을 기록
+- small-signal S-parameter stability와 large-signal behavior를 분리
+- Release 17 EVM/ACLR compliance는 해당 transmitter class, channel setup, measurement bandwidth 절차를 TS 38.104에서 적용
+- 교육 contour는 실제 device safe operating area나 compliance 판정을 대신하지 않음
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. small-signal S22의 conjugate match가 왜 maximum Pout load를 보장하지 않는가?
+2. source available power를 고정한 source-pull과 DUT accepted power를 고정한 source-pull은 무엇이 다른가?
+3. 최대 PAE point에서 EVM과 ACLR이 나빠질 수 있는 물리적 이유는 무엇인가?
+4. K가 1보다 커도 어떤 조건을 추가 확인해야 하는가?
+5. contour peak보다 완만한 교집합 영역이 production matching에 유리할 수 있는 이유는 무엇인가?

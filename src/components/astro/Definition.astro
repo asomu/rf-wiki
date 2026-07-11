@@ -1,0 +1,16 @@
+---
+export interface Props {
+  term: string;
+  symbol?: string;
+}
+
+const { term, symbol } = Astro.props;
+---
+
+<aside class="definition" aria-label={`${term} 정의`}>
+  <p class="definition__term">
+    <span>{term}</span>
+    {symbol && <code>{symbol}</code>}
+  </p>
+  <div class="definition__body"><slot /></div>
+</aside>

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.astro/
+.pagefind/
+coverage/
+playwright-report/
+test-results/
+output/playwright/
+output/lighthouse/
+.playwright-cli/
+.DS_Store
+*.log
+.gstack/

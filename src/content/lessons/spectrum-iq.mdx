@@ -1,0 +1,254 @@
+---
+title: "SA의 한 줄 trace와 IQ capture는 무엇이 다른가?"
+description: "입력 RF가 mixer, RBW 또는 ADC·FFT를 지나 spectrum이 되는 과정과 IQ가 보존하는 magnitude·phase 정보를 연결한다."
+module: "spectrum-iq"
+order: 2
+estimatedMinutes: 75
+prerequisites:
+  - "foundations"
+outcomes:
+  - "swept SA와 FFT/VSA acquisition 경로를 구분하고 center, span, RBW, attenuation의 영향을 예측할 수 있다."
+  - "spectrum power trace가 잃은 정보와 complex IQ capture가 보존한 정보를 설명할 수 있다."
+  - "sample rate, record length, window, FFT normalization을 명시하여 같은 IQ에서 나온 서로 다른 trace를 해석할 수 있다."
+concepts:
+  - "superheterodyne spectrum analyzer"
+  - "resolution bandwidth"
+  - "FFT"
+  - "I/Q capture"
+  - "windowing"
+  - "aliasing"
+  - "detector"
+equipmentContext:
+  source: "Keysight Signal Studio와 vector signal generator의 two-tone/QPSK 출력"
+  dut: "50 Ω cable 또는 connectorized PA"
+  analyzer: "Keysight X-Series SA/IQ Analyzer와 PathWave 89600 VSA"
+standards: []
+references:
+  - title: "Spectrum Analysis Basics, Application Note 150"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06714/application-notes/5952-0292.pdf"
+    kind: "application-note"
+  - title: "Measuring Radar Signals with Vector Signal Analyzers and Wideband Instruments"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-05256/application-notes/5992-1580.pdf"
+    kind: "application-note"
+  - title: "89600 VSA Direct Data Connectivity"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/3121-1464/application-notes/VSA-89600-Direct-Data-Connectivity.pdf"
+    kind: "vendor"
+labId: "spectrum"
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import Definition from '../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+Spectrum Analyzer의 trace는 입력 신호 그 자체가 아니다. **입력 경로, 주파수 선택, acquisition 시간, filter, detector, scaling을 거쳐 만든 한 가지 관측 결과**다. 같은 RF를 IQ로 capture하면 더 많은 정보를 보존하지만, 그 대신 sample rate와 reference convention을 책임져야 한다.
+
+<LessonLayer level="intuition" title="SA는 신호를 어떻게 주파수별 높이로 바꿀까?">
+
+## 라디오 tuner를 매우 정밀하게 움직이는 그림
+
+전통적인 swept-tuned SA는 좁은 대역의 창을 주파수축 위로 움직이며 각 위치에서 얼마만큼의 신호가 통과하는지 잰다. 현대 X-Series는 digital IF와 FFT도 사용하지만, 사용자가 이해해야 할 뼈대는 같다.
+
+`RF input → attenuator/preamp → preselector → mixer + LO → IF → RBW filter → detector/VBW → display`
+
+1. **Input attenuation**은 강한 신호로 mixer가 압축되거나 자체 intermodulation을 만들지 않게 한다.
+2. **Preselector**는 관심 밖의 큰 신호와 image response를 줄인다.
+3. **Mixer와 LO**는 보고 싶은 RF 조각을 고정된 IF 또는 digitizer 대역으로 옮긴다.
+4. **RBW filter**는 가까운 두 성분을 얼마나 분리할지 정한다.
+5. **Detector**는 한 display point에 들어온 여러 sample을 peak, sample, average 등으로 요약한다.
+6. **VBW**는 검파된 trace의 변동을 저역통과시켜 보기 쉽게 하지만 RF resolution을 직접 높이지는 않는다.
+
+<Definition term="resolution bandwidth, RBW">
+한 시점 또는 한 FFT bin 주변에서 계측기가 받아들이는 유효 noise bandwidth와 가까운 신호 분리 능력을 정하는 분석 filter 폭이다. 표시된 숫자와 실제 equivalent noise bandwidth는 filter shape에 따라 다를 수 있다.
+</Definition>
+
+### 좁은 RBW는 확대경이지만 공짜가 아니다
+
+`RBW 100 kHz → 10 kHz`로 줄이면 일정한 spectral density의 noise가 filter에 들어오는 폭이 10분의 1이 된다. 이상적으로 marker noise power는 약 10 dB 낮아진다. 두 가까운 tone도 더 잘 분리된다. 대신 swept measurement는 filter가 settling할 시간을 기다려야 해 sweep이 길어지고, FFT 방식도 같은 해상도를 위해 더 긴 record가 필요하다.
+
+<PredictionChallenge
+  question="두 CW 사이가 30 kHz이고 noise가 평탄하다. RBW를 100 kHz에서 10 kHz로 줄이면 어떤 관찰이 가장 타당할까?"
+  choices={[
+    "두 tone이 더 잘 분리되고, noise per RBW는 약 10 dB 낮아지며, 측정 시간은 늘어날 수 있다",
+    "두 tone의 실제 주파수 간격이 300 kHz로 늘어난다",
+    "source의 total noise power가 10 dB 줄어든다"
+  ]}
+  answer={0}
+  explanation="바뀐 것은 analyzer의 분석 filter다. DUT의 tone 간격과 total noise 생성량이 아니라 분해능, 표시 noise power, 시간 비용이 달라진다."
+/>
+
+## Spectrum trace가 말해 주는 것과 숨기는 것
+
+일반적인 SA trace는 각 주파수에서 **magnitude 또는 power**를 표시한다. 두 신호가 같은 magnitude spectrum을 가져도 phase 관계가 다르면 time waveform은 전혀 다를 수 있다. 단일 power trace만으로는 그 phase를 복원할 수 없다.
+
+반면 IQ capture는 매 sample의 `I[n] + jQ[n]`를 저장한다. 여기에는 다음이 남아 있다.
+
+- 순간 magnitude `√(I²+Q²)`
+- 순간 phase `atan2(Q,I)`
+- sample 사이 phase 증가량으로 보이는 frequency offset
+- symbol transition과 modulation trajectory
+- capture 시간 안의 transient와 burst 위치
+
+따라서 같은 IQ에서 time waveform, spectrum, constellation, phase versus time, spectrogram을 다시 계산할 수 있다. 하지만 analyzer의 acquisition bandwidth 밖의 신호와 capture 이전 analog distortion은 되돌릴 수 없다.
+
+## 같은 QPSK가 네 가지 화면에서 어떻게 이어질까?
+
+| View | 한 점 또는 한 축의 의미 | 가장 잘 보이는 문제 |
+|---|---|---|
+| I/Q time | 시간별 complex sample | burst timing, amplitude droop, phase drift |
+| Spectrum | FFT 후 주파수별 power | occupied bandwidth, spur, ACLR |
+| Constellation | symbol timing에서의 IQ | EVM, compression, IQ imbalance |
+| Phase vs time | unwrapped angle | carrier offset, phase noise, AM-PM |
+
+Constellation의 한 점을 선택하면 그 symbol time과 IQ sample, FFT에 기여한 record가 linked view에서 함께 강조되어야 한다. constellation 한 점이 FFT bin 하나와 일대일 대응하는 것은 아니다. FFT는 window 안의 **모든 sample의 합성**이다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="X-Series와 89600 VSA에서 같은 신호를 두 번 보자">
+
+## 시나리오: carrier와 작은 spur, QPSK burst
+
+Signal Studio에서 QPSK burst를 만들고, generator에 작은 CW spur를 합성했다고 하자. cable 또는 PA를 지난 출력을 X-Series에 넣는다. 목표는 먼저 SA에서 spectral shape를 안전하게 찾고, 같은 대역을 IQ capture해 원인을 확인하는 것이다.
+
+## A. Spectrum Analyzer mode에서 신호를 찾는다
+
+### 입력 경로를 먼저 보호한다
+
+- PA 최대 출력, external attenuator, cable loss를 계산한다.
+- Reference Level은 예상 peak보다 충분히 높게 시작한다.
+- Calibrated input-referred 표시에서는 attenuation을 올려도 외부에서 들어온 carrier와 spur의 dBm은 대체로 유지된다. 반면 analyzer 내부에서 생긴 distortion spur는 mixer drive가 줄어 내려갈 수 있고, displayed noise floor는 input-referred로 올라갈 수 있다. carrier 대비 dBc 변화를 함께 보며 internal distortion과 noise를 구분한다.
+- Preamp는 약한 신호의 noise figure를 개선하지만 강한 blocker가 있을 때 headroom을 줄인다.
+
+### 주파수 설정
+
+1. Center Frequency를 carrier에 둔다.
+2. Span은 signal bandwidth와 양쪽 adjacent channel을 포함한다.
+3. RBW는 “보고 싶은 가장 좁은 구조”보다 충분히 작게 시작하되 sweep time을 확인한다.
+4. Detector는 목적에 맞춘다. CW spur 탐색에는 Peak, random noise power에는 Average/RMS 계열이 적합하다.
+5. Trace Average는 변동을 줄이지만 intermittent spur를 숨길 수 있다. Max Hold와 현재 trace를 비교한다.
+
+### marker를 읽을 때 함께 저장할 설정
+
+`Center / Span / RBW / VBW / Detector / Trace type / Attenuation / Preamp / Reference Level / Amplitude correction / Input reference plane`
+
+이 중 하나가 빠지면 동일 화면 재현이 어렵다.
+
+## B. IQ Analyzer 또는 89600 VSA로 capture한다
+
+### Acquisition 조건
+
+- Center Frequency: carrier
+- Analysis Bandwidth: signal 전체와 필요한 guard를 포함
+- Sample Rate: instrument가 정한 rate를 기록
+- Record Length 또는 Main Time Length: burst 전체와 pre-trigger를 포함
+- Trigger: free run이 아니라 burst edge/frame trigger를 우선 검토
+- Input Range: clipping 없이 ADC bits를 충분히 사용
+
+89600 VSA는 capture된 finite time record에 FFT를 적용해 spectrum을 만든다. gate를 burst 중앙에 놓으면 on-time spectrum을, burst edge에 놓으면 switching transient를 따로 볼 수 있다. capture에 보존된 bandwidth와 duration 범위 안에서는 center/span/view를 바꾸어 재분석할 수 있지만, capture 밖의 시간·주파수 정보는 생기지 않는다.
+
+### Linked Views 확인 순서
+
+1. **Time magnitude**에서 burst 시작·끝과 clipping을 본다.
+2. **IQ time**에서 DC offset과 I/Q gain imbalance를 본다.
+3. **Spectrum**에서 carrier, occupied band, spur를 본다.
+4. **Constellation**에서 QPSK 네 cluster의 퍼짐과 회전을 본다.
+5. **Phase vs time**에서 일정한 기울기인지 본다. 일정한 기울기는 residual frequency offset의 전형적 표시다.
+
+## RBW와 FFT bin width를 같은 말로 쓰지 말자
+
+FFT에서 raw bin spacing은 대략 `sample rate / FFT length`, 또는 `1 / record length`다. 하지만 window를 적용하면 한 tone이 퍼지는 main-lobe 폭과 equivalent noise bandwidth가 달라진다. 장비 UI의 “RBW”가 자동 window/overlap/FFT length를 묶어 제어할 수 있으므로 help의 정의를 확인해야 한다.
+
+| 변경 | 직접 효과 | 화면 결과 | 비용/함정 |
+|---|---|---|---|
+| Record length 증가 | bin 간격 감소 | 가까운 tone 분리 개선 | transient 평균, update 느림 |
+| Sample rate 증가 | capture Nyquist 범위 증가 | 더 넓은 대역 보존 | 같은 N이면 bin 간격 증가 |
+| Hann window 적용 | edge discontinuity 감소 | leakage 감소 | main lobe 확대, amplitude correction 필요 |
+| Input range 낮춤 | ADC 활용 증가 | quantization noise 상대 감소 | peak clipping 위험 |
+| Trace average 증가 | random variation 감소 | 매끈한 trace | burst·intermittent event 소실 가능 |
+
+<MeasurementNote title="FFT 화면에는 normalization이 숨어 있다">
+Amplitude spectrum, power spectrum, power spectral density는 서로 다른 단위다. `dBm`, `dBm/bin`, `dBm/Hz`, `V rms` 중 무엇인지 확인한다. single-sided/double-sided, coherent gain, window ENBW, impedance와 full-scale 기준을 기록하지 않으면 서로 다른 software의 FFT 높이를 직접 비교할 수 없다.
+</MeasurementNote>
+
+## 자주 발생하는 고장 모양과 확인 순서
+
+### 모든 constellation point가 원을 그리며 돈다
+
+Residual carrier frequency offset을 의심한다. phase versus time의 선형 기울기와 center frequency/reference clock을 확인한다.
+
+### spectrum은 정상인데 EVM이 나쁘다
+
+위상 잡음, IQ imbalance, symbol timing, reference signal 설정, PA AM-PM처럼 power spectrum만으로 드러나지 않는 원인을 본다.
+
+### IQ time이 위·아래로 잘렸다
+
+ADC clipping이다. Reference Level 또는 Input Range를 높이거나 attenuation을 늘린다. 나중에 digital scaling으로 줄여도 잃은 peak는 복구되지 않는다.
+
+### noise floor 아래 작은 spur가 RBW에 따라 사라진다
+
+RBW를 줄이고 average/FFT length를 늘려 분리한다. 단, analyzer internal spur인지 input attenuation 변화와 termination measurement로 확인한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="IQ에서 spectrum으로 가는 계산을 기준과 함께 쓰자">
+
+<FormulaDisclosure title="복소 sample의 magnitude와 phase" formula="x[n] = I[n] + jQ[n],   |x[n]| = √(I[n]²+Q[n]²),   φ[n] = atan2(Q[n], I[n])">
+`atan2`는 사분면을 보존한다. phase unwrap은 ±180° jump를 연속 각도로 바꾸는 표시 연산이며 원래 sample을 바꾸는 것은 아니다. magnitude가 noise에 가까우면 phase는 불안정해진다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="N-point DFT" formula="X[k] = Σₙ₌₀ᴺ⁻¹ x[n]w[n]exp(-j2πkn/N)">
+`w[n]`은 window다. 여기서는 forward transform에 scale을 두지 않는 convention을 썼다. inverse에 `1/N`을 둘 수 있고, 다른 library는 unitary scaling을 사용할 수 있다. 그래프에서 power로 바꾸기 전 이 convention을 고정한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="주파수 간격과 관측 시간" formula="Δf = fs/N = 1/Trecord,   Trecord = N/fs">
+zero padding으로 plot의 sample point를 촘촘하게 보간할 수는 있지만 실제 resolution을 결정하는 관측 시간을 늘리지는 않는다. 두 tone 분리 능력은 window main-lobe와 SNR에도 좌우된다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="RBW 안의 white noise" formula="Pnoise ≈ N₀ + 10 log₁₀(BENBW)">
+`N₀`가 dBm/Hz, `BENBW`가 Hz라면 결과는 dBm이다. RBW를 10배 줄일 때 이상적인 white-noise power는 10 dB 내려간다. 실제 displayed average noise level은 detector, log averaging, correction에 따라 다를 수 있다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="sample 간 phase로 추정한 frequency offset" formula="Δf ≈ fs·mean(angle(x[n]x*[n−1]))/(2π)">
+신호의 modulation phase가 평균적으로 상쇄되고 alias가 없다는 단순 모델이다. 실제 VSA는 reference signal, symbol timing, phase tracking을 함께 사용한다.
+</FormulaDisclosure>
+
+## Spectrum과 IQ의 차이를 한 표로 닫자
+
+| 질문 | SA power trace | IQ capture |
+|---|---|---|
+| 어느 주파수에 power가 있는가? | 직접 보임 | FFT로 계산 |
+| 절대 phase가 남아 있는가? | 보통 아니오 | acquisition reference에 대해 예 |
+| burst의 어느 순간인가? | sweep이면 시간 혼합 가능 | record 안에서 선택 가능 |
+| 다른 window로 재분석 가능한가? | trace만 저장하면 제한 | raw IQ가 있으면 가능 |
+| capture 밖의 대역 복원 가능한가? | 아니오 | 아니오 |
+| 데이터 크기 | 작음 | 큼 |
+| compliance 결과 | 설정·detector 규정에 따라 가능 | 표준 정의에 맞춘 후 가능 |
+
+## 반드시 명시할 convention과 uncertainty
+
+- IQ ordering: `I + jQ`
+- positive frequency와 Q sign
+- sample rate와 analysis bandwidth
+- full-scale와 dBm calibration
+- FFT direction, scale, window, ENBW
+- one-sided 또는 two-sided spectrum
+- detector와 averaging domain: linear power, voltage, log 중 무엇인지
+- trigger, capture length, time gate
+- analog input path의 attenuation, preamp, mixer level, amplitude correction
+
+이 정보를 적어야 spectrum trace와 IQ 계산 결과가 왜 0.4 dB 또는 한 bin 차이 나는지 물리적으로 추적할 수 있다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. RBW를 10분의 1로 줄였을 때 DUT와 analyzer 중 어느 쪽이 바뀌었는가?
+2. magnitude spectrum이 같은 두 capture가 time domain에서 다를 수 있는 이유는 무엇인가?
+3. sample rate를 두 배로 늘리고 FFT length를 유지하면 bandwidth와 bin spacing은 어떻게 바뀌는가?
+4. IQ clipping은 왜 사후 digital gain 조절로 고칠 수 없는가?
+5. 89600 VSA의 constellation이 회전할 때 spectrum marker만으로 놓칠 수 있는 원인은 무엇인가?

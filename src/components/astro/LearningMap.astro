@@ -1,0 +1,61 @@
+---
+import { curriculum, getCurriculumModule, type CurriculumModuleId } from '../../data/curriculum';
+
+export interface Props {
+  currentModule?: CurriculumModuleId;
+  currentLessonTitle?: string;
+}
+
+const { currentModule, currentLessonTitle } = Astro.props;
+const current = getCurriculumModule(currentModule);
+---
+
+<aside class="learning-map" aria-label="전체 학습 지도">
+  <details class="learning-map__disclosure" open>
+    <summary>
+      <span>학습 지도</span>
+      <strong>{current?.shortTitle ?? '전체 경로'}</strong>
+    </summary>
+
+    <div class="learning-map__body">
+      <div class="learning-map__heading">
+        <p>전체 학습 지도</p>
+        <span>{curriculum.length}개 축</span>
+      </div>
+      {currentLessonTitle && <p class="learning-map__current">현재 질문<br /><strong>{currentLessonTitle}</strong></p>}
+      <nav aria-label="학습 모듈">
+        <ol>
+          {curriculum.map((module) => {
+            const isCurrent = module.id === currentModule;
+            return (
+              <li class:list={{ 'is-current': isCurrent }}>
+                <a href={module.representativeLessonHref} aria-current={isCurrent ? 'page' : undefined}>
+                  <span class="module-index">{String(module.order).padStart(2, '0')}</span>
+                  <span>
+                    <strong>{module.shortTitle}</strong>
+                    <small>{module.question}</small>
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+      <a class="learning-map__glossary" href="/glossary/">막힌 용어를 먼저 찾기 →</a>
+    </div>
+  </details>
+</aside>
+
+<script is:inline>
+  (() => {
+    const disclosure = document.currentScript?.previousElementSibling?.querySelector('.learning-map__disclosure');
+    if (!(disclosure instanceof HTMLDetailsElement)) return;
+    const compact = window.matchMedia('(max-width: 1024px)');
+    const sync = () => {
+      if (compact.matches) disclosure.removeAttribute('open');
+      else disclosure.setAttribute('open', '');
+    };
+    sync();
+    compact.addEventListener('change', sync);
+  })();
+</script>

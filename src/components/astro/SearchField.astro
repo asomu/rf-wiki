@@ -1,0 +1,25 @@
+---
+export interface Props {
+  id?: string;
+  value?: string;
+  label?: string;
+  placeholder?: string;
+  compact?: boolean;
+  autofocus?: boolean;
+}
+
+const {
+  id = 'site-search',
+  value = '',
+  label = 'RF 용어와 학습 내용 검색',
+  placeholder = 'RBW, S21, load-pull…',
+  compact = false,
+  autofocus = false
+} = Astro.props;
+---
+
+<form class:list={['search-field', { 'search-field--compact': compact }]} action="/search/" method="get" role="search">
+  <label class="visually-hidden" for={id}>{label}</label>
+  <input id={id} name="q" type="search" value={value} placeholder={placeholder} autocomplete="off" autofocus={autofocus} />
+  <button type="submit">찾기</button>
+</form>

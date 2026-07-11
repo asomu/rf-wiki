@@ -1,0 +1,35 @@
+---
+import SearchField from './SearchField.astro';
+
+export interface Props {
+  currentPath?: string;
+}
+
+const { currentPath = '/' } = Astro.props;
+const isLearning = currentPath === '/' || currentPath.startsWith('/learn/');
+---
+
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="wordmark" href="/">
+      <span class="wordmark__rf">RF</span>
+      <span class="wordmark__divider" aria-hidden="true"></span>
+      <span>WIKI</span>
+      <span class="visually-hidden">홈</span>
+    </a>
+
+    <p class="release-context">
+      <span class="release-context__marker" aria-hidden="true"></span>
+      3GPP Release 17 · 교육용 모델
+    </p>
+
+    <nav class="primary-nav" aria-label="주요 탐색">
+      <a href="/" aria-current={isLearning ? 'page' : undefined}>학습 지도</a>
+      <a href="/glossary/" aria-current={currentPath.startsWith('/glossary') ? 'page' : undefined}>용어 사전</a>
+    </nav>
+
+    <div class="header-search">
+      <SearchField id="header-search" compact />
+    </div>
+  </div>
+</header>

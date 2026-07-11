@@ -1,0 +1,69 @@
+---
+interface Reference {
+  title: string;
+  organization: string;
+  url: string;
+  kind: 'standard' | 'vendor' | 'textbook' | 'application-note';
+}
+
+interface EquipmentContext {
+  source: string;
+  dut: string;
+  analyzer: string;
+}
+
+export interface Props {
+  outcomes: string[];
+  equipmentContext: EquipmentContext;
+  standards: string[];
+  references: Reference[];
+}
+
+const { outcomes, equipmentContext, standards, references } = Astro.props;
+const kindLabel: Record<Reference['kind'], string> = {
+  standard: '표준',
+  vendor: '장비 문서',
+  textbook: '교재',
+  'application-note': 'Application note'
+};
+---
+
+<section class="lesson-closeout" aria-labelledby="lesson-closeout-title">
+  <header>
+    <p class="data-label">단원을 닫기 전에</p>
+    <h2 id="lesson-closeout-title">같은 조건으로 설명하고 재현할 수 있나요?</h2>
+  </header>
+
+  <div class="lesson-closeout__grid">
+    <section aria-labelledby="lesson-outcomes-title">
+      <h3 id="lesson-outcomes-title">완료 기준</h3>
+      <ul>
+        {outcomes.map((outcome) => <li>{outcome}</li>)}
+      </ul>
+    </section>
+    <section aria-labelledby="equipment-context-title">
+      <h3 id="equipment-context-title">대표 bench</h3>
+      <dl>
+        <div><dt>Source</dt><dd>{equipmentContext.source}</dd></div>
+        <div><dt>DUT</dt><dd>{equipmentContext.dut}</dd></div>
+        <div><dt>Analyzer</dt><dd>{equipmentContext.analyzer}</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="lesson-references" aria-labelledby="lesson-references-title">
+    <div>
+      <h3 id="lesson-references-title">근거와 더 읽을 자료</h3>
+      {standards.length > 0 && <p>{standards.join(' · ')}</p>}
+    </div>
+    <ol>
+      {references.map((reference) => (
+        <li>
+          <span>{kindLabel[reference.kind]}</span>
+          <a href={reference.url}>{reference.title}</a>
+          <small>{reference.organization}</small>
+        </li>
+      ))}
+    </ol>
+  </section>
+</section>

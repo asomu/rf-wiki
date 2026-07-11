@@ -1,0 +1,51 @@
+---
+import '../styles/tokens.css';
+import '../styles/global.css';
+import '../styles/instrument.css';
+import fontStylesheetUrl from '../styles/fonts.css?url';
+import SiteFooter from '../components/astro/SiteFooter.astro';
+import SiteHeader from '../components/astro/SiteHeader.astro';
+
+export interface Props {
+  title?: string;
+  description?: string;
+  currentPath?: string;
+  noIndex?: boolean;
+  bodyClass?: string;
+}
+
+const {
+  title = 'RF Wiki',
+  description = '설정, 신호 경로, 계산과 계측 화면을 연결하는 개인용 RF 학습 Wiki',
+  currentPath = Astro.url.pathname,
+  noIndex = false,
+  bodyClass
+} = Astro.props;
+
+const documentTitle = title === 'RF Wiki' ? title : `${title} · RF Wiki`;
+const canonicalUrl = new URL(Astro.url.pathname, Astro.url);
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    {noIndex && <meta name="robots" content="noindex" />}
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" href="data:," />
+    <link rel="preload" href={fontStylesheetUrl} as="style" />
+    <link rel="stylesheet" href={fontStylesheetUrl} media="print" onload="this.removeAttribute('media')" />
+    <noscript><link rel="stylesheet" href={fontStylesheetUrl} /></noscript>
+    <title>{documentTitle}</title>
+  </head>
+  <body class={bodyClass}>
+    <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
+    <SiteHeader currentPath={currentPath} />
+    <div id="main-content" tabindex="-1">
+      <slot />
+    </div>
+    <SiteFooter />
+  </body>
+</html>

@@ -1,0 +1,36 @@
+---
+export interface Props {
+  question: string;
+  choices: readonly string[];
+  answer: string | number;
+  explanation: string;
+}
+
+const { question, choices, answer, explanation } = Astro.props;
+const answerText = typeof answer === 'number' && choices[answer] ? choices[answer] : String(answer);
+const name = `prediction-${question.replace(/[^a-zA-Z0-9가-힣]/g, '-').slice(0, 24)}`;
+---
+
+<section class="prediction-challenge" aria-labelledby={`${name}-title`}>
+  <div class="prediction-challenge__intro">
+    <p>조작하기 전</p>
+    <h3 id={`${name}-title`}>{question}</h3>
+  </div>
+  <fieldset>
+    <legend class="visually-hidden">예상 결과 선택</legend>
+    {choices.map((choice, index) => (
+      <label>
+        <input type="radio" name={name} value={choice} />
+        <span class="prediction-choice__marker">{String.fromCharCode(65 + index)}</span>
+        <span>{choice}</span>
+      </label>
+    ))}
+  </fieldset>
+  <details class="prediction-answer">
+    <summary>관찰한 뒤 해설 확인</summary>
+    <div>
+      <p><strong>예상해야 할 방향:</strong> {answerText}</p>
+      <p>{explanation}</p>
+    </div>
+  </details>
+</section>

@@ -1,0 +1,290 @@
+---
+title: "Smith Chart의 점 하나는 무엇을 말하고 있을까?"
+description: "VNA의 incident/reflected wave, S-parameter, Γ↔Z 변환, return loss·VSWR·mismatch를 같은 점과 reference plane에서 읽는다."
+module: "vna-smith"
+order: 4
+estimatedMinutes: 85
+prerequisites:
+  - "foundations"
+outcomes:
+  - "2-port S-parameter의 방향과 matched-port 조건을 말할 수 있다."
+  - "Smith Chart에서 Γ의 크기·각도와 impedance의 저항·reactance를 함께 읽을 수 있다."
+  - "return loss, VSWR, accepted power fraction, mismatch loss를 상호 변환할 수 있다."
+  - "S21과 transducer/operating/available gain을 구분하고 K·μ·stability circle로 source/load termination을 판정할 수 있다."
+  - "SOLT/ECal calibration과 port extension/de-embedding이 reference plane을 어떻게 옮기는지 설명할 수 있다."
+concepts:
+  - "vector network analyzer"
+  - "power waves"
+  - "S-parameters"
+  - "reflection coefficient"
+  - "Smith Chart"
+  - "return loss"
+  - "VSWR"
+  - "calibration"
+  - "transducer gain"
+  - "stability circle"
+equipmentContext:
+  source: "Keysight ENA/PNA test port의 leveled swept source"
+  dut: "2-port cable, filter 또는 connectorized amplifier fixture"
+  analyzer: "Keysight ENA/PNA vector network analyzer"
+standards:
+  - "IEEE Std 287 — Precision coaxial connectors"
+references:
+  - title: "Network Analyzer Basics You Need to Know"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/blogs/en/tech/rfmw/2019/03/08/network-analyzer-basics-you-need-to-know"
+    kind: "vendor"
+  - title: "Understanding the Smith Chart"
+    organization: "Rohde & Schwarz"
+    url: "https://www.rohde-schwarz.com/uk/products/test-and-measurement/essentials-test-equipment/spectrum-analyzers/understanding-the-smith-chart_257989.html"
+    kind: "vendor"
+  - title: "IEEE Std 287-2021 — Standard for Precision Coaxial Connectors at RF, Microwave, and Millimeter-Wave Frequencies"
+    organization: "IEEE Standards Association"
+    url: "https://standards.ieee.org/ieee/287/7348/"
+    kind: "standard"
+labId: "smith"
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import Definition from '../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+Smith Chart는 암기용 원들이 아니라 **복소 reflection coefficient `Γ`를 impedance `Z`로 번역해 겹쳐 그린 좌표계**다. VNA의 marker 한 점을 볼 때 세 질문을 순서대로 한다. 어느 reference plane인가? 얼마나 반사되는가? 반사의 phase가 어떤 R+jX에 해당하는가?
+
+<LessonLayer level="intuition" title="VNA는 왜 신호를 보내면서 동시에 돌아오는 신호를 잴까?">
+
+## 소리의 메아리처럼 incident와 reflected를 분리한다
+
+VNA port 1이 DUT로 보내는 진행파를 `a1`, port 1로 돌아오는 파를 `b1`이라고 하자. DUT가 50 Ω reference와 정확히 같으면 이상적으로 반사가 없고 `b1=0`이다. open, short, 다른 impedance에서는 일부 또는 전부가 돌아온다.
+
+두 port DUT에는 네 가지 기본 비가 있다.
+
+| Parameter | 자극 → 관측 | 실무 질문 |
+|---|---|---|
+| `S11` | port 1 incident → port 1 reflected | input match가 좋은가? |
+| `S21` | port 1 incident → port 2 outgoing | forward transmission/gain은 얼마인가? |
+| `S12` | port 2 incident → port 1 outgoing | reverse transmission/isolation은 얼마인가? |
+| `S22` | port 2 incident → port 2 reflected | output match가 좋은가? |
+
+`S21`의 숫자 21은 “port 2에서 관측, port 1에서 자극” 순서다. S-parameter를 정의할 때 자극하지 않는 다른 port의 incident wave는 0, 즉 reference impedance로 matched termination된 조건이다.
+
+<Definition term="reflection coefficient Γ">
+reference plane에서 incident wave에 대한 reflected wave의 복소 비다. magnitude는 얼마나 돌아오는지, angle은 incident와 어떤 phase 관계로 돌아오는지 말한다. passive one-port에서는 보통 `|Γ| ≤ 1`이다.
+</Definition>
+
+## Smith Chart의 위치를 물리적으로 읽는다
+
+- **중앙:** `Γ=0`, `Z=Z0`. 50 Ω chart라면 `50+j0 Ω`, 완전 정합이다.
+- **오른쪽 끝:** open 방향, `Γ=+1`, 매우 큰 impedance다.
+- **왼쪽 끝:** short, `Γ=-1`, `0 Ω`다.
+- **위쪽 반원:** positive reactance, 표준 impedance chart에서 inductive다.
+- **아래쪽 반원:** negative reactance, capacitive다.
+- **바깥 원:** `|Γ|=1`, incident power가 전부 반사되는 lossless open/short/reactive load다.
+
+중앙에서의 거리가 `|Γ|`이므로 같은 반지름의 원 위에서는 return loss와 VSWR가 같다. 원을 따라 움직이는 것은 reflection phase, 즉 R과 X 조합이 바뀌는 것이다.
+
+## 케이블을 추가하면 load가 바뀐 걸까?
+
+이상적인 lossless 50 Ω cable을 DUT 앞에 추가하면 DUT 자체 `|Γ|`은 변하지 않지만 measurement reference plane이 cable 입력으로 이동한다. round-trip phase가 더해져 Smith 점은 같은 반지름 위를 회전한다. 실제 cable은 loss가 있으므로 돌아오는 파가 감쇠되어 점이 조금 중심 쪽으로 감긴다.
+
+<PredictionChallenge
+  question="동일한 mismatched load 앞에 lossless 50 Ω cable을 추가하고 calibration plane은 그대로 두면 Smith trace는 어떻게 변할까?"
+  choices={[
+    "|Γ|는 유지되고 cable의 왕복 electrical length만큼 점이 같은 VSWR circle 위를 회전한다",
+    "load가 자동으로 50 Ω가 되어 중앙으로 이동한다",
+    "주파수와 관계없이 S11이 정확히 6 dB 커진다"
+  ]}
+  answer={0}
+  explanation="matched lossless line은 reflection magnitude를 바꾸지 않고 phase를 지연시킨다. 실제 line loss가 있으면 측정 plane에서 보이는 |Γ|는 작아진다."
+/>
+
+## VSWR가 화면에서 의미하는 것
+
+진행파와 반사파가 전송선에서 합쳐지면 위치에 따라 maximum과 minimum voltage가 생긴다. VSWR는 그 비다.
+
+| VSWR | `|Γ|` | Return loss | accepted power fraction | mismatch loss |
+|---:|---:|---:|---:|---:|
+| 1.00:1 | 0 | ∞ dB | 100% | 0 dB |
+| 1.20:1 | 0.0909 | 20.83 dB | 99.17% | 0.036 dB |
+| 1.50:1 | 0.2000 | 13.98 dB | 96.00% | 0.177 dB |
+| 2.00:1 | 0.3333 | 9.54 dB | 88.89% | 0.512 dB |
+| 3.00:1 | 0.5000 | 6.02 dB | 75.00% | 1.249 dB |
+
+VSWR가 2:1이라고 전력 절반이 전달되는 것이 아니다. 기준면에서 incident power의 약 11.1%가 반사되고 88.9%가 load 쪽으로 accepted된다. 그 뒤 load 내부에서 유용한 출력으로 변환되는지는 별도 문제다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Calibration plane을 DUT connector까지 옮겨 측정하자">
+
+## Signal Spine: VNA source → directional separation → DUT → receivers → ratio
+
+VNA는 leveled source를 sweep하고 coupler/bridge로 incident와 reflected/transmitted wave를 분리해 receiver에서 coherent하게 측정한다. 따라서 SA와 달리 magnitude뿐 아니라 phase를 보존한다.
+
+`Source → test set/coupler → cable/fixture → DUT → reference & measurement receivers → complex ratio → Smith/Log Mag`
+
+## 2-port SOLT 또는 ECal 작업 순서
+
+### 1. 측정 조건을 DUT 전에 고정한다
+
+- Start/Stop frequency와 point 수
+- IF bandwidth
+- Source power
+- Sweep type
+- Port reference impedance, 일반적으로 50 Ω
+- DUT가 active라면 bias, 안정성, reverse power 제한
+
+IF bandwidth를 줄이면 receiver noise가 감소하지만 sweep이 느려진다. source power를 높이면 SNR이 좋아질 수 있지만 filter/PA가 compression에 들어가면 small-signal S-parameter가 아니게 된다.
+
+### 2. calibration kit 정의를 확인한다
+
+connector sex, kit model, open capacitance/short delay/load definition이 실제 standard와 맞아야 한다. 2-port SOLT라면 각 port의 open, short, load와 through를 정해진 순서로 연결한다. ECal도 connector와 주파수 범위, 상태를 확인한다.
+
+### 3. calibration의 마지막 connector가 reference plane이다
+
+cal cable 끝에서 보정했다면 그 끝이 plane이다. 그 뒤 adapter나 fixture를 추가하면 그 손실·delay·mismatch가 DUT 결과에 포함된다. fixture S-parameter를 알고 있다면 de-embedding하고, 단순한 delay라면 port extension을 사용할 수 있지만 둘은 같은 보정이 아니다.
+
+### 4. verification standard로 검증한다
+
+cal에 사용한 표준을 다시 연결하는 것만으로 독립 검증이 되지 않는다. known check standard, airline, beadless adapter 또는 별도 thru를 측정해 residual directivity, tracking, source/load match가 허용 범위인지 본다.
+
+## 화면 구성: 한 parameter에 두 format
+
+### S11
+
+- Smith Chart: complex Γ와 impedance
+- Log Mag: return loss와 공진 깊이
+- Phase 또는 Group Delay: 급격한 phase transition
+
+marker에는 `frequency, Re(Z), Im(Z), |Γ|, angle, return loss, VSWR`를 함께 연결한다. Smith 점의 색만으로 pass/fail을 말하지 않는다.
+
+### S21
+
+- Passive cable/filter: `Insertion Loss = -20 log10|S21|`를 양의 loss로 표기
+- Active amplifier: `Forward S21 = +20 log10|S21| dB`를 gain으로 표기
+- Phase/Group Delay: filter dispersion과 cable delay
+
+같은 `S21=-1 dB`를 보고 “gain -1 dB”와 “insertion loss 1 dB”를 섞지 않는다. 또한 mismatched source/load에서 실제 transducer gain은 단순 `|S21|²`와 다를 수 있다.
+
+### S12와 세 가지 gain은 같은 숫자가 아니다
+
+- **S12 reverse isolation:** port 2에서 넣은 wave가 port 1로 얼마나 돌아오는지다. `Isolation = −20log10|S12|`로 양의 값이 클수록 역방향 결합이 작다.
+- **Transducer gain `GT`:** source가 내줄 수 있는 available power에서 load가 실제 받은 power까지의 전체 비다. `ΓS`, `ΓL`과 multiple reflection을 모두 포함한다.
+- **Operating gain `GP`:** DUT input에서 accepted된 power에 대한 load power다. input mismatch 손실을 분모 앞에서 제외한다.
+- **Available gain `GA`:** source available power에 대해 DUT output에서 낼 수 있는 available power다. output을 conjugate match할 수 있다는 관점이다.
+
+Wiki lab의 `2-port · gain / stability` 탭에서 같은 S-parameter를 고정한 채 `ΓS`, `ΓL`을 움직여 보자. `S21` readout은 그대로여도 `GT`, `GP`, `GA`가 서로 다르게 움직인다. 이것이 matched test-port에서 정의한 S21을 실제 bench delivered gain과 곧바로 같다고 말할 수 없는 이유다.
+
+### Stability circle은 “원 안이 위험”이라고 외우지 않는다
+
+조건부 안정 active two-port에서는 source 쪽 `ΓS`가 바뀌면 `Γout`, load 쪽 `ΓL`이 바뀌면 `Γin`이 달라진다. stability circle은 각각 `|Γout|=1`, `|Γin|=1` 경계다. 어느 쪽이 stable인지는 S-parameter에 따라 달라질 수 있으므로 center point 같은 test termination을 넣어 `|Γeffective|<1`인 쪽을 표시한다. Wiki lab도 teal 점과 oxide ×를 이 직접 계산으로 그린다.
+
+`K>1`, `|Δ|<1`, `μ>1`, `μ′>1`이면 해당 frequency의 선형 two-port는 passive source/load termination에 대해 unconditional stability 조건을 만족한다. 하나라도 실패하면 stability circle과 실제 source/load 영역을 확인한다. 이것은 한 bias·한 frequency·small-signal 판정이며 큰 drive, harmonic termination, thermal/bias oscillation까지 보장하지 않는다.
+
+## marker를 움직이며 분석하는 순서
+
+1. S11 Smith trace에서 중심에 가장 가까운 frequency를 찾는다.
+2. 같은 marker를 S11 log magnitude와 VSWR readout에 연결한다.
+3. S21의 passband insertion loss/gain과 phase를 같은 frequency에서 읽는다.
+4. 주파수 증가 방향 marker를 표시해 trace loop의 방향을 확인한다.
+5. 급격한 loop가 fixture delay인지 DUT resonance인지 port extension 전후로 비교한다.
+
+<MeasurementNote title="Smith Chart 중심에 가깝다고 DUT 성능 전체가 좋은 것은 아니다">
+좋은 S11은 source plane으로 덜 반사된다는 뜻이다. filter rejection, amplifier gain, noise figure, linearity, stability를 말하지 않는다. loss가 큰 attenuator는 output이 matched되어 보이기 쉬워도 유용 power를 많이 소모할 수 있다. S11과 S21을 함께 읽는다.
+</MeasurementNote>
+
+## calibration이 완벽해도 남는 불확도
+
+- **Residual directivity:** 작은 reflection을 coupler leakage와 구분하는 한계
+- **Source match:** 반사된 wave가 source에서 다시 반사되어 DUT로 돌아감
+- **Load match:** transmission 측정 port의 재반사
+- **Reflection/transmission tracking:** receiver path의 frequency response 오차
+- **Connector repeatability:** torque, pin depth, 먼지, 마모
+- **Cable stability:** 굽힘과 온도에 따른 phase/amplitude 변화
+- **Noise/dynamic range:** 매우 작은 S21/S12 또는 깊은 notch의 floor
+- **Drift:** calibration 이후 온도와 시간 변화
+
+trace가 너무 매끈하다고 불확도가 작은 것은 아니다. IFBW/averaging은 random noise를 줄여도 systematic error를 제거하지 않는다.
+
+## 오해를 바로잡는 bench 문장
+
+- “Smith trace가 회전했지만 반지름이 같으므로 match magnitude는 같고 reference-plane phase가 달라졌다.”
+- “VSWR 2:1은 50% power loss가 아니라 `|Γ|=1/3`, reflected power 약 11.1%다.”
+- “S21 log magnitude가 -1 dB인 passive DUT는 insertion loss 1 dB다.”
+- “Calibration 후 adapter를 추가했으므로 marker impedance는 DUT pin이 아니라 adapter 입력에서 본 값이다.”
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Γ, Z, VSWR와 S-parameter를 서로 변환하자">
+
+<FormulaDisclosure title="reflection coefficient와 impedance" formula="Γ = (ZL−Z0)/(ZL+Z0),   ZL = Z0(1+Γ)/(1−Γ)">
+`Z0`는 real 50 Ω로 가정했다. 예를 들어 `ZL=100 Ω`이면 `Γ=1/3`, angle 0°다. complex reference impedance 또는 power-wave 정의에서는 변환을 더 주의해야 한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="return loss와 VSWR" formula="RL = −20 log₁₀|Γ|,   VSWR = (1+|Γ|)/(1−|Γ|)">
+return loss는 positive loss convention이다. 일부 화면이 `S11 dB = 20log|Γ|`를 표시하면 좋은 match가 더 큰 음수이고, `RL=-S11(dB)`다. label 없이 숫자만 비교하지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="accepted power와 mismatch loss" formula="Paccepted/Pincident = 1−|Γ|²,   ML = −10 log₁₀(1−|Γ|²)">
+load가 passive이고 reference plane의 normalized power-wave convention을 쓴 결과다. accepted power가 모두 유용하게 dissipated 또는 delivered된다는 뜻은 아니다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="2-port S-parameter" formula="[b₁ b₂]ᵀ = [[S₁₁ S₁₂],[S₂₁ S₂₂]][a₁ a₂]ᵀ">
+`S11=b1/a1`과 `S21=b2/a1`은 `a2=0`인 조건, `S22=b2/a2`와 `S12=b1/a2`는 `a1=0`인 조건이다. 여기서 0은 port를 short/open한다는 뜻이 아니라 incident wave가 없는 matched condition이다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="source/load termination에서 보이는 reflection" formula="Γin = S11 + (S12S21ΓL)/(1−S22ΓL),   Γout = S22 + (S12S21ΓS)/(1−S11ΓS)">
+`ΓL`을 바꾸면 source에서 본 input reflection이, `ΓS`를 바꾸면 load에서 본 output reflection이 바뀐다. Stability circle은 각각 `|Γin|=1`, `|Γout|=1`의 locus다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Rollett K와 determinant" formula="Δ = S11S22−S12S21,   K = (1−|S11|²−|S22|²+|Δ|²)/(2|S12S21|)">
+`K>1`과 `|Δ|<1`은 classical unconditional-stability 조건이다. 수치가 경계에 가까우면 measurement uncertainty와 bias/frequency interpolation까지 고려하고 μ, μ′도 함께 확인한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="transducer gain" formula="GT = |S21|²(1−|ΓS|²)(1−|ΓL|²) / |(1−S11ΓS)(1−S22ΓL)−S12S21ΓSΓL|²">
+matched source/load인 `ΓS=ΓL=0`에서만 `GT=|S21|²`로 단순해진다. dB로 바꿀 때는 power ratio라 `10log10(GT)`를 사용한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="transmission line의 reflection 이동" formula="Γin = ΓL exp(−2γl),   γ = α+jβ">
+왕복 경로 때문에 `2γl`이 붙는다. lossless line이면 `α=0`이라 magnitude는 유지되고 phase만 `−2βl`만큼 변한다. 즉 line을 추가하거나 measurement plane을 generator 쪽으로 옮기면 `−2βΔl`, 기존 delay를 제거해 plane을 load 쪽으로 옮기면 반대인 `+2βΔl`를 적용한다. lossy line에서는 `exp(−2αl)`만큼 작아져 Smith 중심으로 감긴다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="group delay" formula="τg = −(1/2π)·dφ/df">
+phase unwrap과 충분한 frequency point가 필요하다. filter stopband처럼 S21 magnitude가 noise floor에 가까우면 phase와 group delay는 의미가 불안정해진다.
+</FormulaDisclosure>
+
+## 수치 예: `ZL = 100 + j0 Ω`, `Z0 = 50 Ω`
+
+1. `Γ=(100−50)/(100+50)=1/3`
+2. `S11 dB=20log10(1/3)=−9.54 dB`
+3. `Return loss=9.54 dB`
+4. `VSWR=(1+1/3)/(1−1/3)=2.00`
+5. Reflected power fraction=`|Γ|²=1/9=11.11%`
+6. Accepted fraction=`8/9=88.89%`
+7. Mismatch loss=`−10log10(8/9)=0.512 dB`
+
+Smith Chart에서는 real axis 위 중앙과 open 사이, normalized resistance `r=2` 지점이다.
+
+## 이 단원의 convention
+
+- `Z0=50+j0 Ω`
+- standard impedance Smith Chart와 `I+jQ`, counter-clockwise positive angle
+- `Sij`: i에서 관측, j에서 incident excitation
+- `S11 dB=20log|S11|`는 음수, return loss는 그 반대 부호의 양수
+- insertion loss는 passive DUT에서 positive loss로 `−20log|S21|`
+- accepted power는 reference plane에서 incident minus reflected power
+- calibration plane과 DUT plane이 다르면 반드시 표기
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. Smith Chart 중심과 바깥 원은 각각 어떤 power-flow 상태인가?
+2. lossless cable을 추가했을 때 점이 회전하지만 VSWR가 그대로인 이유는 무엇인가?
+3. VSWR 2:1에서 reflected power가 왜 33%가 아니라 약 11%인가?
+4. `S21=-1 dB`를 passive filter와 active PA에서 각각 어떻게 말해야 하는가?
+5. SOLT calibration 후 unmodeled adapter를 넣으면 reference plane과 uncertainty가 어떻게 달라지는가?
+6. S21과 GT가 같아지는 조건은 무엇이며, GP·GA는 각각 어떤 power를 분모로 쓰는가?
+7. Stability circle의 안쪽을 무조건 unstable이라 말할 수 없는 이유는 무엇인가?

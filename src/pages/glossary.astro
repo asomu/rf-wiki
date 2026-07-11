@@ -1,0 +1,117 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
+import { glossary, glossaryCategoryLabels, glossarySearchText } from '../data/glossary';
+
+const sortedGlossary = [...glossary].sort((a, b) => a.term.localeCompare(b.term, 'en'));
+---
+
+<BaseLayout title="RF 용어 사전" description="계측 화면과 RF 측정 문맥을 중심으로 정리한 RF 용어 사전" currentPath="/glossary/">
+  <main class="page-shell glossary-page" data-pagefind-body>
+    <Breadcrumbs items={[{ label: '학습 지도', href: '/' }, { label: '용어 사전' }]} />
+
+    <header class="page-heading">
+      <p class="context-line"><span>{glossary.length}개 핵심 용어</span><span>기호·약어 검색</span></p>
+      <h1>공식보다 먼저, 화면에서 어떤 뜻인지 확인합니다.</h1>
+      <p>같은 기호도 passive loss와 active gain처럼 문맥이 달라질 수 있습니다. 정의 옆의 convention과 측정 조건을 함께 읽으세요.</p>
+    </header>
+
+    <section class="glossary-tools" aria-labelledby="glossary-tools-title">
+      <h2 class="visually-hidden" id="glossary-tools-title">용어 필터</h2>
+      <label for="glossary-filter">용어·기호·설명에서 찾기</label>
+      <div class="glossary-filter-row">
+        <input id="glossary-filter" type="search" placeholder="예: Γ, isolation, 기준면" autocomplete="off" />
+        <button id="glossary-clear" type="button">지우기</button>
+      </div>
+      <nav class="glossary-categories" aria-label="용어 범주 바로가기">
+        {Object.entries(glossaryCategoryLabels).map(([category, label]) => (
+          <a href={`#category-${category}`}>{label}</a>
+        ))}
+      </nav>
+      <p id="glossary-count" role="status" aria-live="polite">전체 {glossary.length}개 용어</p>
+    </section>
+
+    <div class="glossary-layout">
+      <aside class="glossary-reading-guide" aria-labelledby="reading-guide-title">
+        <p class="data-label">읽는 순서</p>
+        <h2 id="reading-guide-title">기호만 보지 마세요.</h2>
+        <ol>
+          <li>어느 port와 기준면인가</li>
+          <li>magnitude인가 complex 값인가</li>
+          <li>양의 loss인가 음의 dB 값인가</li>
+          <li>어떤 bandwidth와 calibration인가</li>
+        </ol>
+      </aside>
+
+      <div class="glossary-list" id="glossary-list">
+        {Object.entries(glossaryCategoryLabels).map(([category, categoryLabel]) => {
+          const entries = sortedGlossary.filter((entry) => entry.category === category);
+          return (
+            <section class="glossary-group" id={`category-${category}`} data-glossary-group>
+              <header>
+                <h2>{categoryLabel}</h2>
+                <span>{entries.length}</span>
+              </header>
+              <dl>
+                {entries.map((entry) => (
+                  <div class="glossary-entry" data-glossary-entry data-search-text={glossarySearchText(entry)}>
+                    <dt>
+                      <span class="glossary-entry__term">{entry.term}</span>
+                      <span class="glossary-entry__label">{entry.label}</span>
+                      {entry.symbol && <code>{entry.symbol}</code>}
+                    </dt>
+                    <dd>
+                      <p>{entry.definition}</p>
+                      {entry.caution && <p class="glossary-entry__caution"><strong>해석 조건</strong> {entry.caution}</p>}
+                      <a href={entry.href}>이 개념을 그림으로 보기 →</a>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+
+    <p id="glossary-empty" class="empty-state" hidden>
+      일치하는 용어가 없습니다. 영문 약어 또는 기호 이름으로 다시 입력해 보세요.
+    </p>
+  </main>
+
+  <script>
+    const input = document.querySelector<HTMLInputElement>('#glossary-filter');
+    const clearButton = document.querySelector<HTMLButtonElement>('#glossary-clear');
+    const count = document.querySelector<HTMLElement>('#glossary-count');
+    const empty = document.querySelector<HTMLElement>('#glossary-empty');
+    const entries = [...document.querySelectorAll<HTMLElement>('[data-glossary-entry]')];
+    const groups = [...document.querySelectorAll<HTMLElement>('[data-glossary-group]')];
+
+    const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase('ko-KR').replace(/\s+/g, ' ').trim();
+
+    const filterGlossary = () => {
+      const query = normalize(input?.value ?? '');
+      let visibleCount = 0;
+      entries.forEach((entry) => {
+        const visible = !query || normalize(entry.dataset.searchText ?? '').includes(query);
+        entry.hidden = !visible;
+        if (visible) visibleCount += 1;
+      });
+      groups.forEach((group) => {
+        group.hidden = !group.querySelector('[data-glossary-entry]:not([hidden])');
+      });
+      if (count) count.textContent = query ? `“${input?.value}” 결과 ${visibleCount}개` : `전체 ${visibleCount}개 용어`;
+      if (empty) empty.hidden = visibleCount > 0;
+      if (clearButton) clearButton.disabled = !query;
+    };
+
+    input?.addEventListener('input', filterGlossary);
+    clearButton?.addEventListener('click', () => {
+      if (!input) return;
+      input.value = '';
+      filterGlossary();
+      input.focus();
+    });
+    filterGlossary();
+  </script>
+</BaseLayout>

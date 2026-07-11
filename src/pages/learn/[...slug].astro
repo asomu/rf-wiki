@@ -1,0 +1,54 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import LessonReferences from '../../components/astro/LessonReferences.astro';
+import CouplerLab from '../../components/simulators/CouplerLab';
+import FrequencyLab from '../../components/simulators/FrequencyLab';
+import IQLab from '../../components/simulators/IQLab';
+import LoadPullLab from '../../components/simulators/LoadPullLab';
+import ResourceGridLab from '../../components/simulators/ResourceGridLab';
+import SpectrumIQLab from '../../components/simulators/SpectrumIQLab';
+import VnaSmithLab from '../../components/simulators/VnaSmithLab';
+import LessonLayout from '../../layouts/LessonLayout.astro';
+import { isPublishedLesson } from '../../lib/content-publication';
+
+export async function getStaticPaths() {
+  const lessons = await getCollection('lesson', ({ data }) => isPublishedLesson(data));
+  return lessons.map((lesson) => ({
+    params: { slug: lesson.id },
+    props: { lesson }
+  }));
+}
+
+interface Props {
+  lesson: CollectionEntry<'lesson'>;
+}
+
+const { lesson } = Astro.props;
+const { Content } = await render(lesson);
+const { data } = lesson;
+---
+
+<LessonLayout
+  title={data.title}
+  description={data.description}
+  moduleId={data.module}
+  estimatedMinutes={data.estimatedMinutes}
+>
+  <Content />
+  <LessonReferences
+    outcomes={data.outcomes}
+    equipmentContext={data.equipmentContext}
+    standards={data.standards}
+    references={data.references}
+  />
+
+  <div slot="lab" class="lesson-lab-slot">
+    {data.labId === 'frequency' && <FrequencyLab client:idle />}
+    {data.labId === 'spectrum' && <SpectrumIQLab client:idle />}
+    {data.labId === 'iq' && <IQLab client:idle />}
+    {data.labId === 'resource-grid' && <ResourceGridLab client:idle />}
+    {data.labId === 'smith' && <VnaSmithLab client:idle />}
+    {data.labId === 'coupler' && <CouplerLab client:idle />}
+    {data.labId === 'load-pull' && <LoadPullLab client:idle />}
+  </div>
+</LessonLayout>

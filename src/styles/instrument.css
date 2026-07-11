@@ -1,0 +1,137 @@
+.instrument-panel,
+.lab-placeholder {
+  border: var(--stroke-hairline) solid var(--color-instrument-raised);
+  border-radius: var(--radius-panel);
+  background: var(--color-instrument);
+  color: var(--color-instrument-ink);
+}
+
+.lab-placeholder {
+  min-height: var(--layout-learning-map);
+  padding: var(--space-6);
+}
+
+.lab-placeholder .data-label {
+  color: var(--color-forward-bright);
+}
+
+.lab-placeholder p:last-child {
+  color: var(--color-instrument-muted);
+}
+
+.instrument-readout {
+  color: var(--color-instrument-ink);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-data);
+  font-variant-numeric: tabular-nums slashed-zero;
+  line-height: var(--line-height-data);
+}
+
+.bench-signal-spine {
+  padding: var(--space-6);
+  border: var(--stroke-hairline) solid var(--color-instrument-raised);
+  border-radius: var(--radius-panel);
+  background: var(--color-instrument);
+  color: var(--color-instrument-ink);
+}
+
+.bench-signal-spine ol {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bench-signal-spine li {
+  position: relative;
+  min-width: 0;
+  color: var(--color-instrument-muted);
+}
+
+.bench-signal-spine li:not(:last-child)::after {
+  position: absolute;
+  z-index: 0;
+  inset-block-start: calc(var(--space-2) - var(--stroke-hairline));
+  inset-inline-start: var(--space-2);
+  width: 100%;
+  border-top: var(--stroke-hairline) dashed var(--color-instrument-rule);
+  content: '';
+}
+
+.bench-signal-spine__node {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin-block-end: var(--space-3);
+  border: calc(var(--stroke-hairline) * 2) solid var(--color-instrument-rule);
+  border-radius: var(--radius-pill);
+  background: var(--color-instrument);
+}
+
+.bench-signal-spine li.is-active {
+  color: var(--color-instrument-ink);
+}
+
+.bench-signal-spine li.is-active .bench-signal-spine__node {
+  border-color: var(--color-forward-bright);
+}
+
+.bench-signal-spine li.is-active:not(:last-child)::after {
+  border-color: var(--color-forward-bright);
+}
+
+.bench-signal-spine li.is-changed .bench-signal-spine__node {
+  background: var(--color-forward-bright);
+  box-shadow: 0 0 0 var(--space-1) color-mix(in srgb, var(--color-forward-bright) 18%, transparent);
+}
+
+.bench-signal-spine__label strong,
+.bench-signal-spine__label small {
+  display: block;
+}
+
+.bench-signal-spine__label strong {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-data);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-data);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bench-signal-spine__label small {
+  margin-block-start: var(--space-1);
+  color: var(--color-instrument-muted);
+  font-size: var(--font-size-data);
+  line-height: var(--line-height-data);
+}
+
+@media (max-width: 640px) {
+  .bench-signal-spine ol {
+    grid-template-columns: 1fr;
+  }
+
+  .bench-signal-spine li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    min-height: var(--target-min);
+    gap: var(--space-3);
+  }
+
+  .bench-signal-spine li:not(:last-child)::after {
+    inset-block-start: var(--space-4);
+    inset-block-end: calc(var(--space-1) * -1);
+    inset-inline-start: calc(var(--space-2) - var(--stroke-hairline));
+    width: 0;
+    border-top: 0;
+    border-inline-start: var(--stroke-hairline) dashed var(--color-instrument-rule);
+  }
+
+  .bench-signal-spine li.is-active:not(:last-child)::after {
+    border-inline-start-color: var(--color-forward-bright);
+  }
+}

@@ -1,0 +1,20 @@
+---
+export interface Props {
+  title: string;
+  kind?: 'condition' | 'calibration' | 'uncertainty' | 'warning';
+}
+
+const { title, kind = 'condition' } = Astro.props;
+const labels = {
+  condition: '측정 조건',
+  calibration: 'Calibration',
+  uncertainty: '불확도',
+  warning: '해석 주의'
+} as const;
+---
+
+<aside class:list={['measurement-note', `measurement-note--${kind}`]} aria-label={`${labels[kind]}: ${title}`}>
+  <p>{labels[kind]}</p>
+  <h3>{title}</h3>
+  <div><slot /></div>
+</aside>

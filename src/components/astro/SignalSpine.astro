@@ -1,0 +1,42 @@
+---
+export type SignalStage = 'source' | 'dut' | 'acquisition' | 'dsp' | 'display';
+
+export interface Props {
+  activeStages?: readonly SignalStage[];
+  changedStage?: SignalStage;
+  label?: string;
+}
+
+const {
+  activeStages = ['source', 'dut', 'acquisition', 'dsp', 'display'],
+  changedStage,
+  label = '신호가 화면으로 변환되는 경로'
+} = Astro.props;
+
+const stages: readonly { id: SignalStage; label: string; detail: string }[] = [
+  { id: 'source', label: 'Source', detail: '신호 생성' },
+  { id: 'dut', label: 'DUT', detail: '물리 변화' },
+  { id: 'acquisition', label: 'Acquisition', detail: '샘플 획득' },
+  { id: 'dsp', label: 'DSP / Math', detail: '계산·필터' },
+  { id: 'display', label: 'Display', detail: 'trace 표시' }
+];
+---
+
+<div class="bench-signal-spine" role="img" aria-label={label}>
+  <ol>
+    {stages.map((stage) => (
+      <li
+        class:list={{
+          'is-active': activeStages.includes(stage.id),
+          'is-changed': stage.id === changedStage
+        }}
+      >
+        <span class="bench-signal-spine__node" aria-hidden="true"></span>
+        <span class="bench-signal-spine__label">
+          <strong>{stage.label}</strong>
+          <small>{stage.detail}</small>
+        </span>
+      </li>
+    ))}
+  </ol>
+</div>

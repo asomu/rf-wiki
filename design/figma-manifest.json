@@ -1,0 +1,71 @@
+{
+  "fileName": "RF Wiki — Precision Lab",
+  "fileKey": "ufYJctXMrn48y7MUppT5PB",
+  "fileUrl": "https://www.figma.com/design/ufYJctXMrn48y7MUppT5PB",
+  "plan": "starter",
+  "lastMcpAttempt": {
+    "date": "2026-07-11",
+    "operation": "Read-only final foundation and screen-canvas inspection",
+    "result": "Blocked before execution by the Figma Starter MCP call limit"
+  },
+  "lastComputerUseAttempt": {
+    "date": "2026-07-11",
+    "operation": "Place and verify six generated design boards, sync the two adjusted primitive colors, and repair the Foundations radius samples",
+    "result": "Succeeded through the authorized Chrome Figma session; all eight logical canvases were visually verified"
+  },
+  "physicalPages": {
+    "01 — System": "0:1",
+    "02 — Screens": "3:2",
+    "03 — Review Archive": "3:3"
+  },
+  "logicalCanvases": {
+    "Product & Principles": "3:4",
+    "Foundations & Variables": "3:5",
+    "Typography & Visualization Grammar": "3:6",
+    "Components & States": "3:7",
+    "Interactive Lab Patterns": "3:8",
+    "Core Screens": "3:9",
+    "Responsive Screens": "3:10",
+    "Review Archive": "3:11"
+  },
+  "foundations": {
+    "collections": 5,
+    "variables": 81,
+    "semanticAliases": 24,
+    "textStyles": 8,
+    "effectStyles": 2,
+    "validation": "passed",
+    "validationScope": "81-variable structure, 24 aliases, text/effect styles, #08746E and #925E00 primitive values, and visible 0/6/10/14px radius samples"
+  },
+  "boardExports": {
+    "Typography & Visualization Grammar": "design/figma-boards/typography-visualization.png",
+    "Components & States": "design/figma-boards/components-states.png",
+    "Interactive Lab Patterns": "design/figma-boards/interactive-lab-patterns.png",
+    "Core Screens": "design/figma-boards/core-screens.png",
+    "Responsive Screens": "design/figma-boards/responsive-screens.png",
+    "Review Archive": "design/figma-boards/review-archive.png"
+  },
+  "verifiedCanvases": [
+    "Product & Principles",
+    "Foundations & Variables",
+    "Typography & Visualization Grammar",
+    "Components & States",
+    "Interactive Lab Patterns",
+    "Core Screens",
+    "Responsive Screens",
+    "Review Archive"
+  ],
+  "browserParity": {
+    "visualBaselines": 24,
+    "representativeScreens": 7,
+    "viewports": [1440, 1024, 390],
+    "interactiveMobileStates": 3,
+    "result": "passed; Core Screens is the distilled Figma review board and the pixel-level evidence remains under tests/e2e/visual.spec.ts-snapshots"
+  },
+  "limitations": [
+    "Starter supports three physical pages; eight approved logical pages are represented as named 1440px canvases across those pages.",
+    "The Figma Starter MCP quota was exhausted, so final editing and visual verification used the authorized Chrome Figma session instead of an MCP metadata re-read.",
+    "The six 840x560 review boards are image references in Figma; their editable SVG sources remain versioned under design/figma-boards/."
+  ],
+  "pending": []
+}

@@ -1,0 +1,167 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
+import SearchField from '../components/astro/SearchField.astro';
+import { curriculum } from '../data/curriculum';
+import { glossary, glossarySearchText } from '../data/glossary';
+
+const fallbackEntries = [
+  ...curriculum.map((module) => ({
+    kind: '학습 모듈',
+    title: module.representativeLessonTitle,
+    description: module.summary,
+    href: module.representativeLessonHref,
+    searchText: `${module.shortTitle} ${module.title} ${module.question} ${module.summary} ${module.topics.join(' ')}`,
+    featured: true
+  })),
+  ...glossary.map((entry) => ({
+    kind: '용어',
+    title: entry.term,
+    description: entry.definition,
+    href: entry.href,
+    searchText: glossarySearchText(entry),
+    featured: false
+  }))
+];
+---
+
+<BaseLayout title="검색" description="RF Wiki의 lesson, 장비 설정과 RF 용어 검색" currentPath="/search/">
+  <main class="page-shell search-page">
+    <Breadcrumbs items={[{ label: '학습 지도', href: '/' }, { label: '검색' }]} />
+
+    <header class="page-heading">
+      <p class="context-line"><span>Lesson</span><span>설정</span><span>용어</span></p>
+      <h1>장비 화면에서 본 단어를 그대로 찾아보세요.</h1>
+      <p>약어, S-parameter 기호, 단위 또는 “noise floor”처럼 화면에 보이는 표현으로 검색할 수 있습니다.</p>
+    </header>
+
+    <section class="search-workspace" aria-labelledby="search-workspace-title">
+      <h2 class="visually-hidden" id="search-workspace-title">RF Wiki 검색</h2>
+      <div class="search-query-panel">
+        <SearchField id="page-search" label="RF Wiki 전체 검색" placeholder="예: RBW, S21, 100 MHz RB" />
+        <p id="search-status" class="search-status" role="status" aria-live="polite">
+          검색어가 없으면 여섯 학습 축의 시작점을 보여줍니다.
+        </p>
+      </div>
+
+      <div id="pagefind-results" class="search-results" aria-live="polite" hidden></div>
+
+      <ol id="fallback-results" class="search-results search-results--fallback" data-pagefind-ignore>
+        {fallbackEntries.map((entry) => (
+          <li
+            data-search-entry
+            data-search-text={entry.searchText}
+            data-featured={entry.featured ? 'true' : 'false'}
+            hidden={!entry.featured}
+          >
+            <article>
+              <p class="search-result__kind">{entry.kind}</p>
+              <h2><a href={entry.href}>{entry.title}</a></h2>
+              <p>{entry.description}</p>
+            </article>
+          </li>
+        ))}
+      </ol>
+
+      <p id="search-empty" class="empty-state" hidden>
+        일치하는 항목이 없습니다. 기호의 영문 이름을 입력하거나 <a href="/glossary/">용어 사전</a>에서 범주별로 찾아보세요.
+      </p>
+    </section>
+  </main>
+
+  <script is:inline>
+    (() => {
+      const form = document.querySelector('.search-page .search-field');
+      const input = document.querySelector('#page-search');
+      const fallback = document.querySelector('#fallback-results');
+      const pagefindResults = document.querySelector('#pagefind-results');
+      const status = document.querySelector('#search-status');
+      const empty = document.querySelector('#search-empty');
+      const entries = Array.from(document.querySelectorAll('[data-search-entry]'));
+      let requestId = 0;
+
+      const normalize = (value) => value.normalize('NFKC').toLocaleLowerCase('ko-KR').replace(/\s+/g, ' ').trim();
+
+      const showFallback = (query, note) => {
+        const normalized = normalize(query);
+        let count = 0;
+        fallback.hidden = false;
+        pagefindResults.hidden = true;
+        pagefindResults.replaceChildren();
+        entries.forEach((entry) => {
+          const visible = normalized
+            ? normalize(entry.dataset.searchText || '').includes(normalized)
+            : entry.dataset.featured === 'true';
+          entry.hidden = !visible;
+          if (visible) count += 1;
+        });
+        empty.hidden = count > 0;
+        status.textContent = normalized
+          ? `${note} “${query}” 결과 ${count}개`
+          : '검색어가 없으면 여섯 학습 축의 시작점을 보여줍니다.';
+      };
+
+      const renderPagefind = (query, results) => {
+        const list = document.createElement('ol');
+        list.className = 'search-results';
+        results.forEach((data) => {
+          const item = document.createElement('li');
+          const article = document.createElement('article');
+          const kind = document.createElement('p');
+          const heading = document.createElement('h2');
+          const link = document.createElement('a');
+          const excerpt = document.createElement('p');
+          kind.className = 'search-result__kind';
+          kind.textContent = data.meta?.module || 'RF Wiki';
+          link.href = data.url;
+          link.textContent = data.meta?.title || data.url;
+          excerpt.className = 'search-result__excerpt';
+          excerpt.innerHTML = data.excerpt || '';
+          heading.append(link);
+          article.append(kind, heading, excerpt);
+          item.append(article);
+          list.append(item);
+        });
+        pagefindResults.replaceChildren(list);
+        pagefindResults.hidden = false;
+        fallback.hidden = true;
+        empty.hidden = results.length > 0;
+        status.textContent = `“${query}” 전체 본문 결과 ${results.length}개`;
+      };
+
+      const runSearch = async (query) => {
+        const currentRequest = ++requestId;
+        const normalized = normalize(query);
+        if (!normalized) {
+          showFallback('', '내장 목차에서');
+          return;
+        }
+        status.textContent = `“${query}” 검색 중…`;
+        try {
+          const indexResponse = await fetch('/pagefind/pagefind.js', { method: 'HEAD' });
+          if (!indexResponse.ok) throw new Error('Pagefind index is not available in this preview.');
+          const pagefind = await import('/pagefind/pagefind.js');
+          await pagefind.init();
+          const search = await pagefind.search(query);
+          const data = await Promise.all(search.results.slice(0, 30).map((result) => result.data()));
+          if (currentRequest === requestId) renderPagefind(query, data);
+        } catch {
+          if (currentRequest === requestId) showFallback(query, '내장 목차·용어에서');
+        }
+      };
+
+      const initialQuery = new URLSearchParams(window.location.search).get('q') || '';
+      input.value = initialQuery;
+      runSearch(initialQuery);
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const query = input.value.trim();
+        const url = new URL(window.location.href);
+        query ? url.searchParams.set('q', query) : url.searchParams.delete('q');
+        window.history.replaceState({}, '', url);
+        runSearch(query);
+      });
+    })();
+  </script>
+</BaseLayout>

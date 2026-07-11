@@ -1,0 +1,322 @@
+---
+title: "RB 수와 location을 바꾸면 실제 RF는 어떻게 달라질까?"
+description: "OFDM subcarrier에서 LTE·NR resource grid를 쌓고, bandwidth·SCS·RB size·offset이 spectrum과 time waveform을 어떻게 바꾸는지 계산한다."
+module: "ofdm-lte-nr"
+order: 3
+estimatedMinutes: 95
+prerequisites:
+  - "foundations"
+  - "spectrum-iq"
+outcomes:
+  - "subcarrier, OFDM symbol, CP, RE, RB, slot, frame의 포함 관계를 그릴 수 있다."
+  - "LTE 20 MHz/100 RB와 NR 100 MHz의 SCS별 최대 RB를 혼동하지 않는다."
+  - "RB size와 RB offset을 바꿀 때 occupied width와 allocation center가 어떻게 이동하는지 계산할 수 있다."
+  - "LTE uplink의 PUSCH, PUCCH, PRACH, DM-RS, SRS가 grid에서 맡는 역할을 구분한다."
+  - "Signal Studio에서 만든 LTE/NR 신호를 X-Series 또는 89600 VSA로 demodulation하는 설정 순서를 설명할 수 있다."
+concepts:
+  - "OFDM"
+  - "cyclic prefix"
+  - "resource element"
+  - "physical resource block"
+  - "LTE resource grid"
+  - "NR numerology"
+  - "bandwidth part"
+  - "resource allocation"
+  - "LTE uplink channels and signals"
+equipmentContext:
+  source: "Keysight Signal Studio에서 생성한 LTE 또는 5G NR downlink waveform"
+  dut: "connectorized PA와 동축 fixture"
+  analyzer: "Keysight X-Series 5G/LTE measurement application과 PathWave 89600 VSA"
+standards:
+  - "3GPP TS 36.211 Release 17"
+  - "3GPP TS 38.211 Release 17"
+  - "3GPP TS 38.104 Release 17"
+references:
+  - title: "ETSI TS 136 211 V17.4.0 — LTE; E-UTRA; Physical channels and modulation"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/136200_136299/136211/17.04.00_60/ts_136211v170400p.pdf"
+    kind: "standard"
+  - title: "ETSI TS 138 211 V17.7.0 — 5G NR; Physical channels and modulation"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/138200_138299/138211/17.07.00_60/ts_138211v170700p.pdf"
+    kind: "standard"
+  - title: "ETSI TS 138 104 V17.10.0 — 5G NR; Base Station radio transmission and reception"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/138100_138199/138104/17.10.00_60/ts_138104v171000p.pdf"
+    kind: "standard"
+labId: "resource-grid"
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import PredictionChallenge from '../../components/astro/PredictionChallenge.astro';
+import Definition from '../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+`100M BW, RB 100, location 0`이라는 설정은 세 숫자를 한 단위처럼 외우면 이해되지 않는다. **Channel bandwidth는 그릇, SCS는 격자 간격, RB size는 채운 폭, location/offset은 그 폭의 시작 위치**다. 이 네 값을 분리하면 spectrum 위에서 allocation을 직접 그릴 수 있다.
+
+<LessonLayer level="intuition" title="OFDM은 왜 많은 가는 tone을 한꺼번에 쓸까?">
+
+## 한 개의 넓은 신호가 아니라 서로 직교하는 여러 subcarrier
+
+OFDM transmitter는 각 subcarrier에 QAM symbol을 놓고 IFFT를 수행해 하나의 time waveform을 만든다. subcarrier 간격을 `Δf`, 유효 symbol 시간을 `Tu = 1/Δf`로 고르면, symbol 구간에서 각 subcarrier가 다른 subcarrier의 결정 지점에 zero crossing을 만든다. spectrum의 sinc 모양이 겹쳐 보여도 수학적으로 분리할 수 있는 이유다.
+
+`QAM symbols → resource grid → IFFT → cyclic prefix 추가 → DAC/upconversion → RF`
+
+receiver는 반대로 timing을 잡고 CP를 제거한 뒤 FFT를 수행한다.
+
+<Definition term="cyclic prefix, CP">
+OFDM symbol 끝부분을 복사해 앞에 붙인 guard 구간이다. channel delay spread가 CP 안에 들어오면 multipath의 linear convolution을 FFT가 다루기 쉬운 circular convolution으로 바꾼다. CP는 새 정보를 싣지 않으므로 spectral efficiency 비용이 있다.
+</Definition>
+
+<Definition term="resource element, RE">
+한 subcarrier와 한 OFDM symbol이 만나는 한 칸이다. 그 칸에는 data, reference signal, control, synchronization signal 또는 아무것도 없을 수 있다.
+</Definition>
+
+<Definition term="physical resource block, PRB">
+frequency 방향 12개 연속 subcarrier의 묶음이다. LTE와 NR 모두 12 subcarrier지만, NR은 numerology에 따라 subcarrier spacing이 달라져 한 RB의 Hz 폭도 달라진다.
+</Definition>
+
+## Grid의 포함 관계
+
+머릿속에서 가장 작은 칸부터 쌓는다.
+
+1. **RE** — subcarrier 1개 × OFDM symbol 1개
+2. **RB** — frequency 방향 subcarrier 12개
+3. **slot** — 여러 OFDM symbol의 시간 묶음
+4. **subframe/frame** — radio timing의 큰 기준
+5. **carrier 또는 BWP** — 실제 사용할 frequency grid의 범위
+
+RB는 “데이터 12개”가 아니다. 한 RB 안에도 DM-RS, control 또는 reserved RE가 있으므로 실제 payload bit 수는 modulation order만 곱해 계산할 수 없다.
+
+## RB size와 location은 서로 다른 knob다
+
+- **RB size/count**를 늘리면 더 많은 subcarrier가 켜져 occupied frequency width가 넓어진다.
+- **RB location/offset**을 늘리면 같은 폭의 allocation이 grid의 높은 주파수 쪽으로 이동한다.
+- 둘 다 IFFT에 넣는 bin 집합을 바꾸므로 time waveform의 sample-by-sample 모양과 PAPR도 달라질 수 있다.
+- total channel power를 고정했으면 RB를 늘릴수록 subcarrier당 평균 power는 낮아진다. PSD 기준을 고정하면 total power는 늘어난다. 장비의 power normalization을 확인해야 한다.
+
+<PredictionChallenge
+  question="NR 100 MHz, SCS 30 kHz, 273-RB carrier에서 allocation을 RB size 100으로 유지하고 start offset을 0에서 86으로 바꾸면 가장 직접적인 변화는?"
+  choices={[
+    "약 36 MHz의 allocation 폭은 유지되고 spectrum의 중심이 낮은 쪽에서 carrier 중심 근처로 이동한다",
+    "RB 하나의 폭이 360 kHz에서 720 kHz로 늘어난다",
+    "channel bandwidth가 자동으로 200 MHz가 된다"
+  ]}
+  answer={0}
+  explanation="한 RB의 폭은 12×30 kHz=360 kHz다. size 100은 약 36 MHz를 유지하고, start offset만 allocation의 위치를 바꾼다."
+/>
+
+## LTE와 NR의 숫자를 먼저 분리하자
+
+### LTE downlink의 대표 20 MHz carrier
+
+- SCS: `15 kHz`
+- 최대 downlink RB: `100`
+- RB 한 개 폭: `12 × 15 kHz = 180 kHz`
+- 100 RB의 nominal active subcarrier width: `18 MHz`
+- 나머지는 channel edge guard와 implementation transition을 위해 남는다.
+
+따라서 **LTE 단일 carrier에서 100 MHz/100 RB라고 말하는 것은 맞지 않는다.** LTE Release 17에서도 한 E-UTRA carrier bandwidth의 대표 최대는 20 MHz이고, 더 넓은 총 대역은 carrier aggregation의 여러 component carrier로 다룬다.
+
+### NR FR1의 100 MHz carrier
+
+3GPP TS 38.104의 maximum transmission bandwidth configuration에서:
+
+| Channel BW | SCS | 최대 `N_RB` | RB 폭 | 최대 RB nominal 폭 |
+|---:|---:|---:|---:|---:|
+| 100 MHz | 30 kHz | 273 | 360 kHz | 98.28 MHz |
+| 100 MHz | 60 kHz | 135 | 720 kHz | 97.20 MHz |
+
+100 MHz FR1에서 15 kHz SCS를 넣고 528 RB처럼 단순 나눗셈한 값을 쓰면 안 된다. 허용 channel bandwidth와 SCS 조합, maximum transmission bandwidth configuration은 TS 38.104 표를 따른다.
+
+### NR FR2-1과 FR2-2는 같은 표가 아니다
+
+Release 17에서 FR2는 `FR2-1`과 더 높은 주파수의 `FR2-2`로 나뉜다. 특히 FR2-2에는 `480 kHz`, `960 kHz` SCS와 최대 `2 GHz` channel bandwidth 조합이 추가되었다. 아래는 TS 38.104 V17.7.0 표 5.3.2-2와 5.3.2-3의 transmission bandwidth configuration이다. `N/A` 조합은 단순 나눗셈으로 RB 수를 만들어 쓰면 안 된다.
+
+| Range | SCS | 50 MHz | 100 MHz | 200 MHz | 400 MHz | 800 MHz | 1600 MHz | 2000 MHz |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| FR2-1 | 60 kHz | 66 | 132 | 264 | — | — | — | — |
+| FR2-1 | 120 kHz | 32 | 66 | 132 | 264 | — | — | — |
+| FR2-2 | 120 kHz | — | 66 | — | 264 | — | — | — |
+| FR2-2 | 480 kHz | — | — | — | 66 | 124 | 248 | — |
+| FR2-2 | 960 kHz | — | — | — | 33 | 62 | 124 | 148 |
+
+예를 들어 FR2-2 `800 MHz / 480 kHz`는 `124 RB`, nominal active span은 `124 × 12 × 480 kHz = 714.24 MHz`다. channel edge에는 guard가 남는다. 이 Wiki의 simulator 기본 화면은 FR1 100 MHz를 사용하지만 계산 라이브러리는 위 Release 17 조합을 별도 range로 검증한다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="100 MHz / RB 100 / location 0을 spectrum에 직접 놓아 보자">
+
+## 먼저 reference를 적는다
+
+NR의 RB index는 문맥에 따라 common resource block, carrier resource block, BWP 안의 PRB가 다르다. Signal Studio의 `RB Offset`, `RB Start`, `Resource Block Offset`이 어느 기준점을 사용하는지 현재 channel/BWP 설정과 help에서 확인한다. 여기서는 교육 모델로 **273-RB active carrier의 PRB 0을 시작점으로 한 offset**을 사용한다.
+
+## 예 1: NR 100 MHz, SCS 30 kHz
+
+- Carrier grid: `273 RB`
+- RB width: `12 × 30 kHz = 360 kHz`
+- Allocation size: `100 RB`
+- Allocation nominal width: `100 × 360 kHz = 36 MHz`
+- Legal start range: `0 … 173`, 왜냐하면 `273 − 100 = 173`
+
+| Start location | 점유 PRB | spectrum에서 보이는 위치 |
+|---:|---|---|
+| 0 | 0 … 99 | active grid의 낮은 주파수 edge 쪽 |
+| 86 | 86 … 185 | carrier center에 거의 대칭 |
+| 173 | 173 … 272 | 높은 주파수 edge 쪽 |
+
+273은 홀수이고 allocation 100은 짝수라 완벽히 같은 index 중심을 공유하지 않는다. start 86과 87은 carrier 중심의 양쪽에 반 RB만큼 차이가 난다. “center”라는 UI 표현이 DC subcarrier, Point A, channel raster 중 무엇을 기준으로 하는지도 확인한다.
+
+### `location 0 → 86`의 Cause/Effect
+
+- **변경:** 100-RB allocation 시작점을 0에서 86으로 이동
+- **직접 효과:** IFFT에서 활성 bin 집합이 높은 주파수 쪽으로 86 RB 이동
+- **화면 결과:** occupied width는 약 36 MHz로 유지, spectrum 중심은 약 `86 × 360 kHz = 30.96 MHz` 이동
+- **비용/한계:** BWP·Point A·DC null convention을 빼면 absolute RF edge를 정확히 단정할 수 없음
+
+## 예 2: 같은 100 MHz지만 SCS 60 kHz
+
+- Carrier grid: `135 RB`
+- RB width: `12 × 60 kHz = 720 kHz`
+- RB size 100 width: `72 MHz`
+- Legal start range: `0 … 35`
+- 거의 centered start: `17` 또는 `18`
+
+같은 `RB 100`도 30 kHz SCS에서는 약 36 MHz, 60 kHz SCS에서는 약 72 MHz다. 따라서 RB count만 보고 occupied bandwidth를 말할 수 없다.
+
+## LTE 20 MHz에서는 같은 말을 어떻게 읽을까?
+
+LTE 20 MHz downlink의 carrier grid가 100 RB인데 allocation도 100 RB라면 start는 0만 가능하다. size 100이 이미 모든 PRB를 사용하기 때문이다. location을 움직이고 싶다면 allocation size를 100보다 작게 해야 한다.
+
+예를 들어 size 20이면 폭은 `20 × 180 kHz = 3.6 MHz`, legal start는 `0 … 80`이다.
+
+## Signal Studio에서 생성하는 순서
+
+### NR downlink
+
+1. 5G NR waveform setup에서 Release 17에 맞는 DL carrier와 frequency range를 선택한다.
+2. Channel bandwidth `100 MHz`, SCS `30 kHz`를 선택한다.
+3. Carrier/BWP start와 size를 확인한다. BWP가 carrier 전체보다 작으면 PDSCH RB offset은 보통 BWP 안에서 해석된다.
+4. PDSCH allocation을 `RB size 100`, start `0`으로 설정한다.
+5. DM-RS mapping, symbol allocation, modulation, power boost를 기록한다.
+6. waveform power normalization이 total RMS, per-carrier, per-channel 중 무엇인지 확인한다.
+7. Download 후 generator RF output을 안전한 level에서 켠다.
+
+### X-Series 또는 89600 VSA 분석
+
+1. Center frequency와 analysis bandwidth를 carrier 전체에 맞춘다.
+2. 5G NR demodulation setup에서 channel bandwidth와 SCS를 source와 맞춘다.
+3. Frame/SSB를 포함했다면 cell ID와 sync detection을 확인한다.
+4. Resource grid에서 PDSCH, DM-RS, PDCCH/CORESET, SSB의 색이 아니라 label과 RE pattern을 확인한다.
+5. EVM summary만 보지 말고 EVM vs subcarrier, EVM vs symbol, constellation, channel frequency response를 linked view로 본다.
+6. RB start를 바꿨을 때 spectrum과 resource grid marker가 같은 allocation을 가리키는지 확인한다.
+
+## 어떤 신호가 grid를 채우는가?
+
+### LTE downlink의 대표 물리 신호·채널
+
+- **PSS/SSS:** cell search와 timing/identity
+- **PBCH:** MIB 전달
+- **CRS:** legacy cell-specific reference signal
+- **PDCCH:** downlink control information
+- **PDSCH:** 사용자 data
+- **PCFICH/PHICH:** LTE legacy control 구조; 구성과 release 기능에 따라 해석
+
+LTE uplink는 전통적으로 DFT-s-OFDM(SC-FDMA라고도 부름)을 사용해 단말 PAPR을 낮춘다.
+
+### LTE uplink: 채널과 신호를 grid에서 따로 보자
+
+LTE uplink도 20 MHz이면 최대 100 RB이고 RB 하나는 `12 × 15 kHz = 180 kHz`다. 다만 downlink OFDM과 달리 **PUSCH data symbol**에는 먼저 DFT spreading을 적용한 뒤 연속 subcarrier에 mapping하는 DFT-s-OFDM을 사용한다. 여러 QAM symbol이 frequency bin 하나씩에 독립적으로 놓이기보다 한 allocation 전체에 퍼지므로 UE 송신의 peak-to-average power를 낮추는 데 유리하다. PUCCH는 이 PUSCH chain으로 일반화하지 않는다. format에 따라 base sequence, cyclic shift, orthogonal/block spreading과 hopping으로 control resource를 구성한다.
+
+| 구분 | 이름 | 무엇을 전달/측정하나 | grid에서 보는 관찰점 |
+|---|---|---|---|
+| Physical channel | **PUSCH** | 사용자 uplink data와 일부 control | scheduler가 준 연속 RB allocation; DM-RS symbol을 함께 확인 |
+| Physical channel | **PUCCH** | HARQ-ACK/NACK, scheduling request, CSI | format·resource 설정에 따른 좁은 control 자원; slot 내 hopping 여부 확인 |
+| Physical channel | **PRACH** | random-access preamble | 일반 PUSCH 12×14 payload grid와 별도인 time/frequency occasion |
+| Physical signal | **DM-RS** | PUSCH/PUCCH coherent demodulation용 channel estimate | data allocation 안의 정해진 symbol/RE; EVM의 기준이 되는 reference |
+| Physical signal | **SRS** | eNB가 uplink channel을 넓게 sounding | configured bandwidth와 주기; PUSCH와 겹치면 마지막 SC-FDMA symbol 사용 관계 확인 |
+
+PUSCH의 머릿속 신호 흐름은 `UL bits → coding/modulation → DFT spreading → RB mapping → IFFT/CP → UE PA`다. receiver는 `CP 제거 → FFT → allocation 추출 → inverse DFT de-spreading → equalization` 순으로 본다. PUCCH는 선택한 format의 sequence·spreading·hopping 생성 절차를 별도로 따른다. 따라서 analyzer에서 LTE UL을 일반 OFDM으로만 설정하면 allocation spectrum은 보여도 표준 demodulation과 EVM reference가 맞지 않을 수 있다.
+
+#### Bench에서 LTE UL grid를 읽는 순서
+
+1. UL channel bandwidth와 PUSCH RB start/count를 먼저 확인한다.
+2. DM-RS 위치에서 channel estimate와 common phase error가 안정적인지 본다.
+3. PUSCH data RE의 EVM을 subcarrier·symbol 방향으로 나눠 PA memory effect와 frequency tilt를 구분한다.
+4. PUCCH가 있다면 control resource와 hopping이 PUSCH와 충돌하지 않는지 본다.
+5. SRS가 설정됐으면 마지막 symbol 부근의 puncture/전환을 data 오류로 오인하지 않는다.
+6. PRACH는 별도 occasion과 preamble format으로 분석하며 PUSCH constellation을 기대하지 않는다.
+
+### NR downlink와 uplink의 대표 신호·채널
+
+- **SSB:** PSS, SSS, PBCH, PBCH DM-RS의 묶음
+- **CORESET/PDCCH:** control 영역과 downlink control information
+- **PDSCH + DM-RS/PTRS:** data와 demodulation/phase tracking reference
+- **CSI-RS:** channel-state measurement
+- **PRACH:** random access
+- **PUCCH/PUSCH + DM-RS:** uplink control/data
+- **SRS:** uplink sounding
+
+NR은 “모든 RB가 항상 data”인 grid가 아니다. scheduler allocation과 reference/control overhead를 함께 봐야 EVM과 power distribution을 올바르게 읽을 수 있다.
+
+<MeasurementNote title="occupied bandwidth와 channel bandwidth는 같은 선이 아니다">
+Channel bandwidth는 RF channel의 nominal 폭이고, maximum RB grid와 실제 scheduled RB allocation은 그 안에 있다. analyzer의 occupied bandwidth 측정은 누적 power 비율 같은 측정 정의로 다시 계산될 수 있다. `RB count × 12 × SCS`는 nominal active subcarrier span이지 필터 skirt를 포함한 occupied-bandwidth 판정값과 자동으로 같지 않다.
+</MeasurementNote>
+
+## allocation 이동이 time waveform에 남기는 것
+
+IFFT bin을 `k0`만큼 이동하면 ideal complex baseband time waveform에 `exp(j2πk0n/N)` 회전이 곱해진다. 같은 QAM data와 power normalization이라면 magnitude envelope는 이상적으로 같을 수 있지만 phase가 sample마다 더 빨리 회전한다. 실제 waveform은 guard, DC subcarrier, reference signal, filtering, clipping, data seed 때문에 envelope와 PAPR도 달라질 수 있다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="OFDM과 resource grid를 수식으로 닫자">
+
+<FormulaDisclosure title="OFDM 유효 symbol" formula="x[n] = (1/N) Σₖ X[k]exp(j2πkn/N)">
+`X[k]`는 active subcarrier의 QAM/reference symbol이고 나머지 bin은 0일 수 있다. 이 Wiki의 계산 모델은 forward FFT를 unscaled, inverse FFT를 `1/N`로 고정한다. 따라서 unit-average-power subcarrier가 `K`개 켜지면 useful sample의 평균 power는 `K/N²`이다. 실제 generator가 unitary `1/√N` 또는 별도 RMS normalization을 쓰면 waveform scale이 달라지므로 장비 convention을 확인한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="subcarrier spacing과 유효 symbol 시간" formula="Tu = 1/Δf">
+LTE와 NR `15 kHz`에서는 유효 symbol 시간이 약 `66.67 µs`다. NR `30 kHz`에서는 약 `33.33 µs`, `60 kHz`에서는 약 `16.67 µs`다. 실제 OFDM symbol duration은 CP를 더한 값이다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="NR numerology" formula="Δf = 15 kHz × 2^μ">
+normal CP에서 slot은 일반적으로 14 OFDM symbol이고 slot duration은 numerology가 높아질수록 짧아진다. 모든 channel/signal이 모든 numerology와 bandwidth 조합에서 허용되는 것은 아니므로 TS 38.211과 RF requirement 표를 함께 본다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="RB allocation의 nominal 폭과 범위" formula="BRB = 12Δf,   Balloc = NRB,alloc·12Δf,   0 ≤ start ≤ NRB,grid−NRB,alloc">
+이 식은 PRB가 연속 배치된 단순 allocation에 적용한다. absolute RF frequency로 바꾸려면 Point A, offset-to-carrier, BWP start, common resource block numbering과 subcarrier index convention이 필요하다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="bin 이동의 time-domain 효과" formula="Xshift[k] = X[k−k₀]  ⇔  xshift[n] = x[n]exp(j2πk₀n/N)">
+frequency grid에서 allocation을 이동하면 complex time waveform에 선형 phase ramp가 생긴다. real RF에서는 carrier upconversion과 합쳐져 실제 occupied band의 위치가 이동한다.
+</FormulaDisclosure>
+
+## Release 17 표를 읽는 순서
+
+1. TS 38.104에서 frequency range, channel bandwidth, SCS에 맞는 maximum transmission bandwidth `N_RB`를 찾는다.
+2. TS 38.211에서 resource grid, Point A, common resource block, BWP, physical channel mapping을 확인한다.
+3. Signal Studio UI가 표준 parameter를 어떤 이름과 기준점으로 노출하는지 help에서 확인한다.
+4. analyzer 설정이 source의 numerology, cell ID, frame structure, channel allocation과 일치하는지 검증한다.
+
+## 이 단원의 convention과 불확도
+
+- downlink frequency는 화면 왼쪽이 낮고 오른쪽이 높다.
+- RB는 12개 연속 subcarrier다.
+- 교육 예의 `start`는 active carrier PRB 0 기준이다. 실제 NR은 BWP/CRB 기준을 명시한다.
+- nominal RB span과 measured occupied bandwidth를 구분한다.
+- total RMS power 고정인지 PSD/RB power 고정인지 명시한다.
+- resource grid의 빈 RE가 실제 zero인지 muted/reference/reserved인지 configuration과 함께 읽는다.
+- PA를 통과한 뒤에는 filtering, gain tilt, compression, memory effect가 allocation edge와 EVM에 추가 영향을 준다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. LTE 20 MHz의 100 RB와 NR 100 MHz의 100-RB allocation은 왜 폭이 다른가?
+2. NR 100 MHz/30 kHz에서 100 RB의 legal start가 왜 0부터 173인가?
+3. 같은 100 MHz에서 SCS를 30 kHz에서 60 kHz로 바꾸면 RB 100의 nominal 폭은 어떻게 되는가?
+4. location만 옮겼을 때 spectrum width와 time-domain phase는 각각 어떻게 변하는가?
+5. Signal Studio의 RB offset을 absolute RF frequency로 바꾸려면 어떤 기준점이 추가로 필요한가?
+6. LTE uplink에서 PUSCH, PUCCH, PRACH는 무엇을 전달하고 DM-RS·SRS는 무엇을 측정하게 해 주는가?

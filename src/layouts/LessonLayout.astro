@@ -1,0 +1,87 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
+import LearningMap from '../components/astro/LearningMap.astro';
+import type { CurriculumModuleId } from '../data/curriculum';
+import { getCurriculumModule } from '../data/curriculum';
+
+export interface Props {
+  title: string;
+  description: string;
+  moduleId: CurriculumModuleId;
+  estimatedMinutes?: number;
+  currentLayer?: 'intuition' | 'bench' | 'theory';
+}
+
+const {
+  title,
+  description,
+  moduleId,
+  estimatedMinutes,
+  currentLayer = 'intuition'
+} = Astro.props;
+const module = getCurriculumModule(moduleId);
+const moduleHref = module?.representativeLessonHref ?? '/';
+const layerItems = [
+  { id: 'intuition', label: '직관', question: '무엇이 보이나?' },
+  { id: 'bench', label: '조작·해석', question: '무엇을 바꿀까?' },
+  { id: 'theory', label: '수식·규격', question: '어떻게 검증할까?' }
+] as const;
+---
+
+<BaseLayout title={title} description={description} currentPath={Astro.url.pathname} bodyClass="lesson-page">
+  <main class="lesson-shell">
+    <LearningMap currentModule={moduleId} currentLessonTitle={title} />
+
+    <div class="lesson-intro" data-pagefind-body>
+      <Breadcrumbs
+        items={[
+          { label: '학습 지도', href: '/' },
+          { label: module?.shortTitle ?? moduleId, href: moduleHref },
+          { label: title }
+        ]}
+      />
+
+      <header class="lesson-heading">
+        <p class="context-line">
+          <span>{module?.shortTitle}</span>
+          {estimatedMinutes && <span>{estimatedMinutes}분</span>}
+          <span>교육 모델</span>
+        </p>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </header>
+    </div>
+
+    <aside class="lesson-lab-rail" id="interactive-lab" aria-label="인터랙티브 실험">
+      <slot name="lab">
+        <div class="lab-placeholder">
+          <p class="data-label">LAB / 준비 상태</p>
+          <p>이 단원의 실험은 본문에서 계산 조건을 확인한 뒤 시작합니다.</p>
+        </div>
+      </slot>
+    </aside>
+
+    <nav class="layer-rail" aria-label="학습 깊이">
+      <ol>
+        {layerItems.map((item, index) => (
+          <li class:list={{ 'is-current': item.id === currentLayer }}>
+            <a href={`#${item.id}`} aria-current={item.id === currentLayer ? 'step' : undefined}>
+              <span class="layer-index">{index + 1}</span>
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.question}</small>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <article class="lesson-article" data-pagefind-body>
+      <div class="lesson-content">
+        <slot />
+      </div>
+    </article>
+  </main>
+</BaseLayout>
