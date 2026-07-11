@@ -56,3 +56,24 @@ export function cosineWaveformByCycles(
     return { x: timeNs, y: Math.cos(2 * Math.PI * frequencyGHz * timeNs) };
   });
 }
+
+export function cosineWaveformByDuration(
+  frequencyGHz: number,
+  durationNs: number,
+  sampleCount = 301,
+): readonly { x: number; y: number }[] {
+  if (!Number.isFinite(frequencyGHz) || frequencyGHz <= 0) {
+    throw new RangeError('Frequency must be finite and positive');
+  }
+  if (!Number.isFinite(durationNs) || durationNs <= 0) {
+    throw new RangeError('Duration must be finite and positive');
+  }
+  if (!Number.isSafeInteger(sampleCount) || sampleCount < 2) {
+    throw new RangeError('Waveform sample count must be an integer of at least two');
+  }
+
+  return Array.from({ length: sampleCount }, (_, index) => {
+    const timeNs = (index / (sampleCount - 1)) * durationNs;
+    return { x: timeNs, y: Math.cos(2 * Math.PI * frequencyGHz * timeNs) };
+  });
+}

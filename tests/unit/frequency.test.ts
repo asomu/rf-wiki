@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cosineWaveformByCycles, frequencyLinkState } from '../../src/lib/rf';
+import { cosineWaveformByCycles, cosineWaveformByDuration, frequencyLinkState } from '../../src/lib/rf';
 
 describe('frequency, period, wavelength, and cable phase', () => {
   it('doubles electrical length and halves period when frequency doubles', () => {
@@ -16,5 +16,15 @@ describe('frequency, period, wavelength, and cable phase', () => {
     expect(waveform[0]).toEqual({ x: 0, y: 1 });
     expect(waveform.at(-1)?.x).toBeCloseTo(1.5, 14);
     expect(waveform.at(-1)?.y).toBeCloseTo(1, 14);
+  });
+
+  it('keeps the time window fixed so higher frequency shows more cycles', () => {
+    const one = cosineWaveformByDuration(1, 3, 301);
+    const two = cosineWaveformByDuration(2, 3, 301);
+    expect(one.at(-1)?.x).toBeCloseTo(3, 14);
+    expect(two.at(-1)?.x).toBeCloseTo(3, 14);
+    expect(one.filter((point) => point.y > 0.999).length).toBeLessThan(
+      two.filter((point) => point.y > 0.999).length,
+    );
   });
 });

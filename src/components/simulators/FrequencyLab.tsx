@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { cosineWaveformByCycles, frequencyLinkState } from '@/lib/rf';
+import { cosineWaveformByDuration, frequencyLinkState } from '@/lib/rf';
 import { RangeControl } from '../lab/ControlField';
 import { LabShell } from '../lab/LabShell';
 import { Readout } from '../lab/Readout';
@@ -9,6 +9,7 @@ import { LinePlot } from '../plots/LinePlot';
 import { PlotFrame } from '../plots/PlotFrame';
 
 export default function FrequencyLab() {
+  const timeWindowNs = 3;
   const [frequencyGHz, setFrequencyGHz] = useState(1);
   const [cableLengthCm, setCableLengthCm] = useState(10);
   const [velocityFactor, setVelocityFactor] = useState(0.7);
@@ -21,7 +22,10 @@ export default function FrequencyLab() {
     wrappedPhaseRadians: phaseRadians,
   } = state;
 
-  const waveform = useMemo(() => cosineWaveformByCycles(frequencyGHz), [frequencyGHz]);
+  const waveform = useMemo(
+    () => cosineWaveformByDuration(frequencyGHz, timeWindowNs),
+    [frequencyGHz],
+  );
 
   const ledger: LedgerEntry[] = [
     { label: '변경', value: `주파수 ${frequencyGHz.toFixed(2)} GHz · 케이블 ${cableLengthCm.toFixed(1)} cm` },
@@ -41,14 +45,14 @@ export default function FrequencyLab() {
   return (
     <LabShell
       labId="frequency"
-      title="Frequency Link Lab"
+      title="주파수·케이블 위상 실험"
       question="주파수를 두 배로 올리면 같은 케이블은 왜 더 길어 보일까?"
-      description="회전하는 phasor, 시간 파형, 주파수선, 케이블 위상은 서로 다른 그림이 아니라 같은 상태의 표현입니다."
-      activeStages={['source', 'dut', 'display']}
+      description="주파수, 시간 파형, 케이블 파장과 위상은 서로 다른 정보가 아니라 같은 신호 상태를 번역한 결과입니다."
+      activeStages={['source', 'dut', 'acquisition', 'dsp', 'display']}
       stageMap={{
-        'frequency-ghz': ['source', 'dut', 'display'],
-        'cable-length': ['dut', 'display'],
-        'velocity-factor': ['dut', 'display'],
+        'frequency-ghz': ['source', 'dut', 'acquisition', 'dsp', 'display'],
+        'cable-length': ['dut', 'acquisition', 'dsp', 'display'],
+        'velocity-factor': ['dut', 'acquisition', 'dsp', 'display'],
       }}
       controls={controls}
       ledger={ledger}
@@ -67,7 +71,7 @@ export default function FrequencyLab() {
         <Readout label="Electrical length" value={`${phaseDegrees.toFixed(1)}°`} tone="reference" />
       </div>
       <PlotFrame title="시간 파형" observation="주파수가 올라가면 같은 시간 폭에 더 많은 cycle이 들어옵니다." table={<table><thead><tr><th>Quantity</th><th>Value</th></tr></thead><tbody><tr><td>Frequency</td><td>{frequencyGHz.toFixed(2)} GHz</td></tr><tr><td>Period</td><td>{periodNs.toFixed(3)} ns</td></tr></tbody></table>}>
-        <LinePlot title="Cosine time waveform" description={`${frequencyGHz} GHz cosine over three periods.`} series={[{ label: `${frequencyGHz.toFixed(1)} GHz`, points: waveform, tone: 'forward' }]} xDomain={[0, 3 * periodNs]} yDomain={[-1.2, 1.2]} xLabel="time (ns)" yLabel="normalized voltage" markerX={periodNs} markerLabel="1 period" />
+        <LinePlot title="Cosine time waveform" description={`${frequencyGHz} GHz cosine in a fixed ${timeWindowNs} ns observation window.`} series={[{ label: `${frequencyGHz.toFixed(1)} GHz`, points: waveform, tone: 'forward' }]} xDomain={[0, timeWindowNs]} yDomain={[-1.2, 1.2]} xLabel="time (ns)" yLabel="normalized voltage" markerX={periodNs} markerLabel="1 period" />
       </PlotFrame>
       <PlotFrame title="같은 순간의 phasor" observation="시간축의 cosine은 phasor를 실수축에 투영한 값입니다." table={<table><tbody><tr><th>Unwrapped cable phase</th><td>{phaseDegrees.toFixed(2)}°</td></tr><tr><th>Wrapped phase</th><td>{wrappedPhase.toFixed(2)}°</td></tr><tr><th>I / Q</th><td>{Math.cos(phaseRadians).toFixed(4)} / {Math.sin(phaseRadians).toFixed(4)}</td></tr><tr><th>Magnitude</th><td>1.0000</td></tr></tbody></table>}>
         <ComplexPlane title="Cable output phasor" description={`Cable output has wrapped phase ${wrappedPhase.toFixed(1)} degrees.`} points={[{ x: Math.cos(phaseRadians), y: Math.sin(phaseRadians), label: `${phaseDegrees.toFixed(1)}°`, tone: 'reference' }]} />
