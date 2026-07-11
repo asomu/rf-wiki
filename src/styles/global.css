@@ -535,6 +535,8 @@ a:visited:not(.button-primary):not(.wordmark) {
 }
 
 .lesson-shell {
+  /* Reuse the removed lab rail inside lessons without widening site chrome. */
+  --layout-prose: var(--layout-lesson-reading);
   display: grid;
   grid-template-columns: var(--layout-learning-map) minmax(0, 1fr);
   align-items: start;
@@ -568,9 +570,15 @@ a:visited:not(.button-primary):not(.wordmark) {
 }
 
 .lesson-heading {
-  max-width: var(--layout-prose);
+  max-width: none;
   padding-block-end: var(--space-8);
   border-bottom: var(--stroke-hairline) solid var(--color-rule-strong);
+}
+
+.lesson-heading > .context-line,
+.lesson-heading > h1,
+.lesson-heading > p:last-child {
+  max-width: var(--layout-prose);
 }
 
 .context-line {
@@ -610,7 +618,7 @@ a:visited:not(.button-primary):not(.wordmark) {
   min-width: 0;
   grid-column: 2;
   grid-row: 2;
-  max-width: var(--layout-prose);
+  max-width: none;
   margin-block: var(--space-6) var(--space-12);
 }
 
@@ -704,7 +712,7 @@ a:visited:not(.button-primary):not(.wordmark) {
 
 .lesson-content p,
 .lesson-content li {
-  max-width: 68ch;
+  max-width: none;
 }
 
 .lesson-content ul,
@@ -1755,6 +1763,12 @@ a:visited:not(.button-primary):not(.wordmark) {
   .lesson-intro,
   .layer-rail {
     width: 100%;
+    margin-inline: auto;
+  }
+
+  .lesson-heading > .context-line,
+  .lesson-heading > h1,
+  .lesson-heading > p:last-child {
     margin-inline: auto;
   }
 

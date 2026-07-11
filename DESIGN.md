@@ -108,7 +108,7 @@ components:
 
 밝은 실험실에서 엔지니어가 흰 측정 기록지와 짙은 계측 화면을 번갈아 보는 장면이 물리적 기준이다. 문서 surface는 설명과 사고를 위한 차가운 중립 배경이고, instrument surface는 실제로 신호를 조작하고 관찰하는 작업대다. 장식은 제거하고, 정렬·직접 라벨·수치의 정확성으로 신뢰를 만든다.
 
-1440px에서는 12-column grid 안에 240–256px의 compact 학습 지도와 하나의 main document를 둔다. 최대 폭은 1480px이며 본문 prose는 65–72ch를 넘지 않는다. 학습 지도는 module 번호와 짧은 제목으로 위치만 안내하고, 현재 row에서만 필요할 때 dominant question을 보인다. main document는 `핵심 직관 → inline lab → 직관 확장 → 실무 조작·해석 → 수식·규격`의 한 흐름으로 읽힌다. lab은 intuition layer 안에서 짧은 핵심 개념 설명 직후에 main document 폭을 사용하며 permanent sticky rail로 분리하지 않는다.
+1440px에서는 12-column grid 안에 240–256px의 compact 학습 지도와 하나의 main document를 둔다. 최대 폭은 1480px이다. 제목 구분선·학습 단계 rail 같은 구조 band는 main document 전체 폭을 사용하고, 일반 lesson 읽기 band는 최대 960px로 확장해 이전 lab rail의 빈 공간을 회수한다. 긴 설명을 main 전체 1120px로 늘이지는 않는다. 학습 지도는 module 번호와 짧은 제목으로 위치만 안내하고, 현재 row에서만 필요할 때 dominant question을 보인다. main document는 `핵심 직관 → inline lab → 직관 확장 → 실무 조작·해석 → 수식·규격`의 한 흐름으로 읽힌다. lab은 intuition layer 안에서 짧은 핵심 개념 설명 직후에 main document 폭을 사용하며 permanent sticky rail로 분리하지 않는다.
 
 페이지에는 document scroll 하나만 둔다. desktop의 inline lab은 control column과 넓은 Linked Views 영역을 나란히 사용한다. 1024px 이하에서는 학습 지도가 현재 위치를 보존하는 drawer가 되고 lab은 같은 문서 위치에서 세로로 재배치된다. 390px에서는 `설정 → 예측 → 결과 → Ledger → 설명` 순서를 고정하고 Signal Spine을 세로로 표시한다. 학습 지도와 lab 어느 쪽도 내용을 보기 위해 가로 스크롤을 요구하지 않는다.
 
@@ -165,7 +165,7 @@ Motion은 상태와 신호 전달을 설명할 때만 사용한다. press 100–
 - **Display** (600, 40px, 1.2): 홈의 현재 학습 질문과 모듈 제목에만 사용한다.
 - **Headline** (600, 28px, 1.32): 한 화면의 dominant learning question이다.
 - **Title** (600, 20px, 1.45): simulator 내부 view와 설명 절의 제목이다.
-- **Body** (400, 17px, 1.75): 한글 설명이며 38–42자 정도의 시각적 읽기 폭을 목표로 한다.
+- **Body** (400, 17px, 1.75): 한글 설명이며 lesson의 최대 읽기 band에서는 약 50–56자, 좁은 화면에서는 가용 폭 전체를 사용한다. 표·그래프·단계 rail은 문단과 별도의 구조 폭을 사용할 수 있다.
 - **Label** (500, 14px, 1.45): control, 상태, navigation이다. 의미 없는 대문자 eyebrow를 만들지 않는다.
 - **Data** (500, 13px, 1.5): 수치, 단위, 수식 변수, RB index, S-parameter와 SCPI다. tabular numeral을 켠다.
 

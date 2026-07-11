@@ -165,9 +165,15 @@ test('desktop lesson uses compact navigation and a full-width inline lab', async
     return {
       map: box('.learning-map'),
       intro: box('.lesson-intro'),
+      heading: box('.lesson-intro .lesson-heading'),
       layers: box('.layer-rail'),
       article: box('.lesson-article'),
     };
+  });
+
+  const readingBand = await page.locator('.lesson-layer__body > :not(.lesson-lab-block)').first().evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x, width: rect.width };
   });
 
   const lab = await page.locator('.lesson-lab-block').evaluate((element) => {
@@ -176,12 +182,46 @@ test('desktop lesson uses compact navigation and a full-width inline lab', async
   });
 
   expect(layout.map.x).toBeLessThan(layout.intro.x);
+  expect(layout.heading.width).toBeCloseTo(layout.intro.width, 0);
   expect(layout.layers.x).toBeCloseTo(layout.intro.x, 0);
+  expect(layout.layers.width).toBeCloseTo(layout.intro.width, 0);
   expect(layout.article.x).toBeCloseTo(layout.intro.x, 0);
+  expect(readingBand.x).toBeCloseTo(layout.article.x, 0);
+  expect(readingBand.width).toBeGreaterThan(900);
+  expect(readingBand.width).toBeLessThan(layout.article.width);
   expect(lab.x).toBeCloseTo(layout.article.x, 0);
   expect(lab.width).toBeCloseTo(layout.article.width, 0);
   expect(lab.width).toBeGreaterThan(900);
   expect(lab.y).toBeGreaterThan(layout.intro.y);
+});
+
+test('tablet lesson fills structural width and centers the reading band', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto('/learn/spectrum-iq/');
+
+  const layout = await page.locator('.lesson-shell').evaluate((shell) => {
+    const box = (selector: string) => {
+      const element = shell.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing lesson section: ${selector}`);
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, width: rect.width };
+    };
+    return {
+      intro: box('.lesson-intro'),
+      heading: box('.lesson-heading'),
+      layers: box('.layer-rail'),
+      reading: box('.lesson-layer__body > :not(.lesson-lab-block)'),
+    };
+  });
+
+  expect(layout.heading.width).toBeCloseTo(layout.intro.width, 0);
+  expect(layout.layers.width).toBeCloseTo(layout.intro.width, 0);
+  expect(layout.reading.width).toBeCloseTo(960, 0);
+  expect(layout.reading.x).toBeGreaterThan(layout.intro.x);
+  expect(layout.intro.x + layout.intro.width - (layout.reading.x + layout.reading.width)).toBeCloseTo(
+    layout.reading.x - layout.intro.x,
+    0,
+  );
 });
 
 test('lab completion requires prediction, a real control change, and explanation', async ({ page }) => {
