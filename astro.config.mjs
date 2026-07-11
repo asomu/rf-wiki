@@ -6,6 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import remarkMath from 'remark-math';
 
 export default defineConfig({
+  site: process.env.PUBLIC_SITE_URL,
   output: 'static',
   devToolbar: { enabled: false },
   integrations: [react(), mdx()],

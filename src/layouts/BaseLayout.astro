@@ -23,7 +23,7 @@ const {
 } = Astro.props;
 
 const documentTitle = title === 'RF Wiki' ? title : `${title} · RF Wiki`;
-const canonicalUrl = new URL(Astro.url.pathname, Astro.url);
+const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefined;
 ---
 
 <!doctype html>
@@ -33,7 +33,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.url);
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     {noIndex && <meta name="robots" content="noindex" />}
-    <link rel="canonical" href={canonicalUrl} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     <link rel="icon" href="data:," />
     <link rel="preload" href={fontStylesheetUrl} as="style" />
     <link rel="stylesheet" href={fontStylesheetUrl} media="print" onload="this.removeAttribute('media')" />

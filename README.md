@@ -40,6 +40,15 @@ npm run test:all
 
 `npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run audit:lighthouse`는 production build의 홈, Spectrum/IQ, NR, VNA, PA pull 다섯 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
 
+### OpenAI Sites 배포 빌드
+
+~~~bash
+npm run test:hosting
+npm run build:sites
+~~~
+
+`build:sites`는 기존 Astro 구조를 바꾸지 않고 정적 결과와 Pagefind를 `dist/client/`에 만들고, Sites용 Cloudflare Worker를 `dist/server/index.js`에 배치합니다. `.openai/hosting.json`의 `project_id`는 Sites 프로젝트를 처음 생성할 때 받은 값을 그대로 보존해야 하며 임의로 만들거나 다른 프로젝트의 값으로 교체하지 않습니다. `PUBLIC_SITE_URL`을 지정한 빌드에서만 canonical URL을 출력하므로 로컬 주소가 배포 문서에 들어가지 않습니다.
+
 ## 구조
 
 - `src/pages/` — Astro 정적 route
@@ -50,6 +59,7 @@ npm run test:all
 - `src/lib/rf/` — UI와 분리된 순수 TypeScript RF 계산
 - `src/styles/tokens.css` — 디자인 token의 코드 기준
 - `scripts/` — design/content 계약 검사와 authoring 도구
+- `worker/` — OpenAI Sites에서 정적 결과를 전달하는 Worker entry
 
 Astro가 route와 정적 본문을 소유하고 React는 실제 상호작용이 필요한 simulator에만 사용됩니다.
 
