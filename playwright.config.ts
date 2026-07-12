@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const serverPort = Number(process.env.PLAYWRIGHT_PORT ?? 4321);
+const serverPort = Number(process.env.PLAYWRIGHT_PORT ?? 4347);
 const baseURL = `http://127.0.0.1:${serverPort}`;
 
 export default defineConfig({
@@ -9,7 +9,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: false,
   retries: 0,
-  workers: 4,
+  // Two workers keep visual captures deterministic without over-subscribing
+  // Chromium on developer laptops and CI runners.
+  workers: 2,
   timeout: 30_000,
   expect: {
     timeout: 7_500,
@@ -44,12 +46,15 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --host 127.0.0.1 --port ${serverPort}`,
+    // Exercise the same static artifacts that are published. Using Astro's
+    // preview server also removes dev-only, route-by-route Vite compilation
+    // from hydration and accessibility timing.
+    command: `npm run preview -- --host 127.0.0.1 --port ${serverPort}`,
     env: {
       ASTRO_TELEMETRY_DISABLED: '1',
     },
     url: baseURL,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

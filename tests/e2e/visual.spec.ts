@@ -48,6 +48,61 @@ const visualScenarios: readonly VisualScenario[] = [
     path: '/glossary/',
     readySelector: '.glossary-page .glossary-list',
   },
+  {
+    name: 'instrument-mxg',
+    path: '/instruments/sg-mxg/',
+    readySelector: '.mxg-chapters',
+  },
+  {
+    name: 'mxg-scpi',
+    path: '/instruments/sg-mxg/scpi-pyvisa/',
+    readySelector: '[data-lab-id="instrument:sg:mxg-scpi-pyvisa"] .plot-frame',
+    labId: 'instrument:sg:mxg-scpi-pyvisa',
+  },
+  {
+    name: 'instrument-mxa',
+    path: '/instruments/sa-mxa/',
+    readySelector: '.mxg-chapters',
+  },
+  {
+    name: 'mxa-sweep',
+    path: '/instruments/sa-mxa/sweep-rbw-detector/',
+    readySelector: '[data-lab-id="instrument:sa:mxa-sweep-rbw"] .plot-frame',
+    labId: 'instrument:sa:mxa-sweep-rbw',
+  },
+  {
+    name: 'instrument-ena',
+    path: '/instruments/vna-ena/',
+    readySelector: '.mxg-chapters',
+  },
+  {
+    name: 'ena-calibration',
+    path: '/instruments/vna-ena/calibration-reference-plane/',
+    readySelector: '[data-lab-id="instrument:vna:ena-calibration"] .plot-frame',
+    labId: 'instrument:vna:ena-calibration',
+  },
+  {
+    name: 'instrument-power-sensor',
+    path: '/instruments/power-sensor/',
+    readySelector: '.mxg-chapters',
+  },
+  {
+    name: 'power-sensor-burst',
+    path: '/instruments/power-sensor/average-peak-burst/',
+    readySelector: '[data-lab-id="instrument:sensor:sensor-average-peak"] .plot-frame',
+    labId: 'instrument:sensor:sensor-average-peak',
+  },
+  {
+    name: 'instrument-psu',
+    path: '/instruments/power-supply/',
+    readySelector: '.mxg-chapters',
+  },
+  {
+    name: 'psu-cv-cc',
+    path: '/instruments/power-supply/cv-cc-protection/',
+    readySelector: '[data-lab-id="instrument:psu:psu-cv-cc"] .plot-frame',
+    labId: 'instrument:psu:psu-cv-cc',
+  },
 ] as const;
 
 const visualViewports = [
@@ -87,6 +142,17 @@ async function waitForScenario(page: Page, scenario: VisualScenario) {
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
+async function stabilizeInitialViewportCapture(page: Page) {
+  // At scroll position zero, a sticky header and a static header have the same
+  // layout. Capturing it as a normal flow layer avoids intermittent unpainted
+  // black compositor tiles in macOS headless Chromium without changing the
+  // product CSS or the pixels users see at the top of the page.
+  await page.addStyleTag({ content: '.site-header { position: static !important; }' });
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+}
+
 async function placeBelowStickyHeader(page: Page, selector: string) {
   await page.locator(selector).evaluate((element) => {
     const stickyOffset = 128;
@@ -123,6 +189,7 @@ test.describe('representative responsive visual regression', () => {
           const response = await page.goto(scenario.path, { waitUntil: 'networkidle' });
           expect(response?.ok(), `${scenario.path} should return a successful document`).toBe(true);
           await waitForScenario(page, scenario);
+          await stabilizeInitialViewportCapture(page);
           // page.screenshot avoids the transient compositor tiles observed
           // when toHaveScreenshot injects an animation stylesheet into nested
           // sticky panes. Reduced motion and deterministic state above remove

@@ -1,0 +1,218 @@
+---
+title: "INIT, trigger, FETCh와 READ는 왜 같은 측정 명령이 아닐까?"
+description: "U2061XA를 USB VISA와 PyVISA로 제어할 때 detector, aperture, averaging, trigger state, output/error queue와 acquisition lifecycle을 분리한다."
+instrumentId: "keysight-u2061xa"
+chapter: "sensor-scpi-trigger"
+order: 4
+estimatedMinutes: 75
+prerequisites:
+  - "average-peak-burst"
+  - "correction-uncertainty"
+outcomes:
+  - "MEAS?, READ?, INIT+FETCh?가 configuration과 acquisition을 어떻게 다르게 다루는지 설명할 수 있다."
+  - "Aperture, averaging, trigger level·delay·holdoff를 query-back하고 output/error queue를 독립적으로 drain할 수 있다."
+  - "USB VISA alias, model check, bounded error drain과 dry-run을 포함한 PyVISA sequence를 설계할 수 있다."
+concepts:
+  - "USB-TMC"
+  - "VISA alias"
+  - "SCPI output queue"
+  - "SCPI error queue"
+  - "aperture"
+  - "averaging"
+  - "wait-for-trigger"
+  - "INITiate"
+  - "FETCh"
+  - "READ"
+equipmentContext:
+  source: "Trigger output을 제공하는 Keysight N5182B, 실제 실행 전 RF OFF 확인"
+  dut: "50 Ω through 또는 보호된 low-power PA path"
+  analyzer: "Keysight U2061XA USB-TMC session, Connection Expert alias PWR_U2061XA"
+references:
+  - title: "Keysight 2050/60 X-Series Programming Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04755/programming-guides/9018-04755.pdf"
+    kind: "vendor"
+  - title: "Keysight 2050/60 X-Series User's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04734/user-manuals/9018-04734.pdf"
+    kind: "vendor"
+  - title: "Programming Instruments with Keysight IO Libraries"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/IO_Libraries_Suite/English/IOLS_Windows/IOLS/Content/ProgrammingGuide/Conceptual_Topics/Programming_Instruments.htm"
+    kind: "vendor"
+labId: "sensor-scpi-trigger"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+`write("INIT")`가 성공했다는 사실은 power reading이 준비됐다는 뜻이 아니다. Trigger source가 BUS라면 sensor는 event를 기다리고 있고, `FETC?`는 trigger를 만들지 않는다. 안정적인 자동화는 configure, arm, event, acquisition complete와 fetch를 서로 다른 state로 기록한다.
+
+<LessonLayer level="intuition" title="SCPI 측정을 하나의 query가 아니라 acquisition state machine으로 보자">
+
+## 네 가지 명령은 서로 다른 일을 한다
+
+- **`MEAS?`** — abort + configure + read를 한 번에 수행한다. 간단하지만 설정을 preset해 fine control이 적다.
+- **`READ?`** — 현재 configuration으로 abort + initiate + 결과 반환을 수행한다. 새 acquisition이다.
+- **`INIT`** — Sensor를 wait-for-trigger state로 둔다. 결과를 output queue로 보내지 않는다.
+- **`FETC?`** — 이미 완료되어 memory에 있는 결과를 output queue로 가져온다. 새 acquisition을 시작하지 않는다.
+
+`INIT:CONT OFF`는 반복 acquisition policy를 끄는 설정이지 `armed=OFF`를 뜻하지 않는다. 그 뒤 `INIT`를 보내면 continuous state는 OFF인 채 one-shot acquisition만 armed가 된다. 두 state를 하나의 boolean으로 저장하면 query-back과 실제 pending event를 혼동한다.
+
+<Definition term="Output queue">
+일반 query response가 host의 read를 기다리는 FIFO다. Query를 보낸 뒤 response를 읽지 않고 다음 command를 보내면 `−410, Query INTERRUPTED` 같은 오류가 생길 수 있다.
+</Definition>
+
+<Definition term="Error queue">
+SCPI parser·execution 오류가 쌓이는 별도 FIFO다. U2061XA 2050/60 programming guide의 error queue capacity는 30 record이며, `SYST:ERR?`가 가장 오래된 오류부터 하나씩 제거한다.
+</Definition>
+
+<InstrumentLab labId="sensor-scpi-trigger" />
+
+## Trigger source는 acquisition의 출발 조건이다
+
+| Source | 의미 | 주의 |
+|---|---|---|
+| `IMM` | INIT 직후 바로 측정 | Free-run·단일 확인에 단순 |
+| `INT` | RF envelope level을 sensor가 검출 | Trigger level·hysteresis·VBW 조건 필요 |
+| `EXT` | SMB TTL input event | Cable delay·level·impedance 기록 |
+| `BUS` | `*TRG` 또는 bus event | READ?와 함께 쓰면 deadlock 가능 |
+| `HOLD` | Trigger를 정지 | 명시적 `TRIG:IMM` 외에는 진행하지 않음 |
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="USB alias에서 configure→arm→fetch→drain 순서를 재현하자">
+
+## Session open 직후
+
+Connection Expert에서 serial number가 확인된 장비에 `U2061XA` 같은 VISA alias를 만든다. Production 코드에서 `list_resources()[0]`을 자동 선택하지 않는다.
+
+~~~python
+import pyvisa
+
+rm = pyvisa.ResourceManager()
+sensor = rm.open_resource("U2061XA")
+sensor.timeout = 10_000
+sensor.read_termination = "\n"
+sensor.write_termination = "\n"
+
+identity = sensor.query("*IDN?").strip()
+if "U2061XA" not in identity:
+    raise RuntimeError(f"Expected U2061XA, received {identity!r}")
+~~~
+
+## Average measurement sequence
+
+~~~text
+SYST:ERR?
+*CLS
+SENS:DET:FUNC AVER
+SENS:FREQ 3.5GHZ
+SENS:SWE:APER 1MS
+SENS:AVER:COUN:AUTO ON
+CAL:ZERO:TYPE INT
+CAL:ALL?
+SENS:FREQ?
+SENS:SWE:APER?
+TRIG:SOUR IMM
+INIT:CONT OFF
+READ?
+SYST:ERR?
+~~~
+
+`CAL:ALL?` response는 `0=pass`, `1=fail`이다. Error queue의 `+0,"No error"`와 의미가 다르다.
+
+## External 또는 BUS trigger sequence
+
+~~~text
+ABOR
+TRIG:SOUR EXT
+TRIG:SLOP POS
+TRIG:DEL 0
+TRIG:HOLD 100US
+INIT:CONT OFF
+INIT
+# external event 발생
+FETC?
+SYST:ERR?
+~~~
+
+BUS trigger를 사용하면 `INIT` 뒤 `*TRG`, 그 다음 `FETC?` 순서다. `*TRG`는 arm 명령이 아니며 armed BUS acquisition에만 event가 된다. HOLD를 의도적으로 썼다면 armed 상태에서 `TRIG:IMM`로 한 번 release할 수 있지만, 자동 one-shot workflow는 우발적인 무한 대기를 피하려고 HOLD를 거절한다. Programming guide는 BUS/HOLD trigger와 `READ?` 조합에서 trigger deadlock을 경고한다.
+
+<MeasurementNote title="Command 입력 범위와 guaranteed trigger sensitivity는 다르다" kind="condition">
+`TRIG:LEV` command는 `−48~+20 dBm`을 받을 수 있다. 그러나 데이터시트의 minimum internal trigger level은 Normal mode `−25 dBm`, Average mode `−40 dBm`이다. Command가 값을 수용했다는 사실을 guaranteed triggering으로 해석하지 않는다.
+</MeasurementNote>
+
+## Aperture와 averaging query-back
+
+- Average aperture: carrier `≥300 MHz`에서 `20 µs~200 ms`, 100 ns resolution
+- Carrier `<300 MHz`에서 minimum aperture `50 µs`
+- Average count: `1~1024`
+- Average count를 직접 쓰면 auto averaging이 꺼진다.
+- Count를 늘리면 noise는 줄지만 measurement time이 늘어난다.
+- Normal mode에서는 `SENS:SWE:APER`가 아니라 gate/trace와 VBW를 사용한다.
+
+## Bounded error drain
+
+~~~python
+import re
+
+def drain_errors(sensor) -> list[str]:
+    errors: list[str] = []
+    for _ in range(31):
+        response = sensor.query("SYST:ERR?").strip()
+        match = re.match(r"^\s*([+-]?\d+)", response)
+        if not match:
+            raise RuntimeError(f"Malformed error response: {response!r}")
+        if int(match.group(1)) == 0:
+            return errors
+        errors.append(response)
+    raise RuntimeError("Error queue did not terminate with +0 within 31 queries")
+~~~
+
+`*CLS` 전에 기존 오류를 log하고, configure·calibration·acquisition 뒤마다 drain한다. `*CLS`로 원인을 먼저 지우지 않는다.
+
+실제 실행 package는 [U2061XA PyVISA 가이드](/instruments/power-sensor/python-examples/)의 dry-run sequence를 먼저 사용한다. `--execute` 없이는 USB session을 열지 않고, `--sg-rf-off-confirmed` 없이는 실제 acquisition을 시작하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Aperture, trigger timing과 queue ordering을 검증하자">
+
+<FormulaDisclosure title="Aperture와 최대 reading rate" formula="Rmax ≈ min(50,000, 1/Tap)">
+20 µs aperture는 50,000 readings/s, 1 ms aperture는 약 1,000 readings/s에 해당한다. Transport와 설정에 따른 실제 throughput은 별도다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Trigger 기준 측정 구간" formula="t_gate,start = t_trigger + t_delay;   t_gate,stop = t_gate,start + T_aperture">
+Negative delay는 pre-trigger memory 범위와 mode limit 안에서만 가능하다. Average mode trigger delay 범위는 `−1.6 ms~+1 s`다.
+</FormulaDisclosure>
+
+## 주요 trigger 수치
+
+- Trigger delay: Normal `±1 s`, Average `−1.6 ms~+1 s`
+- Trigger holdoff: `1 µs~400 ms`
+- External trigger high `>2.4 V`, low `<0.7 V`
+- External trigger maximum input: `5 V EMF` 조건
+- Minimum external pulse: Average 150 ns, Normal 50 ns
+- Trigger level resolution 0.1 dB, hysteresis range 0~3 dB
+
+## SCPI evidence ladder
+
+1. `write` 반환 — host가 byte를 전달함
+2. Query-back — 장비 state를 읽음
+3. `*OPC? → 1` — 앞선 overlapped operation 완료
+4. `SYST:ERR? → +0` — 해당 시점 error queue가 비어 있음
+5. `READ?` 또는 `INIT→event→FETC?` — acquisition 결과
+6. Known source와 다른 instrument의 cross-check — physical validity
+
+## 완료 전 자기 설명
+
+1. `INIT` 뒤 `FETC?`와 `READ?`가 다른 이유는 무엇인가?
+2. `TRIG:LEV -45DBM`이 받아들여져도 Normal mode trigger를 보장하지 않는 이유는 무엇인가?
+3. Output queue와 error queue를 어떤 순서로 읽어야 response를 잃지 않는가?
+4. Actual USB test를 dry-run과 별도의 permission으로 분리해야 하는 이유는 무엇인가?
+
+</LessonLayer>

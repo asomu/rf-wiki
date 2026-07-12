@@ -2000,6 +2000,21 @@ a:visited:not(.button-primary):not(.wordmark) {
     grid-template-columns: 1fr;
     gap: var(--space-3);
   }
+
+  /*
+   * The NR title mixes Korean and Latin RF terms, so several unicode font
+   * subsets can finish at different times on a throttled mobile connection.
+   * Reserve the largest fallback-font description block before those subsets
+   * swap in; this keeps the lesson rail and article from jumping during load.
+   */
+  .lesson-heading--ofdm-lte-nr > p:last-child {
+    min-block-size: calc(var(--space-16) + var(--space-16));
+  }
+
+  .lesson-heading--ofdm-lte-nr {
+    /* Reuse the normal 32 px footer breathing room inside the reserved block. */
+    padding-block-end: 0;
+  }
 }
 
 @media (max-width: 390px) {
@@ -2018,6 +2033,7 @@ a:visited:not(.button-primary):not(.wordmark) {
     font-size: var(--font-size-headline);
     line-height: var(--line-height-headline);
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {

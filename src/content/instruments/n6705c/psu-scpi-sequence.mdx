@@ -1,0 +1,108 @@
+---
+title: "여러 rail의 bias와 transient를 SCPI 상태기계로 어떻게 증명할까?"
+description: "N6705C channel/module 확인, query-back, LIST·trigger, coupled output delay, error drain과 RF/DC cleanup을 안전한 프로그램 순서로 묶는다."
+instrumentId: "keysight-n6705c"
+chapter: "psu-scpi-sequence"
+order: 4
+estimatedMinutes: 85
+prerequisites: ["remote-sense-wiring"]
+outcomes:
+  - "Command acceptance, operation completion, query-back와 물리 상태를 서로 다른 증거로 취급한다."
+  - "LIST를 load하고 trigger로 시작하는 transient state를 설명한다."
+  - "실패 경로에서 RF OFF와 PSU OFF를 우선하는 bounded cleanup을 구현한다."
+concepts: ["SCPI state machine", "LIST transient", "trigger", "output coupling", "error queue", "query-back"]
+equipmentContext:
+  source: "Python 3/PyVISA에서 VISA alias로 연결한 N6705C"
+  dut: "Gate·drain 또는 enable·VDD 다중 rail PA module"
+  analyzer: "PSU readback와 후속 sensor/SA trigger coordination"
+references:
+  - title: "N6700 Modular Power System Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-03617/programming-guides/9018-03617.pdf"
+    kind: "vendor"
+  - title: "Programming Instruments with Keysight VISA"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/IO_Libraries_Suite/English/IOLS_Windows/IOLS/Content/ProgrammingGuide/Conceptual_Topics/Programming_Instruments.htm"
+    kind: "vendor"
+labId: "psu-scpi-sequence"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+SCPI `write()`가 예외 없이 끝났다는 사실은 DUT가 안전한 voltage에 도달했다는 증거가 아니다. 명령 전송, 장비 operation 완료, query response, error-free state와 실제 bias readback을 순서대로 닫아야 한다.
+
+<LessonLayer level="intuition" title="프로그램을 명령 목록이 아니라 증거가 붙은 상태 전이로 보자">
+
+<Definition term="Query-back">
+프로그램이 보낸 값을 기억하는 대신 장비에서 setpoint, output, module과 status를 다시 읽어 의도한 state가 적용되었는지 비교하는 절차다.
+</Definition>
+
+<InstrumentLab labId="psu-scpi-sequence" />
+
+## 안전한 한 사이클
+
+`connect → identity/module/option → all outputs OFF → configure → query-back/error drain → load/arm → external permits → output ON → measure → RF OFF → PSU OFF → abort/drain/close`
+
+Output ON은 configuration의 일부가 아니라 별도의 permission이다. 기본 dry-run은 장비에 연결하지 않고 command transcript만 만들며, 실제 통신과 실제 output은 두 개의 명시적 flag를 요구한다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="LIST·trigger·multi-rail을 복구 가능한 순서로 실행하자">
+
+## LIST는 waveform file이 아니라 DC setpoint sequence다
+
+N6752A list는 최대 512 steps, dwell은 step당 최대 262.144 s다. `LIST:VOLT`와 `LIST:DWEL`을 load하고 voltage mode를 LIST로 바꾼 뒤 `INIT:TRAN`으로 arm한다. Trigger source가 BUS라면 `*TRG`가 오기 전에는 진행하지 않는다.
+
+~~~text
+OUTP OFF,(@1)
+VOLT:MODE LIST,(@1)
+LIST:VOLT 0,5,12,28,(@1)
+LIST:DWEL 0.050,0.050,0.100,0.500,(@1)
+TRIG:TRAN:SOUR BUS,(@1)
+INIT:TRAN (@1)
+*OPC?
+# 외부 DUT·measurement readiness 확인
+OUTP ON,(@1)
+*TRG
+~~~
+
+`*OPC?`는 앞선 장비 operation의 완료를 동기화하지만 DUT가 안정화되었다거나 RF measurement가 끝났다는 뜻은 아니다. Voltage/current/status readback와 analyzer trigger를 별도로 확인한다.
+
+## 다중 rail coupling은 explicit state로 다룬다
+
+Output coupling과 channel delay를 쓰면 rail마다 rise/fall delay를 설정할 수 있다. Coupling 설정은 nonvolatile일 수 있고 `*RST`로 지워지지 않는 항목이 있으므로, 프로그램 시작 시 읽고 종료 시 정책에 맞는 state로 복원한다. Gate-first/drain-first 순서는 PA technology와 회로에 따라 달라 예제 숫자를 일반화하지 않는다.
+
+이 Wiki의 고정 hardware profile은 **slot 1의 N6752A 한 채널**이다. Lab의 gate rail은 slot 2에 별도 compatible module을 설치하거나 외부 bias source를 동기화한 확장 예다. Mainframe에 두 번째 source가 자동으로 있다고 가정하지 말고 `SYST:CHAN?`, `SYST:CHAN:MOD?`와 option을 확인한 뒤에만 coupling channel list를 만든다.
+
+<MeasurementNote title="Protection clear를 retry loop로 만들지 않는다" kind="warning">
+OVP/OCP trip을 원인 확인 없이 자동 clear하고 output을 다시 켜면 DUT fault에 반복 에너지를 공급한다. Trip snapshot을 저장하고 RF/DC를 안전 상태로 만든 뒤 사람 또는 상위 interlock가 재승인해야 한다.
+</MeasurementNote>
+
+## Error queue는 FIFO로 끝까지 읽되 bounded한다
+
+`SYST:ERR?`는 한 번 읽으면 한 record만 반환한다. `+0,"No error"`까지 읽되 최대 횟수를 정한다. Parse 실패나 queue가 끝나지 않으면 session 실패로 처리하고 cleanup으로 간다. `*CLS`는 과거 오류를 없앨 수 있으므로 먼저 drain/log할지 정책을 명시한다.
+
+실행 가능한 예제는 [N6705C PyVISA 가이드](/instruments/power-supply/python-examples/)에서 dry-run부터 시작한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="통신 성공과 물리 성공을 분리한 불변조건을 세우자">
+
+각 transition 뒤 다음 조건을 검사한다.
+
+| Transition | 필요한 증거 |
+|---|---|
+| Connected | IDN에 N6705C, slot 1에 N6752A, option scope 확인 |
+| Configured | Voltage/current/OVP/OCP/slew query-back 일치 |
+| Armed | Trigger source와 pending transient state 확인 |
+| Energized | Output ON, CV/CC status, measured V/I와 DUT interlock |
+| Complete | Measurement record와 error queue 종료 |
+| Safe | RF OFF, PSU output OFF, abort, discharge/physical indication |
+
+통신이 끊기면 software가 `OUTP OFF`를 전달했다고 보장할 수 없다. Hardware remote inhibit, relay/contactor, fuse, bleed와 사람이 볼 수 있는 front-panel state를 독립 방어선으로 둔다.
+
+</LessonLayer>

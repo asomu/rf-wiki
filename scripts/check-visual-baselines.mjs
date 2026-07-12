@@ -15,6 +15,16 @@ const responsiveScenarios = [
   'power-coupler',
   'pa-load-pull',
   'search-glossary',
+  'instrument-mxg',
+  'mxg-scpi',
+  'instrument-mxa',
+  'mxa-sweep',
+  'instrument-ena',
+  'ena-calibration',
+  'instrument-power-sensor',
+  'power-sensor-burst',
+  'instrument-psu',
+  'psu-cv-cc',
 ];
 const viewports = {
   1440: { width: 1440, height: 1000 },

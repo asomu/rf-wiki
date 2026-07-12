@@ -1,0 +1,204 @@
+---
+title: "Waveform 파일은 실제 RF의 무엇을 저장할까?"
+description: "N5182B의 baseband waveform을 I/Q sample, sample rate, scaling, marker와 반복 조건으로 분해해 time·spectrum·RF 출력과 연결한다."
+instrumentId: "keysight-n5182b"
+chapter: "waveform-iq"
+order: 2
+estimatedMinutes: 55
+prerequisites:
+  - "safe-cw"
+  - "spectrum-iq"
+outcomes:
+  - "Waveform을 carrier가 아니라 시간순 complex-envelope sample과 재생 metadata의 묶음으로 설명할 수 있다."
+  - "I/Q ordering, signed range, sample rate, record length와 scaling이 시간·주파수·peak power에 미치는 영향을 예측할 수 있다."
+  - "PA용 waveform을 만들 때 normalization, PAPR, 반복 경계와 marker를 검증할 수 있다."
+concepts:
+  - "complex envelope"
+  - "interleaved IQ"
+  - "sample rate"
+  - "waveform segment"
+  - "marker"
+  - "runtime scaling"
+  - "crest factor"
+equipmentContext:
+  source: "Keysight N5182B MXG Option 656 또는 656+657 baseband generator"
+  dut: "50 Ω through path 또는 connectorized PA, waveform 학습 단계에서는 낮은 drive"
+  analyzer: "IQ capture가 가능한 signal analyzer와 time·spectrum·CCDF view"
+references:
+  - title: "How to Create Baseband Waveforms and Download Them to RF Vector Signal Generators"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/in/en/assets/7119-1232/application-notes/How-to-Create-Baseband-Waveforms-and-Download-Them-to-RF-Vector-Signal-Generators.pdf"
+    kind: "application-note"
+  - title: "Basics of Vector Signal Generators Part 2: Waveform Playback Mode"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7122-1049/white-papers/Basics-of-Vector-Signal-Generators-Part-2.pdf"
+    kind: "application-note"
+  - title: "MXG X-Series Signal Generator N5181B Analog & N5182B Vector Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-03380/data-sheets/5991-0038.pdf"
+    kind: "vendor"
+labId: "mxg-waveform-iq"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Waveform을 “LTE 파일”이나 “100 MHz 신호 파일”이라고만 부르면 어떤 숫자가 실제 RF를 정하는지 보이지 않는다. N5182B가 재생하는 핵심은 **시간순 I/Q sample**이고, sample rate·scaling·marker·반복 방식이 그 sample을 실제 시간과 RF 출력으로 번역한다.
+
+<LessonLayer level="intuition" title="Waveform을 복소수 좌표가 시간순으로 적힌 악보처럼 읽자">
+
+## 파일 안에는 carrier가 아니라 carrier를 움직일 지시가 있다
+
+한 sample을 `x[n] = I[n] + jQ[n]`라고 하자. I/Q는 RF carrier 주변의 amplitude와 phase를 나타내는 complex envelope다. MXG의 RF frequency 설정이 carrier `fc`를 정하고, waveform sample은 그 carrier를 시간마다 얼마나 크게, 어느 위상으로 만들지 정한다.
+
+`I/Q samples → baseband DAC → analog I/Q → IQ modulator + carrier → RF output`
+
+같은 I/Q 배열도 sample rate를 다르게 설정하면 재생 시간이 달라지고 spectrum의 frequency scale도 달라진다. 같은 sample rate라도 runtime scaling을 줄이면 DAC headroom은 늘지만 RF modulation power가 작아질 수 있다.
+
+<Definition term="Waveform segment">
+연속해서 재생할 유한 길이의 I/Q sample record다. Keysight waveform 문맥에서는 sample data뿐 아니라 sample rate, marker와 runtime scaling 같은 재생 정보가 함께 필요하다. 여러 segment의 순서와 반복을 묶으면 sequence가 된다.
+</Definition>
+
+<Definition term="Complex envelope" symbol="I[n] + jQ[n]">
+RF carrier보다 낮은 rate로 amplitude와 phase 변화를 보존하는 복소 표현이다. Magnitude는 `√(I²+Q²)`, phase는 `atan2(Q,I)`이며 실수 RF는 carrier와 결합한 뒤 얻어진다.
+</Definition>
+
+<InstrumentLab labId="mxg-waveform-iq" />
+
+## I와 Q가 한 칸씩 번갈아 저장되는 이유
+
+한 시점의 complex sample에는 I와 Q 두 값이 필요하다. Keysight의 baseband waveform 설명에서는 signed 16-bit I와 signed 16-bit Q를 사용하고, interleaved stream에서는 I 다음에 Q가 온다. 예를 들어 다음 두 complex sample은 네 정수로 직렬화된다.
+
+| sample index | I | Q | interleaved order |
+|---:|---:|---:|---|
+| 0 | 16384 | 0 | `I0, Q0` |
+| 1 | 0 | 16384 | `I1, Q1` |
+
+이 순서를 `Q,I`로 뒤집거나 byte order를 틀리면 magnitude만 비슷해 보여도 phase rotation, spectrum 위치 또는 constellation orientation이 바뀔 수 있다. 파일을 만든 software와 장비 command가 기대하는 format을 함께 기록한다.
+
+## Sample rate가 시간 자를 만든다
+
+Sample rate `Fs`는 1초에 몇 complex sample을 재생하는지 정한다. `N`개 sample의 재생 시간은 `N/Fs`다.
+
+- Sample 배열 고정, `Fs` 두 배 → 재생 시간 절반, 모든 baseband frequency 두 배
+- `Fs` 고정, `N` 두 배 → record 시간 두 배, 반복 주파수 절반
+- I/Q 값만 0.5배 → time/frequency 위치는 같고 amplitude scale 감소
+
+“Waveform bandwidth”만 적고 sample rate를 남기지 않으면 같은 파형을 재현할 수 없다.
+
+## Marker는 RF sample이 아니라 동기화용 side information이다
+
+Marker는 특정 sample 위치에서 event output, RF blanking 또는 ALC hold 같은 동작을 동기화하는 데 사용할 수 있다. Marker point를 I/Q amplitude에 섞지 말고 별도 timing channel로 이해한다. Marker polarity와 routing은 waveform을 만든 쪽과 MXG 설정 양쪽에서 확인한다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="PA용 IQ waveform을 만들기 전에 여섯 가지 계약을 기록하자">
+
+## 1. Sample format
+
+다음을 한 줄로 기록한다.
+
+`signed 16-bit · interleaved I then Q · byte order 명시 · full-scale convention 명시`
+
+Floating-point I/Q를 만드는 software라면 integer로 양자화하기 전에 normalization 규칙을 정한다. `max(|I|,|Q|)=1`과 `max(√(I²+Q²))=1`은 같은 scaling이 아니다.
+
+## 2. Sample rate와 occupied bandwidth
+
+Option 656의 baseband generator는 최대 100 MSa/s, nominal RF bandwidth는 80 MHz다. Option 657이 함께 있으면 최대 200 MSa/s와 nominal 160 MHz RF bandwidth로 확장된다. 이 숫자는 설치 option에 의존하며 “Fs/2까지 항상 distortion 없이 쓸 수 있다”는 뜻이 아니다.
+
+원하는 occupied bandwidth에 guard와 reconstruction filter 여유를 둔다. Analyzer의 acquisition bandwidth도 같은 신호 전체와 distortion product를 볼 수 있도록 별도로 결정한다.
+
+## 3. Average power와 peak headroom
+
+OFDM처럼 crest factor가 큰 waveform은 average power보다 순간 peak가 훨씬 높다. Waveform normalization과 MXG amplitude setting이 어떻게 결합되는지 확인하지 않으면 clipping 또는 예상보다 낮은 average output이 생긴다.
+
+| 확인값 | 역할 |
+|---|---|
+| RMS magnitude | average modulation power의 기준 |
+| Peak magnitude | DAC와 IQ path headroom 요구 |
+| Crest factor/PAPR | peak와 average 사이 간격 |
+| Runtime scaling | 원본 sample을 바꾸지 않고 재생 scale 조절 |
+| MXG RF amplitude | calibrated RF output level의 목표 |
+
+`RAD:ARB:RSCaling`은 1–100% 범위의 non-destructive runtime scaling control이다. 원본 waveform file을 다시 양자화하지 않고 headroom을 비교할 수 있지만, 실제 average/peak RF level은 analyzer 또는 power measurement로 검증한다.
+
+## 4. 반복 경계
+
+Segment 마지막 sample 다음에 첫 sample이 바로 이어진다. 두 지점의 amplitude나 phase가 불연속이면 반복 주파수 간격의 spectral regrowth 또는 spur가 생길 수 있다.
+
+반복 waveform은 최소한 다음을 검사한다.
+
+- 첫 sample과 마지막 sample의 I/Q 거리
+- total phase progression이 record 경계에서 이어지는가
+- frame·slot·symbol 경계가 의도한 위치에 있는가
+- 반복 주기가 DUT memory, thermal 또는 control loop를 비현실적으로 자극하지 않는가
+
+## 5. Marker와 trigger 기준
+
+PA burst 시험이라면 waveform의 어느 sample이 실제 RF burst 시작인지, marker cable delay와 analyzer trigger delay가 얼마인지 기록한다. Trigger를 받았다는 시점과 유효 RF envelope가 DUT plane에 도착한 시점은 같지 않을 수 있다.
+
+## 6. Golden sanity check
+
+PA를 연결하기 전에 through path에서 다음 순서로 확인한다.
+
+1. MXG RF Off 상태에서 waveform metadata를 읽는다.
+2. 낮은 output power와 충분한 analyzer headroom을 설정한다.
+3. Time magnitude에서 clipping, record 길이와 burst 위치를 본다.
+4. Spectrum에서 center, occupied bandwidth와 반복 spur를 본다.
+5. IQ/constellation에서 Q sign, I/Q swap, DC offset과 rotation을 본다.
+6. CCDF 또는 peak statistics로 crest factor를 확인한다.
+7. DUT plane average power를 calibration한 뒤 PA를 연결한다.
+
+<MeasurementNote title="같은 파일명은 같은 waveform을 보장하지 않는다" kind="condition">
+파일명과 standard label만 저장하지 말고 sample count, sample rate, IQ format, checksum, scaling, marker mapping과 생성 software/version을 함께 저장한다. 프로그램은 장비 memory에 같은 이름이 있더라도 필요한 checksum·metadata를 검증하거나 다시 배포해야 한다.
+</MeasurementNote>
+
+## 흔한 증상에서 원인을 좁히기
+
+| 증상 | 먼저 확인할 값 |
+|---|---|
+| Spectrum 폭이 정확히 2배 | Sample rate가 생성값의 2배로 설정됐는가 |
+| Constellation이 mirror됨 | I/Q swap 또는 Q sign convention |
+| 반복 간격의 comb spur | Segment 시작·끝 discontinuity와 record length |
+| Average power가 예상보다 낮음 | Runtime scaling, waveform RMS와 crest factor |
+| Burst trigger가 흔들림 | Marker 위치·polarity·route와 trigger delay |
+| Peak만 찌그러짐 | IQ sample clipping, DAC/headroom 또는 PA compression |
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="I/Q sample에서 RF 시간·주파수·전력을 계산해 보자">
+
+<FormulaDisclosure title="Complex sample의 magnitude와 phase" formula="|x[n]| = √(I[n]²+Q[n]²),   φ[n] = atan2(Q[n], I[n])">
+Magnitude normalization의 기준이 peak인지 RMS인지 명시한다. `atan2`를 사용해야 사분면을 보존한다. Q sign은 장비와 software convention에 따라 달라질 수 있으므로 known tone으로 확인한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Record duration과 반복 주파수" formula="T_record = N/Fs,   f_repeat = Fs/N">
+`N`은 complex sample 수이며 interleaved integer 수의 절반이다. Marker byte를 sample 수로 잘못 세지 않는다. Segment가 연속 반복될 때 record-related spectral line spacing은 `f_repeat`와 연결된다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Crest factor" formula="CF_dB = 20 log10(A_peak/A_rms)">
+같은 impedance에서 amplitude ratio로 정의한 값이다. Power ratio로 쓰면 `10 log10(P_peak/P_avg)`와 같다. Measurement bandwidth, oversampling과 record length에 따라 관측 peak가 달라질 수 있다.
+</FormulaDisclosure>
+
+## Signal Spine을 닫는 문장
+
+“Sample rate를 50 → 100 MSa/s로 바꾸고 I/Q 배열을 그대로 두었기 때문에 Source의 baseband clock이 두 배가 되어 record 시간이 절반이 되고 baseband spectrum의 모든 주파수 간격이 두 배가 되었다. DAC와 RF bandwidth 한계를 넘으면 ideal scaling에서 벗어날 수 있으며 PA drive 전에 through-path capture로 검증해야 한다.”
+
+## 적용 범위
+
+- N5182B의 ARB hardware와 최대 sample rate는 Option 656/657 조합에 의존한다.
+- Waveform memory size는 Option 022/023 등 구성에 따라 달라질 수 있다.
+- 장비의 interpolation, reconstruction filter와 IQ correction은 ideal sample model에 추가된다.
+- 이 장의 수치는 waveform 설계의 방향을 설명하며 실제 output accuracy나 modulation quality specification을 대신하지 않는다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. Waveform 파일에서 carrier frequency와 RF amplitude를 찾을 수 없는 이유는 무엇인가?
+2. 같은 I/Q 배열의 sample rate만 두 배로 하면 time과 spectrum이 각각 어떻게 바뀌는가?
+3. PA에 연결하기 전에 normalization, PAPR와 반복 경계를 어떤 화면으로 검증할 것인가?

@@ -194,6 +194,8 @@ Source → DUT → Acquisition → DSP/Math → Display를 desktop에서는 한 
 
 동일한 계산 state를 둘 이상의 view로 표시한다. marker를 움직이면 관련 sample, FFT bin, subcarrier, RB, Smith point가 함께 선택된다. legend를 멀리 두지 않고 trace 끝이나 marker 옆에 직접 라벨링한다. 모든 view는 title, axes, units, reference setting, text summary, data-table alternative를 가진다.
 
+고정 viewBox SVG가 좁은 container로 축소될 때 label의 user-unit font size는 `--font-size-data`의 배수로 보정해 최종 화면에서 약 10px 미만으로 작아지지 않게 한다. 이는 새 본문 typography step이 아니라 SVG 좌표계 축소를 상쇄하는 접근성 보정이며, desktop label 크기와 semantic data table은 그대로 유지한다.
+
 ### Cause/Effect Ledger
 
 항상 `변경 → 직접 효과 → 화면 결과 → 비용/한계` 네 행을 같은 순서로 표시한다. 별도 callout card로 반복하지 않고 simulator 하단의 단일 ledger만 사용한다.
@@ -228,6 +230,20 @@ Desktop lab 내부는 controls와 Linked Views를 나란히 두되, lab 전체�
 ### Navigation
 
 Desktop은 compact 학습 지도, breadcrumb, search를 지속적으로 보여준다. 학습 지도는 wayfinding만 담당하며 각 row에는 module 번호와 짧은 제목을 표시한다. 현재 row만 lesson의 질문을 보조 정보로 펼칠 수 있다. 모든 module의 긴 질문을 동시에 노출하거나 학습 지도 안에 가로 스크롤을 만들지 않는다. 현재 모듈과 현재 lesson을 서로 다른 위계로 표시한다. mobile drawer가 닫혀도 현재 위치와 다음 단계가 상단에 남는다. visited와 unvisited reference link는 서로 다른 색/밑줄 상태를 가진다.
+
+### Instrument Study
+
+RF 개념 여섯 축과 계측장비 트랙의 진도는 합치지 않는다. 장비 페이지는 장비 허브와 짧은 chapter로 나누며 permanent feature rail이나 두 개의 경쟁하는 본문을 만들지 않는다. SCPI와 Python은 한 panel의 tab으로 전환하고, command transcript·state diff·error queue는 같은 시간축을 공유한다. 긴 command와 code는 자신의 panel 안에서만 overflow하며 sidebar나 document 전체에 가로 스크롤을 만들지 않는다.
+
+장비 상태 색은 기존 물리 역할을 따른다. RF forward·정상 response는 teal, reference·trigger·marker는 oxide, blocked RF·error는 reverse red, 비교 trace는 blue를 사용하고 항상 label·dash·marker를 함께 제공한다.
+
+장비별 Linked Views도 새 palette를 만들지 않고 같은 의미를 재사용한다.
+
+- Spectrum analyzer: 현재 measured trace·정상 acquisition은 teal, reference level·marker·measurement boundary는 oxide, overload·damage/overrange는 red, 비교 trace·raw IQ 또는 noise reference는 blue다.
+- VNA: incident/forward·corrected trace는 teal, calibration standard·reference plane은 oxide, reverse/reflection·receiver limit은 red, raw 또는 비교 trace는 blue다.
+- Power sensor: average/corrected power는 teal, peak·gate·trigger는 oxide, damage/overrange는 red, uncorrected/raw detector 값은 blue다.
+- DC power: delivered voltage/current는 teal, setpoint·limit·trigger는 oxide, CC/OVP/OCP trip과 unsafe output은 red, terminal/sense 비교값은 blue다.
+- 상태를 색만으로 구분하지 않는다. `TRACE`, `MARKER`, `OVERLOAD`, `IQ`, `CV`, `CC`, `TRIP`, `RAW`, `CORR`, `AVG`, `PEAK` 직접 라벨, line style과 marker shape를 함께 쓴다.
 
 ### Prediction Challenge
 

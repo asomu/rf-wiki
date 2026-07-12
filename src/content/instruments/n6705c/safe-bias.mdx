@@ -1,0 +1,115 @@
+---
+title: "PA bias를 켜기 전에 voltage보다 먼저 무엇을 제한해야 할까?"
+description: "N6705C와 N6752A에서 Output OFF, current limit, OVP, 100 W autoranging envelope와 DUT bias 순서를 하나의 안전 상태로 만든다."
+instrumentId: "keysight-n6705c"
+chapter: "safe-bias"
+order: 1
+estimatedMinutes: 55
+prerequisites: ["foundations"]
+outcomes:
+  - "50 V, 10 A, 100 W 세 정격을 동시에 가능한 한 점으로 오해하지 않는다."
+  - "RF OFF와 DC output OFF에서 시작해 current limit·OVP를 먼저 검증하는 bias 순서를 실행한다."
+  - "Software OFF, Option 761 relay, fuse와 interlock의 역할을 분리한다."
+concepts: ["autoranging envelope", "current limit", "over-voltage protection", "bias sequence", "output disconnect"]
+equipmentContext:
+  source: "Keysight N6705C, slot 1 N6752A 50 V/10 A/100 W, Option 761"
+  dut: "Gate/drain 또는 enable/VDD 순서가 정의된 connectorized PA module"
+  analyzer: "DMM 또는 N6705C readback; RF path는 SG·sensor·SA가 별도로 담당"
+references:
+  - title: "N6700 Modular Power System Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-03617/programming-guides/9018-03617.pdf"
+    kind: "vendor"
+  - title: "N6700 Modular Power System Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04533/technical-specifications/9018-04533.pdf"
+    kind: "vendor"
+labId: "psu-safe-bias"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Power supply의 `28 V`는 DUT에 약속된 전압이 아니라 **출력하려는 목표값**이다. 배선, current limit, 100 W power envelope, protection latch와 DUT 자체가 실제 operating point를 결정한다. 따라서 안전한 bias는 전압 하나가 아니라 검증 가능한 상태기계다.
+
+<LessonLayer level="intuition" title="Voltage knob보다 먼저 전류가 갈 수 있는 경계를 그리자">
+
+## 50 V와 10 A를 동시에 낼 수는 없다
+
+N6752A는 50 V, 10 A, 100 W autoranging module이다. 낮은 전압에서는 최대 10 A가 경계지만, 10 V를 넘으면 `100 W / voltage`가 허용 가능한 최대 전류를 더 강하게 제한한다.
+
+| 설정 전압 | 100 W 경계의 최대 전류 | 가능한 대표점 |
+|---:|---:|---:|
+| 5 V | 10 A 정격이 먼저 제한 | 5 V × 10 A = 50 W |
+| 10 V | 10 A | 10 V × 10 A = 100 W |
+| 28 V | 약 3.57 A | 28 V × 3.57 A ≈ 100 W |
+| 50 V | 2 A | 50 V × 2 A = 100 W |
+
+<Definition term="Autoranging power envelope" symbol="P ≤ 100 W">
+Voltage와 current의 사각형 전체가 아니라 `V × I ≤ 100 W`, `V ≤ 50 V`, `I ≤ 10 A`를 모두 만족하는 영역이다. 설정 가능한 숫자와 지속적으로 공급 가능한 operating point를 구분해야 한다.
+</Definition>
+
+<InstrumentLab labId="psu-safe-bias" />
+
+## Output OFF도 하나의 확인 가능한 state다
+
+Output OFF에서 voltage/current/protection을 설정하고 query-back할 수 있다. RF PA bench에서는 SG RF도 OFF, PSU output도 OFF인 상태에서 cable, load, attenuator와 bias polarity를 확인한다. DC를 켜는 순간은 configuration의 시작이 아니라 마지막 승인 단계다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Current limit·OVP·bias 순서를 먼저 증명하자">
+
+## 처음 연결하는 PA의 권장 순서
+
+1. DUT 데이터시트에서 absolute maximum, 정상 bias, gate/drain 또는 enable/VDD 순서를 확인한다.
+2. PSU output을 OFF로 명령하고 front panel/readback에서도 확인한다.
+3. Mainframe `N6705C`, slot 1 module `N6752A`, Option `761`을 확인한다.
+4. Voltage보다 먼저 보수적인 current limit을 정하고, 정상값보다 높지만 absolute maximum보다 낮은 OVP를 설정한다.
+5. Force와 sense 극성, fuse, cable ampacity, remote inhibit/interlock를 확인한다.
+6. RF는 OFF인 채 low voltage 또는 gate rail부터 켜고 예상 current를 query-back한다.
+7. DUT 규칙에 따라 drain/VDD를 올리고 CV/CC 상태와 전류를 확인한다.
+8. 그 뒤에만 낮은 RF drive를 인가한다.
+9. 종료·예외 시 RF OFF → DC output OFF → discharge 확인 순으로 안전 상태로 간다.
+
+<MeasurementNote title="Option 761은 안전 interlock가 아니다" kind="warning">
+Option 761은 output/sense disconnect relay를 제공하지만 작은 AC network가 출력에 남을 수 있고, 잘못된 배선·통신 단절·DUT 내부 저장 에너지를 막는 물리적 safety disconnect가 아니다. Fuse, bleed/discharge, remote inhibit와 bench E-stop을 별도로 설계한다.
+</MeasurementNote>
+
+## `*RST`를 습관적으로 첫 줄에 넣지 않는다
+
+Reset은 protection, trigger, coupling, list와 다른 채널의 상태를 바꿀 수 있다. 먼저 identity와 현재 output/coupling state를 읽고, 모든 관련 output을 OFF로 만든 다음 필요한 항목을 명시적으로 설정한다. 저장된 상태를 모른 채 reset에 기대는 것보다 프로그램이 소유하는 state를 query-back하는 편이 감사 가능하다.
+
+~~~text
+*IDN?
+SYST:CHAN:MOD?                 # slot 1 module 확인
+OUTP OFF,(@1)
+VOLT 28,(@1)
+CURR 0.25,(@1)
+VOLT:PROT 30,(@1)
+CURR:PROT:STAT ON,(@1)
+VOLT? (@1); CURR? (@1)        # 실제 코드는 query를 한 메시지씩 전송
+SYST:ERR?
+OUTP ON,(@1)                  # 별도 승인 뒤에만
+~~~
+
+이 Wiki의 가상 console은 학습을 위해 slot 1 channel suffix를 생략한 한 줄 메시지만 받는다. 실제 Python 예제는 `(@1)`을 명시한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="요청점과 보호 경계를 수식으로 닫자">
+
+<FormulaDisclosure title="N6752A의 보수적 operating envelope" formula="I_max(V) = min(10 A, 100 W / V),  0 ≤ V ≤ 50 V">
+28 V에서는 약 3.57 A, 50 V에서는 2 A다. Current limit은 이 하드웨어 경계 안에서 DUT를 보호하도록 더 낮게 잡는 programmable boundary다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="최악 DUT stress" formula="V_DUT,max = V_set + regulation error + transient overshoot + wiring uncertainty">
+OVP는 정상 동작과 uncertainty보다 높고 DUT absolute maximum보다 낮은 위치에 둔다. 숫자 하나만 복사하지 말고 cable inductance, load step과 sense wiring 조건을 포함한다.
+</FormulaDisclosure>
+
+교육 모델은 실제 장비 accuracy, dynamic response, connector·fuse rating 또는 compliance 판정을 대신하지 않는다. 실장비 firmware `E_02_09_3271`과 installed option을 확인한다.
+
+</LessonLayer>

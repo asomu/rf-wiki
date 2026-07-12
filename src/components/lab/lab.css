@@ -1,4 +1,6 @@
 .lab-shell {
+  container-name: lesson-lab;
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
@@ -115,7 +117,7 @@
   background: var(--color-surface);
 }
 
-.signal-spine li + li { border-left: 0; }
+.signal-spine li + li { border-inline-start: 0; }
 .signal-spine li:first-child { border-radius: var(--radius-control) 0 0 var(--radius-control); }
 .signal-spine li:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
 
@@ -215,6 +217,8 @@
   background: var(--color-surface);
 }
 
+.lab-prediction > * { min-width: 0; }
+
 .lab-prediction h3,
 .lab-explain h3,
 .cause-ledger h3,
@@ -223,7 +227,7 @@
 .lab-explain p { margin: var(--space-1) 0 0; color: var(--color-muted); }
 
 .lab-prediction__choices { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.lab-prediction__choices label { cursor: pointer; }
+.lab-prediction__choices label { max-width: 100%; min-width: 0; cursor: pointer; }
 .lab-prediction__choices input { position: absolute; opacity: 0; }
 .lab-prediction__choices span {
   display: inline-flex;
@@ -234,7 +238,9 @@
   border: var(--stroke-hairline) solid var(--color-rule);
   border-radius: var(--radius-control);
   background: var(--color-canvas);
+  overflow-wrap: anywhere;
 }
+.lab-prediction > .lab-button { max-width: 100%; justify-self: start; white-space: normal; }
 .lab-prediction__choices input:checked + span { border-color: var(--color-active); color: var(--color-active); }
 .lab-prediction__choices input:focus-visible + span { box-shadow: var(--shadow-focus); }
 .lab-prediction__feedback { grid-column: 1 / -1; padding-top: var(--space-3); border-top: var(--stroke-hairline) solid var(--color-rule); }
@@ -353,10 +359,14 @@
 .plot-frame__table { padding: var(--space-3) var(--space-4); border-top: var(--stroke-hairline) solid var(--color-instrument-grid); color: var(--color-instrument-muted); }
 .plot-frame__table summary { min-height: var(--target-min); cursor: pointer; }
 .plot-frame table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: var(--font-size-data); }
+.plot-frame__table table { table-layout: fixed; }
+.plot-frame caption { padding-block: var(--space-2); color: var(--color-instrument-ink); text-align: left; }
 .plot-frame th,
-.plot-frame td { padding: var(--space-2); border-top: var(--stroke-hairline) solid var(--color-instrument-grid); text-align: right; }
+.plot-frame td { padding: var(--space-2); border-top: var(--stroke-hairline) solid var(--color-instrument-grid); overflow-wrap: anywhere; text-align: right; }
 .plot-frame th:first-child,
 .plot-frame td:first-child { text-align: left; }
+.plot-frame__table th:last-child,
+.plot-frame__table td:last-child { text-align: left; }
 
 .plot-grid line { stroke: var(--color-instrument-grid); stroke-opacity: 0.34; stroke-width: 1; }
 .plot-axis text,
@@ -519,8 +529,9 @@
   font-family: var(--font-mono);
 }
 
-@media (max-width: 1024px) {
-  .lab-shell__workbench { grid-template-columns: 1fr; }
+/* Matches the existing tablet contract, but follows the lab's real width. */
+@container lesson-lab (max-width: 1024px) {
+  .lab-shell__workbench { grid-template-columns: minmax(0, 1fr); }
   .lab-shell__workbench > .lab-controls,
   .lab-shell__workbench > .lab-prediction,
   .lab-shell__workbench > .lab-views {
@@ -528,11 +539,36 @@
     grid-row: auto;
   }
   .lab-controls__sticky { position: static; }
-  .lab-prediction { grid-template-columns: 1fr; }
-  .cause-ledger dl { grid-template-columns: repeat(2, 1fr); gap: var(--space-4) 0; }
+  .lab-explain { grid-template-columns: minmax(0, 1fr); }
+  .lab-explain > .lab-button { max-width: 100%; justify-self: start; white-space: normal; }
+  .cause-ledger dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) 0; }
   .cause-ledger dl > div:nth-child(3) { padding-left: 0; border-left: 0; }
   .linked-view-grid,
-  .linked-view-grid--equal { grid-template-columns: 1fr; }
+  .linked-view-grid--equal { grid-template-columns: minmax(0, 1fr); }
+}
+
+@container lesson-lab (max-width: 760px) {
+  .lab-prediction { grid-template-columns: minmax(0, 1fr); }
+}
+
+@container lesson-lab (max-width: 680px) {
+  .lab-shell__header { display: grid; }
+  .lab-shell__model-note { flex-basis: auto; }
+  .signal-spine ol { grid-template-columns: minmax(0, 1fr); }
+  .signal-spine li { min-width: 0; }
+  .signal-spine li + li {
+    border-block-start: 0;
+    border-inline-start: var(--stroke-hairline) solid var(--color-rule);
+  }
+  .signal-spine li:first-child { border-radius: var(--radius-control) var(--radius-control) 0 0; }
+  .signal-spine li:last-child { border-radius: 0 0 var(--radius-control) var(--radius-control); }
+  .signal-spine__toolbar { align-items: start; }
+  .cause-ledger dl { grid-template-columns: minmax(0, 1fr); }
+  .cause-ledger dl > div { padding: var(--space-3) 0 0; border-top: var(--stroke-hairline) solid var(--color-rule); border-left: 0; }
+  .cause-ledger dl > div:first-child { padding-top: 0; border-top: 0; }
+  .plot-frame__canvas { padding-inline: var(--space-2); }
+  .power-balance { grid-template-columns: minmax(0, 1fr); }
+  .power-balance > span { text-align: center; }
 }
 
 .lab-shell button,
@@ -550,25 +586,12 @@
 
 @media (max-width: 680px) {
   .lab-shell { margin-block: var(--space-8); }
-  .lab-shell__header { display: grid; }
-  .lab-shell__model-note { flex-basis: auto; }
-  .signal-spine ol { grid-template-columns: minmax(0, 1fr); }
-  .signal-spine li { min-width: 0; }
-  .signal-spine li + li { border-top: 0; border-left: var(--stroke-hairline) solid var(--color-rule); }
-  .signal-spine li:first-child { border-radius: var(--radius-control) var(--radius-control) 0 0; }
-  .signal-spine li:last-child { border-radius: 0 0 var(--radius-control) var(--radius-control); }
-  .signal-spine__toolbar { align-items: start; }
-  .cause-ledger dl { grid-template-columns: 1fr; }
-  .cause-ledger dl > div { padding: var(--space-3) 0 0; border-top: var(--stroke-hairline) solid var(--color-rule); border-left: 0; }
-  .cause-ledger dl > div:first-child { padding-top: 0; border-top: 0; }
-  .lab-explain { grid-template-columns: 1fr; }
-  .plot-frame__canvas { padding-inline: var(--space-2); }
-  .power-balance { grid-template-columns: 1fr; }
-  .power-balance > span { text-align: center; }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .lab-button:not(:disabled) { transition: transform var(--duration-press) var(--ease-out); }
+  .lab-button:not(:disabled) { transition: color var(--duration-state) var(--ease-out), background-color var(--duration-state) var(--ease-out), border-color var(--duration-state) var(--ease-out), transform var(--duration-press) var(--ease-out); }
+  .lab-button--primary:not(:disabled):hover { border-color: var(--color-ink); background: color-mix(in srgb, var(--color-active) 88%, var(--color-ink)); }
+  .lab-button--secondary:not(:disabled):hover { border-color: var(--color-active); background: var(--color-surface-subtle); color: var(--color-active); }
   .lab-button:not(:disabled):active:not(:focus-visible) { transform: scale(0.98); }
   .lab-prediction__choices label:hover span { border-color: var(--color-rule-strong); }
 }

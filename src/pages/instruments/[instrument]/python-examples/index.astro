@@ -1,0 +1,100 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../../components/astro/Breadcrumbs.astro';
+import { getInstrumentByRoute } from '../../../../data/instruments';
+import {
+  INSTRUMENT_PYVISA_PACKAGES,
+  buildInstrumentPyvisaPackage,
+  listInstrumentPyvisaTopLevelFiles,
+} from '../../../../lib/downloads/instrument-pyvisa-package.mjs';
+
+export async function getStaticPaths() {
+  return Object.values(INSTRUMENT_PYVISA_PACKAGES).map((config) => ({
+    params: { instrument: config.route },
+    props: { config },
+  }));
+}
+
+const { config } = Astro.props;
+const instrument = getInstrumentByRoute(config.route);
+if (!instrument) throw new Error(`Missing instrument manifest for ${config.route}`);
+const bundle = await buildInstrumentPyvisaPackage(process.cwd(), config);
+const sourceFiles = await listInstrumentPyvisaTopLevelFiles(process.cwd(), config);
+const guideFile = config.guide.split('/').at(-1);
+const downloadableFiles = guideFile ? [...sourceFiles, guideFile] : sourceFiles;
+const packageModule = config.packageDirectory.replaceAll('/', '.');
+const descriptionFor = (file: string) => {
+  if (file === 'driver.py') return `${config.identity} command adapter와 safety/query-back gate`;
+  if (file === 'transport.py') return '결정론적 fake transport와 opt-in VISA transport';
+  if (file === 'workflow.py') return 'configure → verify → optional enable → cleanup 순서';
+  if (file === 'cli.py' || file === '__main__.py') return 'Dry-run 우선 command-line entry';
+  if (file === 'requirements.txt') return '실제 VISA session에 필요한 dependency';
+  if (file === 'README.md') return 'Package 안의 빠른 시작과 안전 경계';
+  if (file === '__init__.py') return '재사용 가능한 public Python API';
+  if (file === guideFile) return '설치·안전·실행·문제 해결 전체 가이드';
+  return '장비별 실행 예제';
+};
+---
+
+<BaseLayout
+  title={config.title}
+  description={`${config.model}을 안전하게 제어하는 실행 가능한 Python·PyVISA 예제`}
+  currentPath={`/instruments/${config.route}/python-examples/`}
+>
+  <main class="page-shell python-examples" data-pagefind-body>
+    <Breadcrumbs items={[
+      { label: '장비 스터디', href: '/instruments/' },
+      { label: instrument.displayName, href: `/instruments/${config.route}/` },
+      { label: 'Python 예제' },
+    ]} />
+
+    <header class="page-heading">
+      <p class="context-line"><span>Python 3</span><span>PyVISA</span><span>{config.identity} only</span></p>
+      <h1>먼저 dry-run transcript를 확인하고, 실제 연결과 output 권한을 분리합니다.</h1>
+      <p>{config.safetySummary}</p>
+    </header>
+
+    <section class="python-examples__package" aria-labelledby={`${config.key}-package-title`}>
+      <div>
+        <p class="data-label">권장 다운로드</p>
+        <h2 id={`${config.key}-package-title`}>Package, tests와 운영 가이드를 한 구조로 받기</h2>
+        <p><code>{config.packageDirectory}/</code>와 <code>{config.guide}</code>를 같은 root 아래 보존합니다. SHA-256을 확인한 뒤 압축을 푸세요.</p>
+      </div>
+      <div class="python-examples__package-actions">
+        <a class="button-primary" href={`/instruments/${config.route}/python-examples/${config.archiveName}`} download>ZIP 받기</a>
+        <a class="button-secondary" href={`/instruments/${config.route}/python-examples/${bundle.checksumName}`} download>SHA-256 받기</a>
+      </div>
+    </section>
+
+    <section class="python-examples__sequence" aria-labelledby={`${config.key}-sequence-title`}>
+      <div><p class="data-label">첫 실행 순서</p><h2 id={`${config.key}-sequence-title`}>실장비 전에 fake transport를 먼저 통과시킵니다.</h2></div>
+      <ol>
+        <li><strong>1</strong><span>Keysight IO Libraries와 Connection Expert에서 <code>{config.alias}</code> VISA alias를 만듭니다.</span></li>
+        <li><strong>2</strong><span>ZIP checksum을 확인하고 package root에서 dry-run을 실행합니다.</span></li>
+        <li><strong>3</strong><span><code>python3 -m unittest discover -s {config.packageDirectory}/tests -v</code>로 fake-transport safety test를 실행합니다.</span></li>
+        <li><strong>4</strong><span><code>--execute</code>로 identity와 query-back까지만 확인합니다.</span></li>
+        <li><strong>5</strong><span>{config.finalStep}</span></li>
+      </ol>
+    </section>
+
+    <section class="python-examples__commands" aria-labelledby={`${config.key}-commands-title`}>
+      <div><p class="data-label">Terminal</p><h2 id={`${config.key}-commands-title`}>압축 확인과 기본 dry-run</h2></div>
+      <pre><code>shasum -a 256 -c {bundle.checksumName}
+unzip {config.archiveName}
+cd {config.archiveRoot}
+python3 -S -m {packageModule}</code></pre>
+      <p>실제 통신을 사용할 때만 package의 <code>requirements.txt</code>를 설치합니다. Resource 주소를 코드에 하드코딩하지 말고 Connection Expert alias 또는 station configuration에서 받습니다.</p>
+    </section>
+
+    <section class="python-examples__files" aria-labelledby={`${config.key}-files-title`}>
+      <header><p class="data-label">개별 파일</p><h2 id={`${config.key}-files-title`}>검토가 필요한 entry만 따로 받을 수 있습니다.</h2></header>
+      <ul>
+        {downloadableFiles.map((file) => (
+          <li><code>{file}</code><span>{descriptionFor(file)}</span><a href={`/instruments/${config.route}/python-examples/${file}`} download>다운로드</a></li>
+        ))}
+      </ul>
+    </section>
+
+    <p class="python-examples__guide-note">전체 설치, command scope, cleanup과 문제 해결은 ZIP의 <code>{config.guide}</code>를 따릅니다.</p>
+  </main>
+</BaseLayout>

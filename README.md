@@ -3,6 +3,7 @@
 RF Wiki는 RF 엔지니어가 장비 설정, 물리 신호, 계산 모델과 화면 결과를 한 흐름으로 연결해 학습하는 정적 웹 애플리케이션입니다. 각 lesson은 compact 학습 지도와 하나의 main document로 구성되며, intuition layer의 짧은 핵심 설명 직후 inline lab에서 결과를 예측하고 계산 모델을 조작한 뒤 직관의 세부 내용, bench 해석과 수식·규격으로 이어집니다.
 
 처음 사용한다면 [RF Wiki 사용자 가이드](docs/user-guide.md)에서 실행 방법, 첫 실험 순서, 화면 읽는 법, 완료 조건과 진도 저장 방식을 확인하세요.
+다른 작업 세션에서 이어갈 때는 [세션 인수인계](docs/SESSION_HANDOFF.md)에서 현재 구조, 안전 계약과 다음 장비 추가 순서를 확인하세요.
 
 ## 현재 범위
 
@@ -12,8 +13,9 @@ RF Wiki는 RF 엔지니어가 장비 설정, 물리 신호, 계산 모델과 화
 - VNA, S-parameter, Smith Chart와 VSWR
 - Power flow, coupling, insertion, isolation과 directivity
 - PA 비선형성, stability, source/load-pull
+- 계측장비 스터디: Keysight N5182B MXG, N9020B MXA, E5080B ENA, U2061XA power sensor, N6705C + N6752A power system의 장비별 5개 챕터, 총 25개 챕터에서 기본 동작·SCPI·PyVISA와 PA bench workflow 제공
 
-내장된 결정론적 교육 시나리오만 사용합니다. 서버, 로그인, telemetry, 실측 파일 import, SCPI와 라이브 AI는 v1 범위가 아닙니다.
+웹은 내장된 결정론적 RF·SCPI 시나리오만 실행합니다. 서버, 로그인, telemetry, 실측 파일 import, 브라우저 직접 장비 제어와 라이브 AI는 범위가 아닙니다. 실제 장비 제어는 `examples/` 아래 장비별 로컬 Python package로 분리되어 있으며 기본 실행은 모두 dry-run입니다.
 
 ## 시작하기
 
@@ -32,13 +34,24 @@ npm run check:content
 npm run check:visual-baselines
 ASTRO_TELEMETRY_DISABLED=1 npm run typecheck
 npm run test:unit
+npm run test:python
 npm run build
 npm run test:e2e
 npm run audit:lighthouse
 npm run test:all
 ~~~
 
-`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run audit:lighthouse`는 production build의 홈, Spectrum/IQ, NR, VNA, PA pull 다섯 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
+`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 홈, Spectrum/IQ, NR, VNA, PA pull, MXG 허브·SCPI, MXA 허브·sweep, ENA calibration, power-sensor burst, PSU CV/CC 총 12개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
+
+### 2026-07-12 구현 체크포인트
+
+- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter
+- TypeScript/React unit: 33 files, 219 tests 통과
+- Python safety suite: MXG 39 + ENA 21 + U2061XA 19 + N6705C 16, 총 95 tests 통과
+- Production build: 38 pages, Pagefind 37 pages·12,374 words index 통과
+- Lighthouse route matrix: 12개 경로로 구성됨
+
+새 MXA·ENA·power sensor·PSU 화면의 390/1024/1440px visual baseline은 아직 생성되지 않았습니다. 따라서 `npm run check:visual-baselines`와 이를 포함하는 `npm test`는 baseline 생성 전까지 실패하는 것이 현재의 정확한 상태이며, 전체 Playwright·axe와 Lighthouse 12-route 실측도 남아 있습니다. 구체적인 재개 순서는 [세션 인수인계](docs/SESSION_HANDOFF.md)를 따릅니다.
 
 ### OpenAI Sites 배포 빌드
 
@@ -47,16 +60,20 @@ npm run test:hosting
 npm run build:sites
 ~~~
 
-`build:sites`는 기존 Astro 구조를 바꾸지 않고 정적 결과와 Pagefind를 `dist/client/`에 만들고, Sites용 Cloudflare Worker를 `dist/server/index.js`에 배치합니다. `.openai/hosting.json`의 `project_id`는 Sites 프로젝트를 처음 생성할 때 받은 값을 그대로 보존해야 하며 임의로 만들거나 다른 프로젝트의 값으로 교체하지 않습니다. `PUBLIC_SITE_URL`을 지정한 빌드에서만 canonical URL을 출력하므로 로컬 주소가 배포 문서에 들어가지 않습니다.
+`build:sites`는 기존 Astro 구조를 바꾸지 않고 정적 결과와 Pagefind를 `dist/client/`에 만들고, Sites용 Cloudflare Worker를 `dist/server/index.js`에 배치합니다. 동시에 다섯 장비 Python ZIP의 checksum·전체 manifest를 검사하고 압축을 푼 복사본에서 dry-run과 fake-transport tests를 실행합니다. N9020B·E5080B·U2061XA·N6705C는 공용 package registry와 dynamic download route를 사용하고 N5182B도 같은 Sites 검증 단계에 포함됩니다. `.openai/hosting.json`의 `project_id`는 Sites 프로젝트를 처음 생성할 때 받은 값을 그대로 보존해야 하며 임의로 만들거나 다른 프로젝트의 값으로 교체하지 않습니다. `PUBLIC_SITE_URL`을 지정한 빌드에서만 canonical URL을 출력하므로 로컬 주소가 배포 문서에 들어가지 않습니다.
 
 ## 구조
 
 - `src/pages/` — Astro 정적 route
 - `src/content/lessons/` — MDX lesson과 frontmatter
+- `src/content/instruments/` — 장비별 MDX chapter
 - `src/components/astro/` — 정적 학습·문서 컴포넌트
 - `src/components/simulators/` — React simulator island
 - `src/components/plots/` — 반응형 SVG view
 - `src/lib/rf/` — UI와 분리된 순수 TypeScript RF 계산
+- `src/lib/instruments/` — 장비별 계산, command catalog와 결정론적 SCPI state
+- `src/lib/downloads/` — 배포 가능한 장비별 PyVISA ZIP·checksum 생성과 검증
+- `examples/*_pyvisa/` — 실제 장비용 dry-run-first Python·PyVISA 예제
 - `src/styles/tokens.css` — 디자인 token의 코드 기준
 - `scripts/` — design/content 계약 검사와 authoring 도구
 - `worker/` — OpenAI Sites에서 정적 결과를 전달하는 Worker entry
@@ -78,6 +95,16 @@ node scripts/new-lesson.mjs \
 생성 파일은 `src/content/lessons/rbw-and-noise-floor.mdx`이며, TODO를 제거하고 `status: ready`로 승격한 뒤 canonical URL `/learn/rbw-and-noise-floor/`에 공개됩니다. Draft는 route·검색·navigation에서 제외됩니다. 도구는 기존 파일을 덮어쓰지 않으며 `--dry-run`에서는 아무 파일도 만들지 않습니다.
 
 전체 조사·작성·검증 절차와 frontmatter/MDX helper 계약은 [Content authoring guide](docs/content-authoring.md)를 따릅니다.
+
+장비 chapter scaffold는 장비 ID를 명시합니다.
+
+~~~bash
+npm run new:instrument-lesson -- \
+  --instrument e5080b \
+  --chapter safe-sweep \
+  --title "VNA source를 켜기 전에 sweep의 어떤 경계를 정해야 할까?" \
+  --dry-run
+~~~
 
 ## 제품·디자인 계약
 

@@ -84,6 +84,38 @@ describe('learning progress', () => {
       nextModuleId: 'power-coupling',
     });
   });
+
+  it('keeps namespaced instrument completions independent from the six RF modules', () => {
+    const progress = parseLearningProgress(JSON.stringify({
+      frequency: { completed: true },
+      'instrument:sg:mxg-safe-cw': { completed: true },
+      'instrument:vna:ena-safe-sweep': { completed: true },
+      'instrument:sensor:sensor-safe-power': { completed: true },
+      'instrument:psu:psu-safe-bias': { completed: true },
+    }));
+
+    expect(summarizeModuleProgress(curriculum, progress)).toMatchObject({
+      completedModuleIds: ['foundations'],
+      completedCount: 1,
+      nextModuleId: 'spectrum-iq',
+    });
+    expect(summarizeModuleProgress([
+      { id: 'mxg-safe-cw', completionLabIds: ['instrument:sg:mxg-safe-cw'] },
+      { id: 'mxg-waveform-iq', completionLabIds: ['instrument:sg:mxg-waveform-iq'] },
+    ], progress)).toMatchObject({
+      completedModuleIds: ['mxg-safe-cw'],
+      completedCount: 1,
+      nextModuleId: 'mxg-waveform-iq',
+    });
+    expect(summarizeModuleProgress([
+      { id: 'ena-safe-sweep', completionLabIds: ['instrument:vna:ena-safe-sweep'] },
+      { id: 'sensor-safe-power', completionLabIds: ['instrument:sensor:sensor-safe-power'] },
+      { id: 'psu-safe-bias', completionLabIds: ['instrument:psu:psu-safe-bias'] },
+    ], progress)).toMatchObject({
+      completedModuleIds: ['ena-safe-sweep', 'sensor-safe-power', 'psu-safe-bias'],
+      completedCount: 3,
+    });
+  });
 });
 
 describe('lesson publication', () => {

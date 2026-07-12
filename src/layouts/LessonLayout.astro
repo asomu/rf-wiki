@@ -42,7 +42,7 @@ const layerItems = [
         ]}
       />
 
-      <header class="lesson-heading">
+      <header class:list={['lesson-heading', `lesson-heading--${moduleId}`]}>
         <p class="context-line">
           <span>{module?.shortTitle}</span>
           {estimatedMinutes && <span>{estimatedMinutes}분</span>}

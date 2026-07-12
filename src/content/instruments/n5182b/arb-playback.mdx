@@ -1,0 +1,225 @@
+---
+title: "메모리에 넣은 IQ가 언제 연속 RF 파형이 될까?"
+description: "N5182B ARB의 upload·select·sample clock·scaling·trigger·modulation·RF output 상태를 분리해 waveform playback 실패를 진단한다."
+instrumentId: "keysight-n5182b"
+chapter: "arb-playback"
+order: 3
+estimatedMinutes: 60
+prerequisites:
+  - "safe-cw"
+  - "waveform-iq"
+outcomes:
+  - "Waveform upload, volatile memory, selection, trigger, ARB, modulation과 RF output 상태를 순서대로 구분할 수 있다."
+  - "N5182B에서 binary block으로 waveform을 전송하고 sample clock·runtime scaling을 검증하는 SCPI sequence를 읽을 수 있다."
+  - "No RF, CW만 보임, wrong bandwidth, one-shot 대기 같은 증상을 state와 error queue로 진단할 수 있다."
+concepts:
+  - "arbitrary waveform generator"
+  - "volatile waveform memory"
+  - "IEEE 488.2 definite-length block"
+  - "waveform selection"
+  - "ARB trigger"
+  - "global modulation"
+  - "RF output gate"
+equipmentContext:
+  source: "Keysight N5182B MXG Option 656/657, waveform은 먼저 WFM1 volatile memory에 준비"
+  dut: "Through path 또는 낮은 drive의 PA, trigger 시험에는 marker/trigger cable 포함"
+  analyzer: "IQ capture가 가능한 X-Series/89600 VSA 또는 power sensor"
+references:
+  - title: "X-Series Signal Generators SCPI Command Reference, N5180-90057"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/ch/de/assets/9018-03690/programming-guides/9018-03690.pdf"
+    kind: "vendor"
+  - title: "How to Create Baseband Waveforms and Download Them to RF Vector Signal Generators"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/in/en/assets/7119-1232/application-notes/How-to-Create-Baseband-Waveforms-and-Download-Them-to-RF-Vector-Signal-Generators.pdf"
+    kind: "application-note"
+  - title: "Basics of Vector Signal Generators Part 2: Waveform Playback Mode"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7122-1049/white-papers/Basics-of-Vector-Signal-Generators-Part-2.pdf"
+    kind: "application-note"
+labId: "mxg-arb-playback"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Waveform을 장비에 전송했다는 메시지가 성공해도 RF Output에는 CW만 보이거나 아무것도 나오지 않을 수 있다. ARB playback은 한 개의 On 버튼이 아니라 **memory → selection → clock/scale → trigger → ARB → global modulation → RF output** 상태가 모두 이어져야 완성된다.
+
+<LessonLayer level="intuition" title="Waveform player의 일곱 상태를 한 줄로 연결하자">
+
+## 파일을 저장하는 것과 재생하는 것은 다르다
+
+음악 player에 비유하면 upload는 파일을 저장한 것, waveform select는 재생 목록에서 곡을 고른 것, trigger는 재생 시작 신호, ARB On은 player engine 시작, Mod On은 carrier에 소리를 연결한 것, RF On은 speaker output을 연 것에 해당한다.
+
+이 비유에서 중요한 점은 앞 단계가 성공해도 뒤 단계가 자동으로 켜진다고 가정하지 않는 것이다.
+
+<Definition term="Arbitrary waveform generator" symbol="ARB">
+Memory의 digital I/Q sample을 정해진 sample clock으로 읽어 baseband DAC에 전달하는 generator다. N5182B에서는 내부 baseband generator option, volatile waveform memory와 RF modulation path가 함께 필요하다.
+</Definition>
+
+<Definition term="Definite-length binary block">
+SCPI command 뒤에 `#`, 길이 자릿수, payload byte 수, binary payload를 붙이는 IEEE 488.2 전송 형식이다. Binary IQ 안에 newline 같은 byte가 있어도 길이 header로 payload 경계를 알 수 있다.
+</Definition>
+
+<InstrumentLab labId="mxg-arb-playback" />
+
+## Playback state를 별도 변수로 생각하자
+
+| 상태 | 확인 질문 | 대표 명령 |
+|---|---|---|
+| Memory | 재생 가능한 `WFM1:`에 data가 있는가? | `MMEM:DATA` |
+| Selection | 어느 segment/sequence가 선택됐는가? | `RAD:ARB:WAV` |
+| Clock | 생성 때의 sample rate와 같은가? | `RAD:ARB:SCL:RATE` |
+| Scaling | 원본 sample에 runtime scale이 얼마인가? | `RAD:ARB:RSC` |
+| Trigger | Free run인가, external/bus 대기인가? | `RAD:ARB:TRIG:SOUR` |
+| ARB/Mod | Baseband engine과 global modulation이 켜졌는가? | `RAD:ARB ON`, `OUTP:MOD ON` |
+| RF | Connector output을 마지막에 열었는가? | `OUTP ON` |
+
+이 표의 어느 한 칸만 빠져도 “파일은 있는데 신호가 없다”는 현상이 생길 수 있다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="RF Off 상태에서 waveform을 배포하고 단계별로 query-back하자">
+
+## 0. 장비 identity와 option을 먼저 확인한다
+
+~~~text
+*IDN?
+*OPT?
+OUTP OFF
+OUTP:MOD OFF
+*CLS
+~~~
+
+`*IDN?`이 기대한 N5182B인지, Option 656이 있는지 확인한다. Option 657은 bandwidth/sample-rate 확장이고, memory 옵션은 저장 가능한 sample 수를 바꿀 수 있다. 프로그램의 기대 사양을 장비가 만족하지 않으면 RF를 켜지 않고 명시적으로 중단한다.
+
+## 1. Waveform을 `WFM1:` volatile memory에 준비한다
+
+직접 재생할 waveform은 volatile waveform memory의 `WFM1:` prefix를 사용한다. Nonvolatile storage의 파일을 사용할 때도 재생 전에 지원되는 copy/load 절차로 `WFM1:`에 준비해야 한다.
+
+Binary 전송의 command 모양은 다음과 같다.
+
+~~~text
+MMEM:DATA "WFM1:pa_ofdm",#<digits><byte-count><binary-IQ-payload>
+*OPC?
+SYST:ERR?
+~~~
+
+`#<digits><byte-count>`는 설명용 표기이며 실제 프로그램은 payload 길이에서 header를 만든다. Binary payload를 문자열로 decode하거나 line ending을 삽입하면 data가 손상될 수 있다.
+
+## 2. Waveform과 clock·scale을 명시적으로 선택한다
+
+~~~text
+SOUR:RAD:ARB:WAV "WFM1:pa_ofdm"
+SOUR:RAD:ARB:SCL:RATE 100 MHZ
+SOUR:RAD:ARB:RSC 70
+SOUR:RAD:ARB:WAV?
+SOUR:RAD:ARB:SCL:RATE?
+SOUR:RAD:ARB:RSC?
+SYST:ERR?
+~~~
+
+Command reference의 full form은 각각 `SOURce:RADio:ARB:WAVeform`, `SOURce:RADio:ARB:SCLock:RATE`, `SOURce:RADio:ARB:RSCaling`이다. Runtime scaling은 1–100% 범위이며 원본 file을 다시 쓰지 않고 재생 amplitude를 조정한다.
+
+## 3. Trigger source를 시험 목적에 맞춘다
+
+~~~text
+SOUR:RAD:ARB:TRIG:SOUR KEY
+SOUR:RAD:ARB:TRIG:SOUR?
+~~~
+
+지원되는 대표 source는 `KEY`, `EXT`, `BUS`다. `BUS`를 선택하면 `*TRG`가 trigger event를 보낸다. N5182B의 이 command에 `IMMediate`를 임의로 사용하지 않는다. Continuous/free-run과 single/triggered behavior는 waveform과 playback 설정을 함께 확인한다.
+
+External trigger 시험에서는 polarity, threshold, delay, connector와 cable delay를 기록한다. 장비가 armed 상태인지와 RF envelope가 실제로 나온 상태를 구분한다.
+
+## 4. ARB와 modulation을 켜되 RF는 아직 Off로 둔다
+
+~~~text
+SOUR:RAD:ARB ON
+OUTP:MOD ON
+SOUR:RAD:ARB?
+OUTP:MOD?
+*OPC?
+SYST:ERR?
+~~~
+
+ARB On은 waveform engine, Mod On은 baseband를 RF carrier에 적용하는 global gate다. 둘 중 하나가 Off이면 RF On 상태에서도 unmodulated carrier 또는 의도하지 않은 output이 보일 수 있다.
+
+## 5. Frequency·power와 측정 chain을 검증한 뒤 RF를 켠다
+
+~~~text
+SOUR:FREQ:CW 3.5 GHZ
+SOUR:POW:LEV:IMM:AMPL -30 DBM
+SOUR:FREQ:CW?
+SOUR:POW:LEV:IMM:AMPL?
+SYST:ERR?
+OUTP ON
+OUTP?
+~~~
+
+RF On은 마지막 단계다. PA를 연결했다면 DUT input calibration, bias/interlock와 analyzer protection이 모두 준비된 뒤 실행한다.
+
+## 증상별 state 진단
+
+| 화면 증상 | 우선 query | 가능한 원인 |
+|---|---|---|
+| RF가 전혀 없음 | `OUTP?`, `RAD:ARB?`, trigger state | RF Off, ARB Off, trigger 대기 |
+| CW carrier만 있음 | `OUTP:MOD?`, selected waveform | Global Mod Off, waveform 미선택 |
+| Spectrum 폭이 다름 | `RAD:ARB:SCL:RATE?` | 생성 sample rate와 playback clock 불일치 |
+| Power가 예상보다 낮음 | `RAD:ARB:RSC?`, RF amplitude | Runtime scaling 또는 waveform RMS |
+| Trigger 한 번 후 멈춤 | trigger source/mode, sequence | Single playback 또는 다음 event 대기 |
+| File not found error | selected path와 memory catalog | `NVWFM:` file을 직접 선택, `WFM1:` 준비 안 됨 |
+
+<MeasurementNote title="Error queue는 실패 뒤 한 번이 아니라 단계 경계마다 읽는다" kind="condition">
+Upload, select, clock, trigger와 enable을 긴 command batch 하나로 보내면 어떤 단계가 실패했는지 잃기 쉽다. 각 의미 있는 단계 뒤 `*OPC?`와 `SYST:ERR?`로 경계를 만들고 command·response·elapsed time을 log에 남긴다.
+</MeasurementNote>
+
+## 종료 sequence
+
+~~~text
+OUTP OFF
+OUTP:MOD OFF
+SOUR:RAD:ARB OFF
+SYST:ERR?
+~~~
+
+시험 실패, 사용자 중단, timeout과 정상 종료가 모두 같은 idempotent cleanup으로 들어가게 한다. Waveform memory를 지우는 일은 다음 시험의 cache 정책과 별개로 결정하며, RF Off cleanup과 묶어 무조건 삭제하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Binary payload와 playback clock이 RF를 만드는 조건을 검증하자">
+
+<FormulaDisclosure title="Definite-length block header" formula="header = '#' + digits(len(payload)) + len(payload)">
+예를 들어 payload가 4000 byte면 길이 문자열은 `4000`, 자릿수는 4이므로 header는 `#44000`이다. 실제 command에는 이 header 바로 뒤에 raw byte를 붙인다. Text encoding을 거치지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="I/Q payload 크기" formula="bytes = N_complex × (2 bytes I + 2 bytes Q)">
+Signed 16-bit interleaved I/Q만 포함한 경우의 기본 계산이다. Marker data와 file/header format을 같은 payload에 포함하는 방식은 선택한 transfer contract를 따라 별도로 계산한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Playback duration" formula="T = N_complex/Fs">
+Waveform select는 sample을 바꾸고 sample-clock setting은 각 sample이 차지하는 시간을 정한다. Trigger는 이 record를 언제 시작할지 결정한다. 세 설정을 하나의 “waveform 이름”으로 뭉쳐 기록하지 않는다.
+</FormulaDisclosure>
+
+## Cause/Effect를 상태기계로 말하기
+
+“Waveform file을 upload한 뒤 `WFM1:` segment를 선택하고 sample clock을 100 MSa/s로 맞췄지만 trigger source가 BUS였기 때문에 ARB와 Mod를 켜도 engine은 trigger를 기다렸다. `*TRG` 후 record가 재생되었고, RF On은 별도 output gate이므로 DUT 보호가 확인된 마지막 단계에서만 열었다.”
+
+## 장비 의존 조건
+
+- ARB playback에는 N5182B Option 656이 필요하다.
+- Option 656 단독과 657 추가 구성은 최대 sample rate와 nominal RF bandwidth가 다르다.
+- Waveform/sequence name prefix, 지원 trigger choice와 command range는 N5180-90057의 해당 model·option 조건을 따른다.
+- Firmware와 option이 다른 장비로 porting할 때 `*IDN?`, `*OPT?`, query-back과 error queue 검사를 생략하지 않는다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. Upload 성공과 waveform 재생 성공 사이에 어떤 state가 남아 있는가?
+2. RF On인데 CW만 보일 때 어떤 query를 어떤 순서로 보낼 것인가?
+3. Binary payload 길이와 sample clock을 잘못 설정하면 각각 어떤 실패가 생기는가?

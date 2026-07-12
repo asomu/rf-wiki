@@ -1,0 +1,97 @@
+---
+title: "PA 단자 voltage와 pulse current를 같은 시간축에서 어떻게 읽을까?"
+description: "Force lead drop, 4-wire remote sense, voltage slew·capacitive inrush와 N6752A digitized acquisition의 시간 범위를 분리한다."
+instrumentId: "keysight-n6705c"
+chapter: "remote-sense-wiring"
+order: 3
+estimatedMinutes: 70
+prerequisites: ["cv-cc-protection"]
+outcomes:
+  - "Local sense와 remote sense의 regulation 기준면을 배선 그림으로 설명한다."
+  - "Lead당 1 V compensation 한계와 50 V terminal headroom을 모두 확인한다."
+  - "Slew와 load capacitance로 inrush를 예측하고 97.656 kSa/s DC capture의 한계를 말한다."
+concepts: ["Kelvin sense", "force lead drop", "slew rate", "inrush current", "digitized acquisition"]
+equipmentContext:
+  source: "N6705C/N6752A force와 sense terminal, Option 761"
+  dut: "Decoupling capacitor와 pulsed current를 갖는 PA bias input"
+  analyzer: "N6752A digitizer; RF envelope는 SA/VSA가 별도 측정"
+references:
+  - title: "N6700 Modular Power System Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04533/technical-specifications/9018-04533.pdf"
+    kind: "vendor"
+  - title: "Understanding Remote Sense Operation"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-01861/brochures/5989-8851.pdf"
+    kind: "application-note"
+labId: "psu-remote-sense"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Supply terminal에서 28.00 V를 읽어도 PA 단자에는 cable 저항 때문에 더 낮은 전압이 걸릴 수 있다. Remote sense는 voltage feedback의 눈을 DUT 단자로 옮기지만, force current를 sense wire로 보내는 기능은 아니다.
+
+<LessonLayer level="intuition" title="두 굵은 선은 전력을, 두 가는 선은 기준점을 운반한다">
+
+<Definition term="Remote sense" symbol="4-wire">
+Force +/−가 load current를 전달하고, sense +/−가 DUT 단자 전압을 고임피던스로 읽어 supply가 lead drop을 보상하게 하는 Kelvin connection이다.
+</Definition>
+
+<InstrumentLab labId="psu-remote-sense" />
+
+## 보상은 무한하지 않다
+
+N6752A 기준 remote sense 보상 범위는 lead당 최대 1 V다. 또한 보상을 위해 source terminal voltage를 올릴 headroom이 필요하므로 50 V setpoint 근처에서는 작은 lead drop도 완전히 보상하지 못할 수 있다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Sense wiring과 transient를 같은 원인으로 섞지 말자">
+
+## 4-wire 배선 점검
+
+- Sense +/−는 각각 DUT force 접점에 Kelvin으로 붙이고 polarity를 확인한다.
+- Sense pair는 twist하고 high-current switching loop와 떨어뜨린다.
+- Sense open 또는 reversed 상태를 hardware protection과 startup test로 검출한다.
+- Force cable ampacity, connector, fuse와 ground loop를 별도로 확인한다.
+- Option 761 relay OFF가 DUT capacitor의 stored energy를 방전시키지 않는다는 점을 기억한다.
+
+<MeasurementNote title="Remote sense가 빠른 droop를 모두 없애지는 않는다" kind="warning">
+Lead inductance, DUT decoupling ESR/ESL, control-loop bandwidth와 load-step edge는 remote sense DC correction보다 빠를 수 있다. DUT 단자의 oscilloscope probe와 supply digitizer가 보는 bandwidth도 다르다.
+</MeasurementNote>
+
+## Slew, capacitance, current limit의 연결
+
+Voltage를 너무 빠르게 올리면 PA input capacitor의 charging current가 current limit을 점유한다. 이때 supply는 CC로 들어가 rise time이 길어지거나 OCP가 trip할 수 있다. `VOLT:SLEW`, current limit, OCP delay와 bias sequence를 한 세트로 검증한다.
+
+## 97.656 kSa/s를 RF sample rate로 읽지 않는다
+
+N6752A의 one-parameter digitized acquisition 최소 interval은 10.24 µs, 약 97.656 kSa/s이며 최대 524,288 points다. 이는 bias droop, burst envelope의 느린 부분과 thermal trend를 보는 DC acquisition이다. GHz carrier나 MHz 대역 OFDM IQ를 복원하지 못한다.
+
+| 현상 | 적합한 관찰 장비 |
+|---|---|
+| 평균 VDD·IDD, ms thermal droop | N6705C/N6752A logger·digitizer |
+| µs load transient 세부 | 적합한 bandwidth의 scope와 current probe |
+| RF envelope, EVM, ACLR | SA/VSA |
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Lead drop와 inrush의 시간·전류 크기를 계산하자">
+
+<FormulaDisclosure title="왕복 force lead drop" formula="ΔV_lead = I · (R_force+ + R_force−)">
+각 lead가 50 mΩ이고 4 A라면 왕복 drop은 0.4 V다. Local sense에서는 DUT가 약 0.4 V 낮아지고, remote sense에서는 terminal이 그만큼 더 올라가도록 제어한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Programmed slew가 만드는 이상적 capacitive current" formula="I_C = C · dV/dt">
+1,000 µF load를 1,000 V/s로 올리면 capacitor만 약 1 A를 요구한다. Steady load current를 더한 값이 current limit을 넘으면 실제 slew는 느려진다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Digitized record duration" formula="T_record = N · Δt">
+4,096 points와 10.24 µs interval이면 약 41.94 ms다. Sample rate만 보지 말고 analog bandwidth, aperture, trigger 위치와 parameter count도 함께 기록한다.
+</FormulaDisclosure>
+
+</LessonLayer>

@@ -367,3 +367,35 @@ npm run new:lesson -- \
   --slug rbw-and-noise-floor \
   --lab-id spectrum
 ~~~
+
+## 14. 계측장비 chapter 작성
+
+장비 콘텐츠는 `instrumentLesson` collection과 `/instruments/` route를 사용합니다. 장비별 canonical 계약은 `src/data/instruments.ts`와 `scripts/check-content.mjs`가 함께 검사합니다.
+
+| scaffold ID | instrumentId | 콘텐츠 위치 | 공개 route | 기준 장비 |
+|---|---|---|---|---|
+| `n5182b` | `keysight-n5182b` | `src/content/instruments/n5182b/` | `/instruments/sg-mxg/` | N5182B-506 + 656 · B.01.96 |
+| `n9020b` | `keysight-n9020b` | `src/content/instruments/n9020b/` | `/instruments/sa-mxa/` | N9020B-526 + B1X + MPB + P26 · A.43.49 |
+| `e5080b` | `keysight-e5080b` | `src/content/instruments/e5080b/` | `/instruments/vna-ena/` | E5080B-2K0 · A.20.25.03 |
+| `u2061xa` | `keysight-u2061xa` | `src/content/instruments/u2061xa/` | `/instruments/power-sensor/` | U2061XA · A.03.16 |
+| `n6705c` | `keysight-n6705c` | `src/content/instruments/n6705c/` | `/instruments/power-supply/` | N6705C + N6752A-761 · E_02_09_3271 |
+
+각 장비에는 순서와 labId가 고정된 5개 chapter가 있습니다. 이름을 추측하거나 다른 장비의 command tree를 복사하지 말고 manifest에서 해당 instrument의 `chapters`를 확인합니다. Scaffold 형식은 dry-run으로 확인할 수 있으며 기존 canonical chapter는 덮어쓰지 않습니다.
+
+~~~bash
+npm run new:instrument-lesson -- \
+  --instrument u2061xa \
+  --chapter average-peak-burst \
+  --title "같은 burst가 average와 peak에서 왜 다른 dBm으로 보일까?" \
+  --dry-run
+~~~
+
+장비 chapter도 `intuition → bench → theory`를 정확히 한 번씩 사용하며 intuition 안에 동일 labId의 `<InstrumentLab>` 하나만 둡니다. 모든 SCPI spelling, unit, option/module과 firmware 조건은 공식 Keysight command reference에서 직접 확인하고 각 MDX의 `references`에 넣습니다.
+
+새 장비를 추가할 때 함께 닫아야 하는 범위는 다음과 같습니다.
+
+1. manifest, content schema, content checker와 static route
+2. 계산 모델, simulator와 numeric unit test
+3. namespaced progress ID, search fallback와 glossary
+4. dry-run-first PyVISA adapter, fake transport test, 사용자 가이드와 deterministic ZIP
+5. Sites required-route 검사, responsive overflow, keyboard/axe와 visual regression

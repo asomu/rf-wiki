@@ -1,0 +1,147 @@
+---
+title: "Sensor에 RF를 연결하기 전에 어떤 power를 계산해야 할까?"
+description: "Keysight U2061XA의 average·peak·DC damage 조건을 구분하고, PA 출력에서 coupler·attenuator를 거친 실제 sensor connector 입력을 안전하게 계산한다."
+instrumentId: "keysight-u2061xa"
+chapter: "safe-power"
+order: 1
+estimatedMinutes: 50
+prerequisites:
+  - "foundations"
+outcomes:
+  - "+26 dBm average와 <10 µs +29 dBm peak가 운용 목표가 아니라 damage level임을 설명할 수 있다."
+  - "DUT average, PAPR, coupler·attenuator·cable loss로 sensor average와 peak를 각각 계산할 수 있다."
+  - "RF OFF, DC block, connector torque와 guard margin을 포함한 안전 연결 순서를 실행할 수 있다."
+concepts:
+  - "average power damage level"
+  - "conditional peak damage level"
+  - "path attenuation"
+  - "power sensor reference plane"
+  - "operating guard margin"
+  - "DC block"
+  - "connector torque"
+equipmentContext:
+  source: "Keysight N5182B MXG, 연결 변경 중 RF OFF"
+  dut: "Connectorized PA output과 방향이 확인된 coupler·external attenuator·DC block"
+  analyzer: "Keysight U2061XA USB peak and average power sensor, firmware A.03.16"
+references:
+  - title: "U2049XA and U/L2050/60 X-Series USB/LAN Wide Dynamic Range Peak and Average Power Sensors Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3120-1424/data-sheets/U2049XA-Option-TVA-UL205060-X-Series-USBLAN-Wide-Dynamic-Range-Peak-Average-Power.pdf"
+    kind: "vendor"
+  - title: "Keysight 2050/60 X-Series User's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04734/user-manuals/9018-04734.pdf"
+    kind: "vendor"
+  - title: "U2061XA USB Wide Dynamic Range Average and Peak Power Sensor"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/product/U2061XA/10mhz-6ghz-usb-wide-dynamic-range-average-peak-power-sensor.html"
+    kind: "vendor"
+labId: "sensor-safe-power"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+U2061XA가 화면에 `0 dBm`을 표시할 수 있다는 사실은 PA output connector가 `0 dBm`이라는 뜻이 아니다. Sensor가 견디는 것은 **자기 RF connector에 실제로 도착한 average·peak·DC**다. DUT 출력, coupling factor, attenuator와 cable loss를 먼저 같은 기준면에 놓아야 한다.
+
+<LessonLayer level="intuition" title="Power sensor를 숫자 표시기가 아니라 입력 에너지를 받는 DUT로 보자">
+
+## 측정 범위의 상단과 damage level이 겹친다
+
+U2061XA의 average mode 측정 범위는 `−70~+26 dBm`이다. 같은 공식 데이터시트의 average damage level도 `+26 dBm`이다. 따라서 `+26 dBm까지 읽는다`를 `+26 dBm에서 반복 운용해도 안전하다`로 바꾸면 안 된다.
+
+Peak damage level `+29 dBm`에는 더 강한 조건이 붙는다. **Pulse duration이 10 µs보다 짧을 때만** 적용된다. 10 µs 이상인 peak를 +29 dBm까지 허용하는 근거가 아니며, 안전 계산에서는 average damage level을 사용한다.
+
+<Definition term="Damage level">
+장비가 정상 정확도를 보장하는 권장 operating point가 아니라 영구 손상 가능성을 경고하는 절대 입력 한계다. 반복 시험 setpoint는 이 값보다 낮은 별도 guard를 가져야 한다.
+</Definition>
+
+<Definition term="Sensor reference plane">
+U2061XA Type-N connector 면이다. DUT output plane과 sensor plane 사이 coupler, attenuator, cable과 adapter의 signed loss가 두 plane의 dBm 차이를 만든다.
+</Definition>
+
+<InstrumentLab labId="sensor-safe-power" />
+
+## Average, peak와 DC를 한 숫자로 합치지 않는다
+
+- **Average input**은 열적·지속적 stress를 나타낸다.
+- **Peak input**은 짧은 순간 diode stress를 나타내며 pulse width 조건이 필요하다.
+- **DC input**은 RF dBm과 별개다. U2061XA 데이터시트의 DC damage 조건은 `10 V`다.
+- **Connector stress**는 전력 계산과 별개다. Type-N 권장 coupling torque는 `135 N·cm`다.
+
+고 PAPR OFDM 신호를 average만 보고 연결하면 peak를 놓친다. 반대로 peak만 보고 burst duty cycle과 thermal average를 생략해도 안 된다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="RF OFF에서 path budget을 검증하고 sensor를 마지막에 연결하자">
+
+## 연결 전 순서
+
+1. SG RF output과 DUT bias를 safe state로 둔다.
+2. PA의 예상 최대 average output과 waveform PAPR를 적는다.
+3. Coupler의 coupled port, through port와 isolated port 방향을 확인한다.
+4. Coupling factor, attenuator loss, cable loss를 같은 주파수에서 합한다.
+5. Sensor connector의 average와 peak를 계산한다.
+6. Peak duration이 `<10 µs`인지 확인한다. 모르면 +29 dBm 조건을 사용하지 않는다.
+7. DC가 존재할 수 있으면 DC block의 frequency·voltage·power rating을 확인한다.
+8. Damage level보다 낮은 운영 guard와 attenuator pulse/average rating을 확인한다.
+9. Type-N connector를 규정 torque로 체결하고 cable 무게를 지지한다.
+10. 낮은 DUT 출력에서 시작해 sensor와 SA가 예상 방향으로 움직이는지 확인한다.
+
+<MeasurementNote title="Error LED는 보호 회로의 대체물이 아니다" kind="warning">
+U2061XA는 input overload를 SCPI error queue와 LED로 알릴 수 있지만, 그 표시가 sensor를 이미 받은 과전력에서 되돌리지는 않는다. Coupler·attenuator·DC block·hardware interlock와 계산된 guard가 먼저다.
+</MeasurementNote>
+
+## 예시: 40 dBm PA 출력
+
+PA가 `40 dBm average`, waveform PAPR가 `8 dB`, output coupling과 attenuation의 합이 `40 dB`라면:
+
+| 항목 | 계산 | 결과 |
+|---|---:|---:|
+| Sensor average | `40 − 40` | `0 dBm` |
+| PA peak | `40 + 8` | `48 dBm` |
+| Sensor peak | `48 − 40` | `8 dBm` |
+
+Sensor 입력은 충분히 낮아 보이지만 coupled path의 attenuator가 PA peak와 average를 실제로 견디는지, coupler directivity와 coupling uncertainty가 budget에 들어갔는지는 별도 확인한다.
+
+## 실무에서 자주 놓치는 조건
+
+- Coupler를 반대로 연결해 isolated port가 아니라 through power가 sensor로 향함
+- `30 dB pad`의 nominal loss만 쓰고 주파수별 실제 loss와 power rating을 생략함
+- PA output의 DC bias 또는 switching transient가 sensor로 들어옴
+- `+29 dBm peak`의 `<10 µs` 조건을 burst 전체 길이와 혼동함
+- Software에서 guard를 더해 실제 입력을 부풀리는 대신, **허용 한계를 낮춰야** 하는데 반대로 구현함
+- Sensor reading에 correction을 적용한 DUT-plane 값과 sensor connector의 damage 판단값을 혼동함
+
+Damage 판단은 correction 전 **물리 sensor connector power**로 한다. DUT-plane correction을 더해 표시한 값으로 sensor 자체 안전을 판단하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Average·peak·path·guard를 서로 다른 식으로 닫자">
+
+<FormulaDisclosure title="Sensor connector average" formula="P_sensor,avg(dBm) = P_DUT,avg(dBm) − L_path(dB)">
+`L_path`는 DUT output에서 sensor connector까지의 총 attenuation이다. Coupler coupling, external attenuator, cable과 adapter loss를 포함한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Sensor connector peak" formula="P_sensor,peak(dBm) = P_DUT,avg + PAPR − L_path">
+같은 linear path에서는 average와 peak에 동일한 dB loss가 적용된다. Path component가 peak power에서 compression 또는 손상을 일으키지 않는다는 조건이 필요하다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Guarded operating limits" formula="P_avg,permit = 26 dBm − G;  P_peak,permit = P_peak,damage − G">
+`G`는 Keysight 사양이 아니라 test station 운영 정책이다. `P_peak,damage`는 pulse가 `<10 µs`일 때만 `29 dBm`, 그 외에는 `26 dBm`을 사용한다. 측정값이 permit과 같아도 통과시키지 않는다.
+</FormulaDisclosure>
+
+## 완료 전 자기 설명
+
+1. U2061XA가 `+26 dBm`을 표시할 수 있어도 그 값을 시험 목표로 쓰면 안 되는 이유는 무엇인가?
+2. PA average, PAPR와 path loss에서 sensor average·peak를 각각 어떻게 구하는가?
+3. Frequency correction으로 DUT-plane 값을 크게 표시해도 sensor damage 판단이 바뀌지 않는 이유는 무엇인가?
+4. Software warning 외에 실제 bench에 필요한 물리 보호는 무엇인가?
+
+이 교육 모델은 U2061XA의 실제 calibration, connector 상태, attenuator rating 또는 hardware interlock를 대신하지 않는다.
+
+</LessonLayer>

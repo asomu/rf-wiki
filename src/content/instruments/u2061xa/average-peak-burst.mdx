@@ -1,0 +1,153 @@
+---
+title: "같은 burst가 average와 peak에서 왜 다른 dBm으로 보일까?"
+description: "U2061XA의 wideband average path와 5 MHz peak path, duty cycle, aperture, gate와 pulse profiling을 시간축에서 연결한다."
+instrumentId: "keysight-u2061xa"
+chapter: "average-peak-burst"
+order: 2
+estimatedMinutes: 65
+prerequisites:
+  - "safe-power"
+outcomes:
+  - "True average, time-selective average, peak와 peak-to-average가 포함하는 시간 구간을 구분할 수 있다."
+  - "Rectangular burst의 duty cycle에서 period average와 peak-to-average를 계산할 수 있다."
+  - "Wideband average capability와 5 MHz peak VBW를 분리해 광대역 OFDM 결과의 한계를 판단할 수 있다."
+concepts:
+  - "true average power"
+  - "time-selective average"
+  - "peak power"
+  - "peak-to-average ratio"
+  - "duty cycle"
+  - "video bandwidth"
+  - "pulse profiling"
+  - "gate"
+equipmentContext:
+  source: "Keysight N5182B의 CW, rectangular burst 또는 내장 OFDM-like waveform"
+  dut: "Through path 또는 낮은 출력의 connectorized PA"
+  analyzer: "Keysight U2061XA, Average와 Normal detector mode 비교"
+references:
+  - title: "U2049XA and U/L2050/60 X-Series USB/LAN Wide Dynamic Range Peak and Average Power Sensors Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3120-1424/data-sheets/U2049XA-Option-TVA-UL205060-X-Series-USBLAN-Wide-Dynamic-Range-Peak-Average-Power.pdf"
+    kind: "vendor"
+  - title: "Keysight 2050/60 X-Series User's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04734/user-manuals/9018-04734.pdf"
+    kind: "vendor"
+  - title: "Measuring Burst Time-Gated Power Signals Using Keysight Power Sensors"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-03996/application-notes/5991-2642.pdf"
+    kind: "application-note"
+labId: "sensor-average-peak"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+`10 dBm`으로 켜졌다가 꺼지는 rectangular burst를 생각하자. Pulse가 켜진 순간은 `10 dBm`이어도 한 period의 25%만 켜져 있다면 period average는 약 `3.98 dBm`이다. 어떤 숫자가 맞는지가 아니라 **어느 시간과 bandwidth를 포함했는가**가 질문이다.
+
+<LessonLayer level="intuition" title="Average와 peak를 같은 파형을 보는 서로 다른 창으로 생각하자">
+
+## U2061XA에는 역할이 다른 두 측정 경로가 있다
+
+**Average mode**는 4-path square-law detector 구조로 wideband modulated signal의 true average를 구한다. Keysight는 100 MHz LTE-Advanced와 80/160 MHz WLAN 같은 broadband signal의 average 또는 time-selective average를 예로 든다.
+
+**Normal mode**는 time trace, peak, peak-to-average와 pulse parameter를 제공한다. 하지만 peak path의 video bandwidth는 최대 `5 MHz`다. Average가 100 MHz 신호를 정확히 적분할 수 있다는 사실이 100 MHz envelope의 모든 순간 peak를 포착한다는 뜻은 아니다.
+
+<Definition term="True average power">
+선택한 시간 구간의 instantaneous RF power를 linear scale에서 적분한 뒤 시간으로 나눈 값이다. Peak와 off 구간을 dBm에서 직접 산술 평균하지 않는다.
+</Definition>
+
+<Definition term="Peak-to-average ratio" symbol="P/A 또는 PAPR">
+같은 reference plane과 관측 구간에서 peak power를 average power로 나눈 비다. dB에서는 `Ppeak(dBm) − Pavg(dBm)`이다.
+</Definition>
+
+<InstrumentLab labId="sensor-average-peak" />
+
+## Average mode와 Normal mode는 이름보다 측정량으로 기억한다
+
+| 설정 | 주로 답하는 질문 | U2061XA 범위·한계 |
+|---|---|---|
+| Average · free run | 전체 record의 평균이 얼마인가? | `−70~+26 dBm` |
+| Average · aperture/trigger | Trigger에 맞춘 구간의 평균이 얼마인가? | Full 96 dB average range, aperture `20 µs~200 ms` |
+| Normal · trace/gate | Burst 모양과 gate 내부 power는 어떻게 변하는가? | 20 MSa/s max, full-rate capture 6.5 ms |
+| Normal · peak/P/A | Envelope peak와 P/A는 얼마인가? | VBW 최대 5 MHz, normal range는 VBW에 따라 제한 |
+| Pulse analysis | Width, period, duty, rise/fall은 얼마인가? | Minimum pulse width 250 ns, rise/fall specification ≤100 ns |
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Mode, trigger, gate와 VBW를 signal의 시간 구조에 맞추자">
+
+## Rectangular burst를 먼저 확인한다
+
+1. SG와 sensor frequency를 같은 carrier로 설정한다.
+2. 낮은 power에서 Average free-run 결과를 저장한다.
+3. Average trigger와 aperture를 pulse on 구간에 맞춰 time-selective average를 구한다.
+4. `SENS:DET:FUNC NORM`으로 Normal mode를 선택한다.
+5. Trace에서 trigger level, delay와 gate 위치를 확인한다.
+6. VBW를 signal envelope bandwidth에 맞춘다.
+7. Peak, average, P/A, width·period·duty를 함께 저장한다.
+8. Mode를 바꾼 뒤 zero/calibration과 error queue 조건을 다시 확인한다.
+
+## VBW를 넓히면 항상 더 정확한 것은 아니다
+
+| VBW 설정 | Nominal bandwidth | 실무 해석 |
+|---|---:|---|
+| LOW | 300 kHz | Noise는 낮지만 빠른 envelope가 둔화될 수 있음 |
+| MED | 1.5 MHz | 중간 시간 분해능 |
+| HIGH | 5 MHz | 빠른 envelope와 peak를 더 잘 추종 |
+| OFF | Digital FIR correction 없음 | Pulse overshoot·ringing 최소화와 rise/fall 측정에 권장 |
+
+Carrier가 300 MHz보다 낮으면 5 MHz 조건을 그대로 사용할 수 없다. 공식 데이터시트는 LOW/MED를 90 kHz, HIGH/OFF를 240 kHz로 명시한다.
+
+<MeasurementNote title="광대역 OFDM의 average와 peak 판정을 분리한다" kind="condition">
+100 MHz NR/LTE waveform의 average power는 wideband average path로 측정할 수 있다. 그러나 5 MHz peak path가 원래 waveform의 모든 envelope peak와 CCDF를 정확히 보존한다고 가정하지 않는다. Compliance 또는 DPD 검증에는 적합한 bandwidth의 SA/VSA나 peak-power solution이 추가로 필요하다.
+</MeasurementNote>
+
+## Pulse 수치를 읽을 때 함께 저장할 것
+
+- Carrier frequency와 detector mode
+- VBW와 trace sample rate
+- Trigger source, level, slope, delay와 holdoff
+- Gate start/length 또는 average aperture
+- Video averaging count
+- Pulse width, period, duty, peak, average와 P/A
+- Sensor connector power와 DUT-plane correction을 적용한 power
+
+U2061XA는 한 capture에서 최대 20개 pulse의 duration, period, duty cycle, separation과 transition 정보를 query할 수 있다. 여러 pulse가 섞인 record에서는 `pulse 1` 결과를 전체 waveform 대표값으로 저장하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Duty, aperture와 bandwidth가 숫자를 바꾸는 이유를 계산하자">
+
+<FormulaDisclosure title="Rectangular burst의 period average" formula="Pavg(W) = Pon(W)·D;   Pavg(dBm) = Pon(dBm) + 10log10(D)">
+`D`는 0과 1 사이 duty ratio다. `D=0.25`이면 average는 on power보다 `6.0206 dB` 낮다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Rectangular burst의 peak-to-average" formula="P/A(dB) = −10log10(D)">
+이 식은 off power가 무시 가능한 이상적인 rectangular burst에 대한 mental model이다. OFDM PAPR은 sample envelope 분포, filter와 observation length에 따라 달라진다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Average aperture" formula="P̄ = (1/Tap)∫tap p(t)dt;   maximum rate ≈ 1/Tap">
+U2061XA average aperture는 carrier가 300 MHz 이상일 때 `20 µs~200 ms`, 100 ns resolution이다. 20 µs이면 최대 50,000 readings/s에 대응한다. 300 MHz 미만에서는 최소 aperture가 50 µs다.
+</FormulaDisclosure>
+
+## Rise time 수치도 instrument response를 포함한다
+
+측정된 rise time은 signal-under-test와 sensor system response가 RSS로 합쳐진다.
+
+`tr,measured ≈ √(tr,signal² + tr,sensor²)`
+
+따라서 sensor rise-time specification이 100 ns라고 해서 실제 100 ns signal의 rise time을 오차 없이 측정할 수 있는 것은 아니다. 빠른 pulse에서는 instrument response de-embedding 또는 더 넓은 bandwidth가 필요하다.
+
+## 완료 전 자기 설명
+
+1. 25% duty rectangular burst에서 peak와 period average가 6.02 dB 다른 이유는 무엇인가?
+2. 100 MHz signal average를 잴 수 있어도 peak PAPR 측정이 5 MHz로 제한되는 이유는 무엇인가?
+3. Aperture를 줄였을 때 시간 선택성, reading rate와 noise가 어떤 방향으로 움직이는가?
+4. HIGH와 OFF VBW를 언제 다르게 선택할 것인가?
+
+</LessonLayer>

@@ -1,0 +1,87 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../../components/astro/Breadcrumbs.astro';
+import {
+  MXG_PYVISA_ARCHIVE_NAME,
+  MXG_PYVISA_CHECKSUM_NAME,
+} from '../../../../lib/downloads/mxg-pyvisa-package.mjs';
+
+const files = [
+  ['README.md', '실행 범위와 안전 규칙'],
+  ['requirements.txt', 'PyVISA 의존성'],
+  ['__init__.py', 'Python package entry'],
+  ['__main__.py', 'python -m 실행점'],
+  ['cli.py', 'dry-run·execute·RF permission'],
+  ['driver.py', 'N5182B command adapter'],
+  ['identify_and_options.py', 'IDN·option·capability 확인'],
+  ['safe_cw_output.py', 'RF OFF 기본의 안전한 CW 출력'],
+  ['upload_iq_waveform.py', 'I/Q 생성·업로드·ARB 재생'],
+  ['pa_stimulus_sweep.py', 'DUT-plane budget PA stimulus sweep'],
+  ['transport.py', 'dry-run / PyVISA transport'],
+  ['waveform.py', 'signed-16 IQ와 binary block'],
+  ['workflow.py', 'try/finally와 RF OFF cleanup'],
+] as const;
+---
+
+<BaseLayout title="N5182B PyVISA 예제" description="Keysight N5182B를 안전하게 제어하는 실행 가능한 Python·PyVISA 예제" currentPath="/instruments/sg-mxg/python-examples/">
+  <main class="page-shell python-examples" data-pagefind-body>
+    <Breadcrumbs items={[
+      { label: '장비 스터디', href: '/instruments/' },
+      { label: 'N5182B MXG', href: '/instruments/sg-mxg/' },
+      { label: 'Python 예제' },
+    ]} />
+    <header class="page-heading">
+      <p class="context-line"><span>Python 3</span><span>PyVISA</span><span>N5182B only</span></p>
+      <h1>먼저 명령을 출력하고, 두 번 허용해야 RF가 켜집니다.</h1>
+      <p>기본은 장비에 연결하지 않는 dry-run입니다. 실제 통신에는 <code>--execute</code>, 실제 RF 출력에는 <code>--rf-on</code>을 추가로 요구합니다.</p>
+    </header>
+
+    <section class="python-examples__package" aria-labelledby="python-package-title">
+      <div>
+        <p class="data-label">전체 검증 패키지</p>
+        <h2 id="python-package-title">ZIP 하나에 예제·테스트·운영 가이드를 함께 담았습니다.</h2>
+        <p><code>examples/mxg_pyvisa/</code> 전체와 <code>docs/MXG_PYVISA_GUIDE.md</code>를 같은 root 아래 보존합니다. SHA-256을 확인한 뒤 압축을 푸세요.</p>
+      </div>
+      <div class="python-examples__package-actions">
+        <a class="button-primary" href={`/instruments/sg-mxg/python-examples/${MXG_PYVISA_ARCHIVE_NAME}`} download>
+          전체 ZIP 다운로드
+        </a>
+        <a class="button-secondary" href={`/instruments/sg-mxg/python-examples/${MXG_PYVISA_CHECKSUM_NAME}`} download>
+          SHA-256 다운로드
+        </a>
+      </div>
+    </section>
+
+    <section class="python-examples__sequence" aria-labelledby="python-sequence-title">
+      <div><p class="data-label">권장 실행 순서</p><h2 id="python-sequence-title">Dry-run에서 command sequence를 먼저 읽으세요.</h2></div>
+      <ol>
+        <li><strong>1</strong><span>Keysight IO Libraries와 Connection Expert에서 <code>MXG</code> VISA alias를 만듭니다.</span></li>
+        <li><strong>2</strong><span>ZIP checksum을 확인하고 압축을 푼 뒤 <code>python3 -m examples.mxg_pyvisa</code>로 실제 전송될 명령을 검토합니다.</span></li>
+        <li><strong>3</strong><span><code>--execute</code>로 연결하되 RF는 OFF로 유지하고 <code>*IDN?</code>·<code>*OPT?</code>를 확인합니다.</span></li>
+        <li><strong>4</strong><span>DUT·attenuator·analyzer limit를 계산한 뒤에만 <code>--execute --rf-on</code>을 사용합니다.</span></li>
+      </ol>
+    </section>
+
+    <section class="python-examples__commands" aria-labelledby="python-commands-title">
+      <div><p class="data-label">압축 해제 후 검증</p><h2 id="python-commands-title">PyVISA나 장비 없이 dry-run과 테스트부터 실행합니다.</h2></div>
+      <pre><code>shasum -a 256 -c {MXG_PYVISA_CHECKSUM_NAME}
+unzip {MXG_PYVISA_ARCHIVE_NAME}
+cd rf-wiki-mxg-pyvisa
+python3 -m examples.mxg_pyvisa
+python3 -m examples.mxg_pyvisa --mode waveform --sample-count 4000
+python3 -m unittest discover -s examples/mxg_pyvisa/tests -v</code></pre>
+      <p>Linux의 GNU coreutils 환경에서는 첫 줄 대신 <code>sha256sum -c {MXG_PYVISA_CHECKSUM_NAME}</code>을 사용할 수 있습니다. 실제 통신에만 <code>python3 -m pip install -r examples/mxg_pyvisa/requirements.txt</code>가 필요합니다.</p>
+    </section>
+
+    <section class="python-examples__files" aria-labelledby="python-files-title">
+      <header><p class="data-label">개별 소스</p><h2 id="python-files-title">한 파일만 검토할 때 사용하는 보조 다운로드입니다.</h2></header>
+      <ul>
+        {files.map(([file, description]) => (
+          <li><code>{file}</code><span>{description}</span><a href={`/instruments/sg-mxg/python-examples/${file}`} download>다운로드</a></li>
+        ))}
+      </ul>
+    </section>
+
+    <p class="python-examples__guide-note">실장비 실행 절차와 option별 sample-rate 제한은 ZIP의 <code>docs/MXG_PYVISA_GUIDE.md</code>에 포함됩니다.</p>
+  </main>
+</BaseLayout>

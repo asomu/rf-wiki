@@ -7,6 +7,7 @@ const configuredRoot = process.env.RF_WIKI_CONTENT_ROOT;
 const root = configuredRoot
   ? pathToFileURL(path.resolve(configuredRoot) + path.sep)
   : new URL('../src/content/lessons/', import.meta.url);
+const instrumentRoot = new URL('../src/content/instruments/', import.meta.url);
 const minimumReady = Number(process.env.RF_WIKI_MINIMUM_READY ?? 6);
 if (!Number.isSafeInteger(minimumReady) || minimumReady < 0) {
   console.error('RF_WIKI_MINIMUM_READY must be a non-negative integer.');
@@ -18,6 +19,17 @@ try {
 } catch {
   console.error('Lesson directory is missing.');
   process.exit(1);
+}
+
+async function listContentFiles(directory) {
+  const collected = [];
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const resolved = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+    if (entry.isDirectory()) collected.push(...await listContentFiles(resolved));
+    else if (entry.isFile() && /\.mdx?$/.test(entry.name)) collected.push(resolved);
+  }
+  return collected;
 }
 
 const required = ['references:'];
@@ -91,6 +103,155 @@ for (const file of files) {
   }
 }
 
+let instrumentReadyCount = 0;
+if (!configuredRoot) {
+  const instrumentContracts = [
+    {
+      directory: 'n5182b',
+      label: 'N5182B',
+      instrumentId: 'keysight-n5182b',
+      chapters: [
+        ['safe-cw', 'mxg-safe-cw'],
+        ['waveform-iq', 'mxg-waveform-iq'],
+        ['arb-playback', 'mxg-arb-playback'],
+        ['scpi-pyvisa', 'mxg-scpi-pyvisa'],
+        ['pa-test-program', 'mxg-pa-test-program'],
+      ],
+    },
+    {
+      directory: 'n9020b',
+      label: 'N9020B',
+      instrumentId: 'keysight-n9020b',
+      chapters: [
+        ['safe-input', 'mxa-safe-input'],
+        ['sweep-rbw-detector', 'mxa-sweep-rbw'],
+        ['iq-capture-trigger', 'mxa-iq-trigger'],
+        ['sa-scpi-measurements', 'mxa-scpi-measurements'],
+        ['pa-spectrum-analysis', 'mxa-pa-analysis'],
+      ],
+    },
+    {
+      directory: 'e5080b',
+      label: 'E5080B',
+      instrumentId: 'keysight-e5080b',
+      chapters: [
+        ['safe-sweep', 'ena-safe-sweep'],
+        ['calibration-reference-plane', 'ena-calibration'],
+        ['sparameters-smith-time', 'ena-sparameters'],
+        ['vna-scpi-data', 'ena-scpi-data'],
+        ['pa-characterization', 'ena-pa-characterization'],
+      ],
+    },
+    {
+      directory: 'u2061xa',
+      label: 'U2061XA',
+      instrumentId: 'keysight-u2061xa',
+      chapters: [
+        ['safe-power', 'sensor-safe-power'],
+        ['average-peak-burst', 'sensor-average-peak'],
+        ['correction-uncertainty', 'sensor-correction'],
+        ['sensor-scpi-trigger', 'sensor-scpi-trigger'],
+        ['pa-power-budget', 'sensor-pa-power-budget'],
+      ],
+    },
+    {
+      directory: 'n6705c',
+      label: 'N6705C',
+      instrumentId: 'keysight-n6705c',
+      chapters: [
+        ['safe-bias', 'psu-safe-bias'],
+        ['cv-cc-protection', 'psu-cv-cc'],
+        ['remote-sense-wiring', 'psu-remote-sense'],
+        ['psu-scpi-sequence', 'psu-scpi-sequence'],
+        ['pa-dc-power', 'psu-pa-dc-power'],
+      ],
+    },
+  ];
+
+  for (const contract of instrumentContracts) {
+    const expectedInstrumentChapters = new Map(
+      contract.chapters.map(([chapter, labId], index) => [chapter, { order: index + 1, labId }]),
+    );
+    let instrumentFiles = [];
+    try {
+      instrumentFiles = await listContentFiles(new URL(`${contract.directory}/`, instrumentRoot));
+    } catch {
+      errors.push(`${contract.label} instrument lesson directory is missing.`);
+    }
+
+    if (instrumentFiles.length !== expectedInstrumentChapters.size) {
+      errors.push(`Expected exactly ${expectedInstrumentChapters.size} ${contract.label} chapters, found ${instrumentFiles.length}.`);
+    }
+
+    const foundChapters = new Set();
+    for (const fileUrl of instrumentFiles) {
+      const source = await readFile(fileUrl, 'utf8');
+      const file = path.basename(fileUrl.pathname);
+      const frontmatterMatch = source.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      if (!frontmatterMatch?.[1]) {
+        errors.push(`${contract.label}/${file} is missing YAML frontmatter.`);
+        continue;
+      }
+
+      let frontmatter;
+      try {
+        frontmatter = parse(frontmatterMatch[1]);
+      } catch (error) {
+        errors.push(`${contract.label}/${file} has invalid YAML frontmatter: ${error.message}`);
+        continue;
+      }
+
+      const chapter = frontmatter?.chapter;
+      const expected = expectedInstrumentChapters.get(chapter);
+      if (!expected) {
+        errors.push(`${contract.label}/${file} declares unknown instrument chapter: ${String(chapter)}.`);
+        continue;
+      }
+      if (foundChapters.has(chapter)) errors.push(`${contract.label}/${file} duplicates instrument chapter: ${chapter}.`);
+      foundChapters.add(chapter);
+
+      if (path.basename(file, path.extname(file)) !== chapter) {
+        errors.push(`${contract.label}/${file} must use its chapter id as the filename: ${chapter}.mdx.`);
+      }
+      if (frontmatter.instrumentId !== contract.instrumentId) {
+        errors.push(`${contract.label}/${file} must declare instrumentId: "${contract.instrumentId}".`);
+      }
+      if (frontmatter.order !== expected.order) errors.push(`${contract.label}/${file} must declare order: ${expected.order}.`);
+      if (frontmatter.labId !== expected.labId) errors.push(`${contract.label}/${file} must declare labId: "${expected.labId}".`);
+      if (frontmatter.status !== 'ready') errors.push(`${contract.label}/${file} must be ready; found status: ${String(frontmatter.status)}.`);
+      else instrumentReadyCount += 1;
+      if (!Array.isArray(frontmatter.references) || frontmatter.references.length === 0) {
+        errors.push(`${contract.label}/${file} is missing authoritative references.`);
+      }
+      if (/\bTODO\b/i.test(source)) errors.push(`${contract.label}/${file} is ready but still contains TODO content.`);
+
+      const layers = [...source.matchAll(lessonLayerPattern)].map((match) => match[1]);
+      if (layers.length !== expectedLayerOrder.length || layers.some((layer, index) => layer !== expectedLayerOrder[index])) {
+        const found = layers.length > 0 ? layers.join(' → ') : 'none';
+        errors.push(`${contract.label}/${file} must contain exactly one intuition → bench → theory LessonLayer sequence; found ${found}`);
+      }
+
+      const importMarker = "import InstrumentLab from '../../../components/astro/InstrumentLab.astro'";
+      const labMarker = `<InstrumentLab labId="${expected.labId}"`;
+      if (!source.includes(importMarker)) errors.push(`${contract.label}/${file} must import the shared InstrumentLab component.`);
+      if (!source.includes(labMarker)) errors.push(`${contract.label}/${file} must place ${labMarker} /> in the lesson flow.`);
+      if (source.split('<InstrumentLab').length - 1 !== 1) errors.push(`${contract.label}/${file} must contain exactly one inline InstrumentLab.`);
+      if (source.includes('<PredictionChallenge')) errors.push(`${contract.label}/${file} duplicates prediction outside InstrumentLab.`);
+
+      const intuitionStart = source.search(/<LessonLayer\b[^>]*\blevel\s*=\s*["']intuition["']/);
+      const intuitionClose = source.indexOf('</LessonLayer>', intuitionStart);
+      const labStart = source.indexOf(labMarker);
+      if (intuitionStart < 0 || intuitionClose < 0 || labStart < intuitionStart || labStart > intuitionClose) {
+        errors.push(`${contract.label}/${file} must place InstrumentLab inside intuition before bench.`);
+      }
+    }
+
+    for (const chapter of expectedInstrumentChapters.keys()) {
+      if (!foundChapters.has(chapter)) errors.push(`Missing ${contract.label} instrument chapter: ${chapter}.`);
+    }
+  }
+}
+
 if (readyCount < minimumReady) {
   errors.push(`Expected at least ${minimumReady} ready lessons, found ${readyCount}.`);
 }
@@ -99,3 +260,6 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(`Content contract OK: ${readyCount} ready lessons, ${draftCount} hidden drafts.`);
+if (!configuredRoot) {
+  console.log(`Instrument content contract OK: ${instrumentReadyCount} ready chapters across 5 Keysight instruments.`);
+}

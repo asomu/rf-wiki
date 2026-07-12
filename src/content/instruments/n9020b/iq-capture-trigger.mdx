@@ -1,0 +1,207 @@
+---
+title: "Spectrum sweep와 IQ capture는 같은 ADC 데이터를 어떻게 다르게 사용할까?"
+description: "N9020B B1X의 complex downconversion, analysis bandwidth, sample rate, record length, trigger와 FFT 관계를 연결하고 spectrum trace와 raw IQ capture의 정보 차이를 익힌다."
+instrumentId: "keysight-n9020b"
+chapter: "iq-capture-trigger"
+order: 3
+estimatedMinutes: 75
+prerequisites:
+  - "safe-input"
+  - "sweep-rbw-detector"
+  - "spectrum-iq"
+outcomes:
+  - "Spectrum trace가 detector statistic이고 IQ capture가 시간 순서를 가진 complex sample record임을 설명할 수 있다."
+  - "Analysis bandwidth, sample rate, record length, capture duration과 FFT bin spacing을 서로 변환할 수 있다."
+  - "Free-run, RF/video/external trigger와 trigger delay를 burst·PA droop 측정 목적에 맞게 선택할 수 있다."
+concepts:
+  - "complex downconversion"
+  - "I/Q sample pair"
+  - "analysis bandwidth"
+  - "sample rate"
+  - "record length"
+  - "capture duration"
+  - "FFT bin spacing"
+  - "trigger delay"
+  - "pre-trigger"
+  - "window leakage"
+equipmentContext:
+  source: "Keysight N5182B repeated burst 또는 OFDM-like waveform, marker/external trigger 선택 가능"
+  dut: "Connectorized PA, safe input path와 안정된 bias·thermal state"
+  analyzer: "Keysight N9020B-526/B1X/MPB/P26 IQ Analyzer Basic mode, 최대 160 MHz analysis bandwidth profile"
+references:
+  - title: "N9020B MXA Signal Analyzer Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+  - title: "X-Series Signal Analyzer IQ Analyzer Mode User's & Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-02190/user-manuals/9018-02190.pdf"
+    kind: "vendor"
+  - title: "Signal Analysis Measurement Fundamentals"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06802/application-notes/5965-7009.pdf"
+    kind: "application-note"
+labId: "mxa-iq-trigger"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Spectrum trace의 한 점은 “이 frequency bucket에서 detector가 남긴 power”다. IQ capture의 한 점은 “이 시간에 받은 complex voltage”다. 앞쪽 RF attenuator·mixer·ADC를 공유해도, **frequency별 statistic**과 **시간 순서가 보존된 complex record**는 같은 data product가 아니다.
+
+<LessonLayer level="intuition" title="RF carrier를 멈추고 baseband 벡터가 시간에 따라 도는 모습을 보자">
+
+## Complex downconversion
+
+N9020B의 LO가 center frequency `fc`를 기준으로 RF를 downconvert하면, 관심 대역의 각 성분은 baseband에서 `fRF−fc`만큼 회전하는 complex phasor가 된다.
+
+~~~text
+xRF(t)
+  → attenuator / preamp / mixer + LO(fc)
+  → anti-alias / analysis-bandwidth filter
+  → ADC / digital quadrature
+  → I[0]+jQ[0], I[1]+jQ[1], ... I[N−1]+jQ[N−1]
+       ├─ time: I, Q, |x|, phase, burst envelope
+       └─ FFT: complex spectrum, power, channel integration, demodulation
+~~~
+
+<Definition term="I/Q sample pair" symbol="x[n]=I[n]+jQ[n]">
+I는 LO와 같은 위상 축, Q는 90° 직교 축의 signed sample이다. 두 값이 함께 있어야 instantaneous magnitude와 phase를 복원하고, positive/negative baseband frequency를 구분할 수 있다.
+</Definition>
+
+<Definition term="Analysis bandwidth" symbol="Bana">
+한 번의 coherent acquisition에서 RF center 주변을 digitize하고 complex하게 분석할 수 있는 instantaneous bandwidth다. 화면의 swept span 또는 RBW와 다르다. 이 프로필의 B1X 최대 analysis bandwidth는 160 MHz다.
+</Definition>
+
+<InstrumentLab labId="mxa-iq-trigger" />
+
+## Spectrum trace에서 사라지는 정보
+
+일반 SA trace는 detector와 trace math를 지난 power-versus-frequency다. 다음 정보는 보통 복원할 수 없다.
+
+- Sample이 발생한 정확한 시간 순서
+- I/Q의 signed value와 instantaneous phase
+- Burst 시작 전후의 envelope 변화
+- 서로 다른 spectral component 사이의 phase 관계
+- 같은 평균 spectrum을 가진 두 waveform의 symbol trajectory 차이
+
+IQ capture는 이 정보를 유지하지만 finite bandwidth, finite record와 ADC quantization이라는 새로운 조건을 가진다. IQ라고 해서 입력 RF 전체를 무한히 기록하는 것은 아니다.
+
+## Carrier frequency와 sample rate는 서로 다른 축이다
+
+- **Carrier / center frequency**를 바꾸면 RF 대역 중 어느 구간을 baseband로 옮길지가 바뀐다.
+- **Analysis bandwidth**를 바꾸면 한 acquisition에 포함되는 RF 폭과 anti-alias filter가 바뀐다.
+- **Sample rate**를 바꾸면 time spacing과 representable baseband range가 바뀐다.
+- **Record length**를 바꾸면 capture duration과 FFT frequency spacing이 바뀐다.
+
+Carrier를 3.5 GHz에서 3.6 GHz로 옮겨도 baseband sample rate가 자동으로 100 MHz 증가하는 것은 아니다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Bandwidth보다 먼저 event를 정의하고 trigger로 같은 순간을 잡자">
+
+## IQ capture setup 순서
+
+1. PA waveform의 occupied bandwidth와 필요한 adjacent margin을 정한다.
+2. B1X analysis bandwidth 안에서 필요한 RF 구간을 포함하도록 center와 IF bandwidth를 정한다.
+3. 예상 peak를 기준으로 attenuation·preamp·range를 정하고 ADC clipping을 확인한다.
+4. 어떤 event를 시간 `t=0`으로 둘지 정한다: free-run, RF envelope, external marker 또는 video level.
+5. Burst 전 baseline이 필요하면 negative delay/pre-trigger 영역을 확보한다.
+6. Thermal droop나 long burst를 보려면 record duration을, subcarrier를 세밀히 보려면 coherent duration과 FFT bin spacing을 확보한다.
+7. Single acquisition으로 arm하고 trigger event 뒤 완료를 기다린다.
+8. I/Q array, exact sample interval, center frequency, trigger source·delay, front-end state와 overload status를 함께 저장한다.
+
+## 이 v1의 remote boundary: Swept SA에서 event와 front end를 먼저 검증한다
+
+~~~text
+*IDN?
+*OPT?
+ABOR
+*CLS
+INST:SEL SA
+CONF:SAN:NDEF
+INIT:CONT OFF
+FREQ:CENT 3.5 GHZ
+POW:GAIN OFF
+POW:ATT:AUTO OFF
+POW:ATT 30 DB
+TRIG:SAN:SOUR EXT1
+TRIG:SAN:SOUR?
+INIT:IMM
+*OPC?
+SYST:ERR?
+~~~
+
+이 페이지의 가상 lab은 B1X complex capture를 교육 모델로 재현하지만, v1 SCPI console은 N9060 Swept SA command tree만 구현한다. 실제 IQ Analyzer remote acquisition은 installed application·firmware에 따라 result form과 data packing이 달라 별도 command catalog가 필요하다. 따라서 확인하지 않은 `BASIC`, waveform-fetch 또는 89600 VSA command를 N9020B sequence에 섞지 않는다. 먼저 같은 external trigger와 front-end state를 Swept SA에서 검증하고, 실제 IQ automation은 공식 IQ Analyzer reference의 exact mode·measurement·result query를 별도 adapter로 고정한다.
+
+<MeasurementNote title="Mode switch는 단순한 화면 tab 전환이 아니다" kind="condition">
+X-Series에서 mode마다 유효한 SCPI tree와 state가 다르다. Mode를 바꾸면 status register mask도 재설정될 수 있다. SA mode의 trace command를 IQ Analyzer mode에 그대로 보내거나, 확인되지 않은 다른 application의 command를 이름이 비슷하다는 이유로 섞지 않는다.
+</MeasurementNote>
+
+## Trigger를 목적에 맞게 고른다
+
+| Trigger | 적합한 상황 | 놓치기 쉬운 조건 |
+|---|---|---|
+| Free run / immediate | CW, stationary OFDM 확인 | Burst phase가 capture마다 이동 |
+| RF burst / I/Q magnitude | 신호 envelope가 분명한 burst | Level·bandwidth·hysteresis에 따른 time walk |
+| Video | 특정 detected amplitude crossing | RBW/VBW와 detector delay의 영향 |
+| External | SG marker와 PA event를 공통 기준으로 정렬 | Cable·logic delay, polarity, termination |
+| Periodic timer | 반복 frame의 일정 cadence | Source와 clock drift가 누적될 수 있음 |
+
+Trigger가 잡혔다는 사실은 원하는 RF symbol boundary와 일치한다는 뜻이 아니다. SG marker definition, cable delay와 waveform segment offset을 known signal로 측정해 보정한다.
+
+## Capture 결과 검증 checklist
+
+- Returned scalar count가 `2N`이고 `[I0,Q0,I1,Q1,…]` 순서인지 확인한다.
+- Exact `Fs` 또는 sample interval을 instrument에서 읽는다. 화면 입력값으로 재계산해 추측하지 않는다.
+- `N/Fs`가 요청한 event를 충분히 포함하는지 확인한다.
+- I/Q magnitude peak와 overload status를 함께 확인한다.
+- First/middle/last sample과 FFT carrier 위치를 front panel view와 spot-check한다.
+- Trigger index와 delay sign convention을 synthetic pulse로 검증한다.
+- Window, FFT normalization과 dB reference를 data artifact에 기록한다.
+
+## Spectrum과 IQ를 같은 시험에서 연결하는 방법
+
+먼저 wide-span SA로 harmonic·unexpected spur 위치와 safe level을 찾는다. 그 다음 관심 carrier 주변을 IQ로 capture해 envelope, phase, EVM 또는 AM-AM/AM-PM을 분석한다. 마지막으로 같은 front-end state와 reference plane에서 SA channel power/ACP를 교차 확인한다. 세 결과는 같은 timestamp만으로 같아지지 않고, center·bandwidth·attenuation·trigger·waveform state가 같아야 연결된다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Magnitude·phase, duration과 FFT spacing을 complex sample로 닫자">
+
+<FormulaDisclosure title="I/Q에서 magnitude와 phase" formula="|x[n]|=√(I[n]²+Q[n]²);   φ[n]=atan2(Q[n],I[n])">
+Magnitude squared는 impedance·calibration convention을 반영하면 instantaneous power에 비례한다. Phase unwrap과 carrier removal을 하기 전에는 `atan2` 결과의 ±π wrap을 실제 phase jump로 해석하지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="B1X IQ sample rate" formula="F_s = 1.25·IFBW">
+N9020B B85/B1A/B1X data acquisition 사양의 IQ-pair sample-rate 관계다. 예를 들어 160 MHz IFBW에서 nominal IQ-pair rate는 200 MSa/s다. Mode와 path에 따라 exact rate가 달라질 수 있으므로 SCPI query 결과를 저장한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Capture duration과 sample spacing" formula="T_capture=N/F_s;   Δt=1/F_s">
+200 MSa/s에서 2,000,000 IQ pair는 10 ms다. Record length를 두 배로 하면 sample spacing은 그대로이고 duration만 두 배가 된다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="N-point FFT bin spacing" formula="Δf=F_s/N=1/T_capture">
+긴 coherent record가 더 촘촘한 FFT grid를 만든다. Analysis bandwidth를 넓히고 N을 고정하면 `Fs`가 커져 bin spacing이 거칠어진다. RBW와 FFT bin spacing은 관련되지만 동일한 값이라고 단정하지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="RF와 complex-baseband frequency" formula="f_RF=f_c+f_BB">
+Complex sampling에서는 positive와 negative `fBB`가 center의 위·아래 sideband를 구분한다. Real-only sampling처럼 두 sideband가 자동으로 접혀 같은 bin이 되는 것은 아니다.
+</FormulaDisclosure>
+
+## Window와 leakage
+
+Record의 시작과 끝이 반복 파형 경계에서 이어지지 않으면 rectangular FFT는 energy를 여러 bin으로 퍼뜨린다. Window를 적용하면 leakage는 줄지만 main-lobe width와 coherent gain이 바뀐다. Spectrum power를 비교할 때는 window type, normalization, equivalent noise bandwidth를 함께 기록한다. “IQ FFT가 SA trace와 다르다”는 사실만으로 어느 쪽이 틀렸다고 결론 내리지 않는다.
+
+## 완료 전 자기 설명
+
+1. SA trace 한 점과 IQ sample 한 점은 각각 무엇을 저장하는가?
+2. Carrier frequency, analysis bandwidth, sample rate와 record length 중 무엇이 RF 위치·시간 간격·duration을 바꾸는가?
+3. 160 MHz IFBW에서 nominal IQ-pair sample rate는 얼마이며, 2 MSa record의 duration은 얼마인가?
+4. External trigger를 써도 waveform symbol boundary를 별도로 검증해야 하는 이유는 무엇인가?
+5. 같은 IQ record의 FFT와 swept spectrum이 달라질 수 있는 measurement 조건은 무엇인가?
+
+</LessonLayer>

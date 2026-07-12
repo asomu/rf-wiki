@@ -1,0 +1,199 @@
+---
+title: "같은 DUT를 LogMag, phase, Smith와 time domain으로 보면 무엇이 달라질까?"
+description: "E5080B의 complex S-parameter 한 점을 magnitude·phase, Smith impedance, return loss·VSWR, group delay와 time-domain response로 연결하고 fixture reference plane을 de-embedding한다."
+instrumentId: "keysight-e5080b"
+chapter: "sparameters-smith-time"
+order: 3
+estimatedMinutes: 75
+prerequisites:
+  - "calibration-reference-plane"
+  - "vna-smith"
+outcomes:
+  - "S11·S21의 magnitude와 phase를 return loss, VSWR, impedance, insertion loss/gain과 올바른 부호로 변환할 수 있다."
+  - "Phase slope, group delay, time transform의 span·window·alias 한계를 설명할 수 있다."
+  - "Port extension, S2P de-embedding, AFR와 TRL을 구분하고 fixture model validity를 검증할 수 있다."
+concepts:
+  - "complex S-parameter"
+  - "Smith chart"
+  - "return loss"
+  - "VSWR"
+  - "insertion loss"
+  - "group delay"
+  - "time domain transform"
+  - "port extension"
+  - "fixture de-embedding"
+  - "automatic fixture removal"
+  - "TRL"
+equipmentContext:
+  source: "Keysight E5080B-2K0 calibrated 2-port stepped-frequency source"
+  dut: "Passive two-port 또는 linear small-signal active device inside coaxial fixture"
+  analyzer: "E5080B complex ratio, Smith/time transform and fixture simulator"
+references:
+  - title: "E5080B Online Help — Using Fixture Simulator"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/Programming/Using_Fixture_Simulator.htm"
+    kind: "vendor"
+  - title: "De-embedding and Embedding S-Parameter Networks Using a Vector Network Analyzer"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/in/en/assets/7018-08491/application-notes/5989-5765.pdf"
+    kind: "application-note"
+  - title: "E5080B ENA Online Help"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/index.htm"
+    kind: "vendor"
+labId: "ena-sparameters"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+`S11 = 0.18 ∠ −42°`라는 한 개의 complex number는 Smith chart의 한 점, return loss, VSWR와 50 Ω 기준 impedance로 동시에 표현할 수 있다. 화면 format을 바꾸는 일은 DUT를 다시 측정하는 일이 아니다. **같은 corrected complex data를 어떤 질문으로 읽을지 바꾸는 일**이다.
+
+<LessonLayer level="intuition" title="한 complex point를 여러 좌표계에서 동시에 보자">
+
+## S-parameter 네 개의 질문
+
+| 파라미터 | 질문 | Passive/active 해석 |
+|---|---|---|
+| S11 | Port 1로 넣은 wave 중 얼마나 port 1로 돌아오는가? | Input match |
+| S21 | Port 1에서 port 2로 얼마나 전달되는가? | Passive는 transmission/insertion loss, active는 forward gain |
+| S12 | Port 2에서 port 1로 얼마나 역전달되는가? | Reverse transmission/isolation |
+| S22 | Port 2로 넣은 wave 중 얼마나 port 2로 돌아오는가? | Output match |
+
+<Definition term="Smith chart">
+Reflection coefficient `Γ`의 unit circle을 normalized impedance/admittance 좌표로 다시 그린 도표다. Chart 중심은 50 Ω match, 경계는 `|Γ|=1`이다. 위쪽/아래쪽은 선택한 impedance convention에서 inductive/capacitive reactance를 구분한다.
+</Definition>
+
+<Definition term="Group delay" symbol="τg">
+Unwrapped transmission phase가 frequency에 따라 변하는 기울기 `−dφ/dω`다. 단일 phase 값이 아니라 인접 point의 slope이므로 point spacing, noise와 phase unwrap에 민감하다.
+</Definition>
+
+<InstrumentLab labId="ena-sparameters" />
+
+## 네 view가 답하는 질문
+
+- **LogMag**: 얼마나 반사·전달되는가?
+- **Phase**: reference plane 대비 얼마만큼 위상이 회전했는가?
+- **Smith**: Γ가 50 Ω 기준 어떤 R+jX에 해당하는가?
+- **Group delay/time domain**: phase slope와 frequency response가 어느 delay/distance 구조를 암시하는가?
+
+Marker를 한 view에서 움직였을 때 같은 frequency의 다른 view marker도 함께 읽어야 한다. 가장 깊은 notch의 phase가 noise-dominated라면 group delay spike도 DUT 물리로 단정하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="표시 format과 fixture plane을 목적에 맞게 분리하자">
+
+## Return loss, S11 dB와 VSWR 부호를 먼저 고정한다
+
+`20 log10|S11|`은 보통 음수다. Return loss는 `−20 log10|S11|`로 양수 표시한다. 따라서 `S11 = −20 dB`와 `return loss = 20 dB`는 같은 match를 말하지만 부호 convention이 다르다.
+
+| Γ magnitude | S11 LogMag | Return loss | VSWR | 직관 |
+|---:|---:|---:|---:|---|
+| 0 | −∞ dB | ∞ dB | 1.00 | 이상적 match |
+| 0.1 | −20 dB | 20 dB | 1.22 | 좋은 match |
+| 0.333 | −9.55 dB | 9.55 dB | 2.00 | 2:1 VSWR |
+| 1 | 0 dB | 0 dB | ∞ | 전반사 |
+
+## Passive insertion loss와 active gain을 섞지 않는다
+
+- Passive DUT에서 `S21 = −1.2 dB`이면 insertion loss를 보통 `1.2 dB`라 말한다.
+- Active PA에서 `S21 = +24 dB`이면 forward small-signal gain이다.
+- Active gain의 음수값을 뒤집어 “negative insertion loss”로 표준 label처럼 쓰지 않는다.
+- S21은 matched test-port small-signal ratio이고, actual source/load mismatch까지 포함한 transducer gain과 같지 않을 수 있다.
+
+## Phase와 delay를 보기 전 reference plane을 확인한다
+
+Cable 20 cm를 추가하면 magnitude가 조금 줄고 phase slope가 크게 변할 수 있다. DUT delay를 보려면 calibration plane 또는 verified de-embedding이 DUT connector까지 와 있어야 한다.
+
+<MeasurementNote title="Time-domain peak를 곧바로 물리적 거리로 이름 붙이지 않는다" kind="warning">
+Time transform은 finite frequency span과 point grid를 window 처리한 결과다. Propagation velocity, one-way/two-way path, low-pass/band-pass mode, gating과 dispersion convention을 명시해야 distance로 바꿀 수 있다.
+</MeasurementNote>
+
+## Fixture를 제거하는 네 방법
+
+### 1. Port extension
+
+Known uniform line의 electrical delay와 필요 시 loss를 보상해 phase plane을 이동한다. Fixture mismatch·mode conversion·cross-coupling을 완전히 제거하지 않는다.
+
+### 2. Known S2P de-embedding
+
+Fixture A와 B의 measured/modelled S-parameter를 DUT 양쪽 network로 cascade한 뒤 inverse network 연산으로 제거한다.
+
+`Measured = Fixture_A ⊗ DUT ⊗ Fixture_B`
+
+`DUT_estimate = Fixture_A⁻¹ ⊗ Measured ⊗ Fixture_B⁻¹`
+
+### 3. AFR, Automatic Fixture Removal
+
+Fixture coupon/structure의 측정에서 fixture model을 추출하는 workflow다. E5080B에서는 S96007B application option이 관련될 수 있다. Fixture 대칭성, coupon 구조와 extraction bandwidth를 검증한다.
+
+### 4. TRL/LRM calibration
+
+Fixture 환경에 적합한 Through/Reflect/Line 표준으로 calibration plane을 DUT launch까지 옮기는 방법이다. Line length가 주파수 범위에서 적절한 phase separation을 제공해야 한다.
+
+## Fixture Simulator 명령 family를 섞지 않는다
+
+E5080B의 새 fixture simulator generator는 draft를 만들고 element를 오른쪽에서 왼쪽으로 add/apply한 뒤 state를 켜는 흐름을 가진다. Legacy command family와 new generator command를 한 sequence에서 섞지 않는다. 사용 firmware에서 각 command family의 support를 확인한다.
+
+구현 절차는 다음처럼 기록한다.
+
+1. Raw calibrated S-parameter를 저장한다.
+2. Fixture file의 port order, Z0, frequency range와 reference plane을 확인한다.
+3. Draft/current fixture state를 명시적으로 초기화한다.
+4. DUT 기준으로 물리적 cascade 순서와 tool의 construction 방향을 확인한다.
+5. Fixture A/B를 add/apply하고 state를 query-back한다.
+6. De-embedded data를 다른 format이 아닌 별도 trace/data artifact로 저장한다.
+7. Passivity, causality, reciprocity와 known coupon을 검증한다.
+
+<MeasurementNote title="De-embedding은 fixture model error를 없애지 않고 증폭할 수 있다" kind="uncertainty">
+Fixture loss가 크거나 deep notch가 있으면 inverse가 noise와 model error를 크게 키운다. Removed loss 숫자만큼 정확도가 좋아진다고 주장하지 말고 raw/de-embedded trace와 residual uncertainty를 함께 보존한다.
+</MeasurementNote>
+
+## Time gating도 de-embedding과 같지 않다
+
+Time gate는 frequency response를 transform한 뒤 특정 delay 영역을 window로 억제하고 다시 변환한다. Unwanted reflection을 분리하는 데 유용하지만 gate ripple, lost energy와 frequency-domain convolution이 생긴다. Complex fixture network를 물리적으로 역연산한 것과 동일하지 않다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Γ, Z, delay와 fixture inverse를 수식으로 닫자">
+
+<FormulaDisclosure title="Reflection coefficient와 impedance" formula="Γ=(Z−Z₀)/(Z+Z₀),   Z=Z₀(1+Γ)/(1−Γ)">
+`Z0=50 Ω`를 명시한다. Complex Γ의 magnitude만 같아도 phase가 다르면 impedance의 R과 X가 달라진다. `|Γ|≥1`인 active/unstable condition에서는 passive VSWR 직관을 조심한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Return loss와 VSWR" formula="RL=−20log₁₀|Γ|,   VSWR=(1+|Γ|)/(1−|Γ|)">
+두 값은 `|Γ|`만 사용하므로 phase 정보가 사라진다. 같은 return loss를 가진 두 DUT가 Smith chart의 완전히 다른 위치에 있을 수 있다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Group delay" formula="τg=−dφ/dω=−(1/2π)·dφ/df">
+Phase는 먼저 unwrap하고 충분히 촘촘한 frequency grid에서 미분한다. Transmission magnitude가 noise floor에 가까우면 phase와 delay가 의미를 잃을 수 있다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Time-domain 기본 trade-off" formula="Nominal resolution ∝ 1/span,   unambiguous time ∝ 1/Δf">
+넓은 span은 더 짧은 event를 분리하고, 촘촘한 frequency spacing은 더 긴 alias-free time range를 준다. Window는 sidelobe와 resolution을 교환한다.
+</FormulaDisclosure>
+
+## Fixture model 검증 질문
+
+- S2P frequency grid가 measurement range를 덮는가?
+- Port numbering과 orientation을 뒤집지 않았는가?
+- Reference impedance와 mixed-mode convention이 맞는가?
+- Model이 passive/causal/reciprocal이어야 하는 DUT에서 그 조건을 만족하는가?
+- De-embedded DUT가 물리적으로 불가능한 gain·negative loss를 보이지 않는가?
+- Fixture removal 전후 uncertainty와 raw data를 보존했는가?
+
+## Cause/Effect를 자기 말로 닫기
+
+“Marker frequency를 바꾸자 같은 complex S11 point가 Smith chart에서 이동했고, 그 Γ를 50 Ω 기준 impedance와 return loss로 동시에 계산했다. Fixture model을 적용하자 S21 loss가 DUT plane으로 이동했지만, model error와 inverse noise amplification은 남으므로 raw trace와 verification coupon을 함께 확인했다.”
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. `S11 −20 dB`, return loss 20 dB, VSWR 1.22가 같은 match를 어떻게 다르게 표현하는가?
+2. Port extension, S2P de-embedding, AFR, TRL과 time gate의 역할을 구분할 수 있는가?
+3. De-embedded 결과가 raw 결과보다 “정확하다”고 말하기 전에 어떤 검증이 필요한가?

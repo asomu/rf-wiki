@@ -1,0 +1,177 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from './Breadcrumbs.astro';
+import {
+  instrumentChapterHref,
+  instrumentProgressId,
+  type InstrumentDefinition,
+} from '../../data/instruments';
+
+export interface Props {
+  instrument: InstrumentDefinition;
+  nextNote: string;
+}
+
+const { instrument, nextNote } = Astro.props;
+const chapters = instrument.chapters.map((chapter) => ({
+  ...chapter,
+  href: instrumentChapterHref(instrument, chapter),
+  progressId: instrumentProgressId(instrument, chapter),
+}));
+const totalMinutes = chapters.reduce((sum, chapter) => sum + chapter.estimatedMinutes, 0);
+const examplesHref = `/instruments/${instrument.route}/python-examples/`;
+---
+
+<BaseLayout
+  title={`Keysight ${instrument.displayName} 스터디`}
+  description={`${instrument.displayName}의 기본 동작, 측정 원리, SCPI·PyVISA와 PA bench 적용 학습`}
+  currentPath={`/instruments/${instrument.route}/`}
+>
+  <main class="page-shell instrument-hub" data-pagefind-body>
+    <Breadcrumbs items={[{ label: '장비 스터디', href: '/instruments/' }, { label: instrument.displayName }]} />
+
+    <header class="page-heading instrument-hub__heading">
+      <p class="context-line">
+        <span>Keysight {instrument.model}</span>
+        <span>{instrument.rangeLabel}</span>
+        <span>Firmware {instrument.firmwareScope}</span>
+      </p>
+      <h1>{instrument.hubHeadline}</h1>
+      <p>{instrument.hubDescription}</p>
+    </header>
+
+    <section
+      class="instrument-progress"
+      aria-labelledby={`${instrument.progressNamespace}-progress-title`}
+      data-instrument-progress
+      data-chapters={JSON.stringify(chapters)}
+      data-label={instrument.displayName}
+      data-completion-title={instrument.completionTitle}
+      data-completion-description={instrument.completionDescription}
+    >
+      <div>
+        <p class="data-label" data-progress-position>현재 위치 · 시작점</p>
+        <h2 id={`${instrument.progressNamespace}-progress-title`} data-progress-title>{chapters[0]?.title}</h2>
+        <p data-progress-question>{chapters[0]?.question}</p>
+      </div>
+      <div class="instrument-progress__meter">
+        <p><span data-progress-count>0</span> / {chapters.length}</p>
+        <div
+          class="progress-track"
+          role="progressbar"
+          aria-label={`${instrument.displayName} 학습 진도 · 0/${chapters.length} 완료`}
+          aria-valuemin="0"
+          aria-valuemax={chapters.length}
+          aria-valuenow="0"
+          data-progress-bar
+        ><span style="--progress: 0%" data-progress-fill></span></div>
+        <a class="button-primary" href={chapters[0]?.href} data-progress-action>첫 챕터 시작</a>
+      </div>
+    </section>
+
+    <section class="mxg-profile" aria-labelledby={`${instrument.progressNamespace}-profile-title`}>
+      <div>
+        <p class="data-label">교육 프로필</p>
+        <h2 id={`${instrument.progressNamespace}-profile-title`}>이 사이트에서 가정하는 장비 상태</h2>
+        <p>실제 장비에서는 먼저 <code>*IDN?</code>, firmware와 option/module 구성을 조회하고 설치 상태에 맞게 범위를 조정합니다.</p>
+      </div>
+      <dl>
+        {instrument.profileRows.map((row) => <div><dt>{row.label}</dt><dd>{row.value}</dd></div>)}
+        <div><dt>Remote</dt><dd>{instrument.remoteInterfaces.join(' · ')}</dd></div>
+        <div><dt>SCPI basis</dt><dd>{instrument.documentationBaseline}</dd></div>
+      </dl>
+      <ul class="instrument-profile-notes" aria-label={`${instrument.displayName} 적용 범위 주의`}>
+        {instrument.optionNotes.map((note) => <li>{note}</li>)}
+      </ul>
+    </section>
+
+    <section class="mxg-signal-path" aria-labelledby={`${instrument.progressNamespace}-path-title`}>
+      <header>
+        <p class="data-label">장비 내부 경로</p>
+        <h2 id={`${instrument.progressNamespace}-path-title`}>{instrument.pathTitle}</h2>
+      </header>
+      <ol>
+        {instrument.stages.map((stage) => <li><strong>{stage.label}</strong><span>{stage.detail}</span></li>)}
+      </ol>
+    </section>
+
+    <section class="mxg-chapters" aria-labelledby={`${instrument.progressNamespace}-chapters-title`}>
+      <header class="section-heading">
+        <div><p class="data-label">{chapters.length}개 챕터</p><h2 id={`${instrument.progressNamespace}-chapters-title`}>{instrument.chapterLead}</h2></div>
+        <p>약 {totalMinutes}분</p>
+      </header>
+      <ol>
+        {chapters.map((chapter) => (
+          <li data-chapter-id={chapter.progressId}>
+            <span>{String(chapter.order).padStart(2, '0')}</span>
+            <div><h3>{chapter.title}</h3><p>{chapter.question}</p><small>{chapter.estimatedMinutes}분 · 예측 → 조작 → 설명</small></div>
+            <a href={chapter.href}>열기 <span aria-hidden="true">→</span></a>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section class="mxg-next-instruments" aria-labelledby={`${instrument.progressNamespace}-next-title`}>
+      <div><p class="data-label">PA bench 연결</p><h2 id={`${instrument.progressNamespace}-next-title`}>한 장비의 숫자를 전체 시험 흐름에 연결합니다.</h2></div>
+      <p>{nextNote}</p>
+      <a href="/instruments/">전체 장비 순서 보기 →</a>
+    </section>
+
+    <section class="mxg-example-link" aria-labelledby={`${instrument.progressNamespace}-example-title`}>
+      <div><p class="data-label">로컬 실행 예제</p><h2 id={`${instrument.progressNamespace}-example-title`}>가상 실험의 순서를 실제 PyVISA 코드로 옮기기</h2></div>
+      <p>{instrument.pythonSummary}</p>
+      <a class="button-secondary" href={examplesHref}>Python 예제 열기</a>
+    </section>
+  </main>
+
+  <script>
+    import { PROGRESS_STORAGE_KEY, isLabComplete, readLearningProgress } from '../../lib/progress';
+
+    interface ChapterProgress {
+      title: string;
+      question: string;
+      href: string;
+      progressId: string;
+    }
+
+    document.querySelectorAll<HTMLElement>('[data-instrument-progress]').forEach((root) => {
+      const chapters = JSON.parse(root.dataset.chapters ?? '[]') as ChapterProgress[];
+      const label = root.dataset.label ?? '장비';
+      const completionTitle = root.dataset.completionTitle ?? '학습을 완료했습니다.';
+      const completionDescription = root.dataset.completionDescription ?? '완료한 챕터를 다시 열어보세요.';
+      const render = () => {
+        const progress = readLearningProgress(window.localStorage);
+        const completed = chapters.filter((chapter) => isLabComplete(progress, chapter.progressId));
+        const next = chapters.find((chapter) => !isLabComplete(progress, chapter.progressId)) ?? chapters.at(-1);
+        const allComplete = completed.length === chapters.length && chapters.length > 0;
+        if (!next) return;
+        const position = root.querySelector<HTMLElement>('[data-progress-position]');
+        const title = root.querySelector<HTMLElement>('[data-progress-title]');
+        const question = root.querySelector<HTMLElement>('[data-progress-question]');
+        const count = root.querySelector<HTMLElement>('[data-progress-count]');
+        const bar = root.querySelector<HTMLElement>('[data-progress-bar]');
+        const fill = root.querySelector<HTMLElement>('[data-progress-fill]');
+        const action = root.querySelector<HTMLAnchorElement>('[data-progress-action]');
+        if (position) position.textContent = allComplete ? `${label} 학습 완료` : completed.length ? `이어갈 위치 · ${completed.length}/${chapters.length}` : '현재 위치 · 시작점';
+        if (title) title.textContent = allComplete ? completionTitle : next.title;
+        if (question) question.textContent = allComplete ? completionDescription : next.question;
+        if (count) count.textContent = String(completed.length);
+        if (bar) {
+          bar.setAttribute('aria-valuenow', String(completed.length));
+          bar.setAttribute('aria-label', `${label} 학습 진도 · ${completed.length}/${chapters.length} 완료`);
+        }
+        if (fill) fill.style.setProperty('--progress', `${(completed.length / chapters.length) * 100}%`);
+        if (action) {
+          action.href = next.href;
+          action.textContent = allComplete ? '완료한 챕터 다시 보기' : completed.length ? '이어서 학습' : '첫 챕터 시작';
+        }
+        document.querySelectorAll<HTMLElement>('[data-chapter-id]').forEach((item) => {
+          item.dataset.complete = String(isLabComplete(progress, item.dataset.chapterId ?? ''));
+        });
+      };
+      render();
+      window.addEventListener('pageshow', render);
+      window.addEventListener('storage', (event) => event.key === PROGRESS_STORAGE_KEY && render());
+    });
+  </script>
+</BaseLayout>

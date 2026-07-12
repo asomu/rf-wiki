@@ -1,0 +1,70 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/astro/Breadcrumbs.astro';
+import { instrumentRoadmap, instruments } from '../../data/instruments';
+
+const totalChapters = instruments.reduce((sum, instrument) => sum + instrument.chapters.length, 0);
+const totalMinutes = instruments.reduce(
+  (sum, instrument) => sum + instrument.chapters.reduce((instrumentSum, chapter) => instrumentSum + chapter.estimatedMinutes, 0),
+  0,
+);
+---
+
+<BaseLayout title="계측장비 스터디" description="SG부터 power supply까지 SCPI와 RF bench workflow로 배우는 장비 학습 지도" currentPath="/instruments/">
+  <main class="page-shell instrument-index" data-pagefind-body>
+    <Breadcrumbs items={[{ label: 'RF Wiki', href: '/' }, { label: '장비 스터디' }]} />
+
+    <header class="page-heading instrument-index__heading">
+      <p class="context-line"><span>SG → SA → NA → Sensor → PSU</span><span>SCPI · PyVISA</span><span>PA bench</span></p>
+      <h1>장비 한 대를 신호 경로와 프로그램 상태로 함께 익힙니다.</h1>
+      <p>버튼 위치만 외우지 않습니다. 설정이 내부 stage를 지나 DUT에 도달하는 과정, SCPI state, 실패했을 때의 안전 종료를 같은 순서로 학습합니다.</p>
+    </header>
+
+    <section class="instrument-current" aria-labelledby="instrument-current-title">
+      <div>
+        <p class="data-label">현재 열린 장비 · {String(instruments.length).padStart(2, '0')}</p>
+        <h2 id="instrument-current-title">Source, spectrum, network, RF power와 DC bias를 함께 닫습니다.</h2>
+        <p>N5182B MXG, N9020B MXA, E5080B ENA, U2061XA power sensor와 N6705C power system을 장비별 기본 조작부터 SCPI·PyVISA, PA capstone까지 연결합니다.</p>
+      </div>
+      <dl>
+        <div><dt>Profiles</dt><dd>Keysight {instruments.length}종</dd></div>
+        <div><dt>학습량</dt><dd>{totalChapters} chapters</dd></div>
+        <div><dt>예상 시간</dt><dd>약 {totalMinutes}분</dd></div>
+        <div><dt>실장비</dt><dd>Dry-run 우선 PyVISA</dd></div>
+      </dl>
+      <a class="button-primary" href="/instruments/sg-mxg/">첫 장비부터 시작</a>
+    </section>
+
+    <section class="instrument-roadmap-section" aria-labelledby="instrument-roadmap-title">
+      <header class="section-heading">
+        <div><p class="data-label">장비 학습 순서</p><h2 id="instrument-roadmap-title">PA bench의 신호와 전력을 왼쪽부터 닫습니다.</h2></div>
+        <p>SG에서 만든 신호를 SA·VNA·sensor로 확인하고 PSU의 DC 상태와 함께 해석합니다.</p>
+      </header>
+      <ol class="instrument-roadmap">
+        {instrumentRoadmap.map((item) => (
+          <li data-status={item.status}>
+            <span class="instrument-roadmap__index">{String(item.order).padStart(2, '0')}</span>
+            <div class="instrument-roadmap__body">
+              <div class="instrument-roadmap__title">
+                <span>{item.code}</span>
+                <div><h3>{item.title}</h3><p>{item.model}</p></div>
+                <strong>{item.status === 'ready' ? '학습 가능' : '예정'}</strong>
+              </div>
+              <p>{item.question}</p>
+              {item.status === 'ready' && <a href={item.href}>장비 챕터 보기 →</a>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section class="instrument-boundary" aria-labelledby="instrument-boundary-title">
+      <div><p class="data-label">연결 범위</p><h2 id="instrument-boundary-title">웹은 장비를 흉내 내고, 실제 제어는 로컬에서 실행합니다.</h2></div>
+      <dl>
+        <div><dt>웹</dt><dd>검증된 시나리오, state transition, linked views와 SCPI transcript</dd></div>
+        <div><dt>로컬</dt><dd>Keysight IO Libraries, VISA alias, Python 3와 PyVISA</dd></div>
+        <div><dt>제외</dt><dd>브라우저 직접 LAN 제어, 임의 Python 실행, 사용자 waveform import</dd></div>
+      </dl>
+    </section>
+  </main>
+</BaseLayout>

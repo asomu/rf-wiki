@@ -1,0 +1,180 @@
+---
+title: "PA Pin과 Pout을 sensor로 잴 때 두 기준면을 어떻게 연결할까?"
+description: "U2061XA forward directional reading, coupler·attenuator correction과 PSU V·I를 같은 시험 상태에 묶고 gain·PAE의 power convention을 구분한다."
+instrumentId: "keysight-u2061xa"
+chapter: "pa-power-budget"
+order: 5
+estimatedMinutes: 80
+prerequisites:
+  - "safe-power"
+  - "correction-uncertainty"
+  - "sensor-scpi-trigger"
+outcomes:
+  - "Input/output forward sensor reading을 각각 DUT plane으로 옮겨 forward-wave gain을 계산할 수 있다."
+  - "Forward, accepted, delivered power를 구분하고 reverse reading이 없는 PAE를 estimate로 표시할 수 있다."
+  - "Power sensor, SA/VSA와 PSU가 담당하는 PA KPI를 분리하고 동시성·uncertainty 한계를 기록할 수 있다."
+concepts:
+  - "PA input power"
+  - "PA output power"
+  - "gain"
+  - "drain efficiency"
+  - "power-added efficiency"
+  - "coupler correction"
+  - "simultaneous measurement"
+  - "equipment dependency"
+equipmentContext:
+  source: "Keysight N5182B low-power stimulus와 external trigger"
+  dut: "Connectorized PA, input/output coupler, attenuator, DC block와 safe bias sequence"
+  analyzer: "Keysight U2061XA 1–2대, Keysight SA/VSA와 N6705C/N6752A PSU readback"
+references:
+  - title: "U2049XA and U/L2050/60 X-Series USB/LAN Wide Dynamic Range Peak and Average Power Sensors Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3120-1424/data-sheets/U2049XA-Option-TVA-UL205060-X-Series-USBLAN-Wide-Dynamic-Range-Peak-Average-Power.pdf"
+    kind: "vendor"
+  - title: "Characterizing the Key Performance Indicators of Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3122-1770/application-notes/Characterizing-the-Key-Performance-Indicators-of-Power-Amplifiers.pdf"
+    kind: "application-note"
+  - title: "Keysight 2050/60 X-Series Programming Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04755/programming-guides/9018-04755.pdf"
+    kind: "vendor"
+labId: "sensor-pa-power-budget"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+PA gain은 단순히 `output sensor − input sensor`가 아니다. 두 sensor reading을 각 DUT plane으로 되돌리고, 그 값이 **forward인지 accepted/delivered인지** 먼저 선언해야 한다. 이 페이지의 기본 lab은 directional coupler의 forward port 두 개로 얻은 `P1,fwd`, `P2,fwd` convention이며, reverse wave가 없으면 accepted input이나 load-delivered output이라고 부르지 않는다.
+
+<LessonLayer level="intuition" title="PA KPI를 장비가 아니라 reference plane과 시간 상태에 배정하자">
+
+## 한 시험점에는 최소 세 종류의 power가 있다
+
+1. **P1,fwd** — Input coupler가 보는 PA 방향 incident/forward power
+2. **P2,fwd** — Output coupler가 보는 load 방향 forward power
+3. **Pdc** — PA가 supply에서 소비한 DC power
+
+Forward coupled port 한 개의 power sensor는 한 방향의 power wave를 읽는다. Input accepted power에는 input reverse/reflected wave가, load-delivered output에는 output reverse wave 또는 검증된 matched-load 가정이 추가로 필요하다. PSU는 V·I를, SA/VSA는 EVM·ACLR·SEM과 spectrum을 읽는다. 어떤 장비도 혼자서 이 모든 결과를 제공하지 않는다.
+
+<Definition term="Power-added efficiency" symbol="PAE">
+PA가 accepted RF input 이외의 DC power를 얼마나 load-delivered RF output으로 바꿨는지 나타낸다. 엄밀한 `PAE=(Pdelivered−Paccepted)/Pdc`에는 양방향 power 또는 동일한 의미를 주는 calibrated measurement가 필요하다. 이 lab의 `P2,fwd−P1,fwd` 값은 forward-wave PAE estimate로 분리해 표시한다.
+</Definition>
+
+<Definition term="Simultaneous power measurement">
+두 RF power와 DC readback이 같은 waveform, bias, trigger와 temperature state를 나타내도록 시간 정렬한 측정이다. 단순히 세 파일의 timestamp가 비슷하다는 것보다 강한 조건이다.
+</Definition>
+
+<InstrumentLab labId="sensor-pa-power-budget" />
+
+## 한 sensor와 두 sensor의 trade-off
+
+| 구성 | 장점 | 추가 uncertainty |
+|---|---|---|
+| U2061XA 두 대 | P1/P2 forward 동시 trigger, sweep throughput | Sensor 간 calibration, trigger skew, channel correction 차이 |
+| U2061XA 한 대 + RF switch | 같은 sensor calibration 공유 | PA drift, switch repeatability/loss, connector movement, 순차 시간 차이 |
+| Sensor + calibrated SG forward input 추정 | Hardware가 단순 | SG setpoint/path uncertainty, PA input mismatch, 시간 drift |
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Low-power bring-up에서 gain·PAE sweep까지 상태를 닫자">
+
+## Bench 구성
+
+~~~text
+N5182B → input coupler → PA → output coupler/attenuator → load
+               ↓ P1,fwd sensor    ↓ P2,fwd sensor
+                    N6705C/N6752A → PA bias V/I
+                    SA/VSA ← attenuated PA output
+~~~
+
+각 coupled path는 방향, coupling factor, directivity, return loss와 power rating을 확인한다. Sensor correction에 넣은 path loss와 host code에서 더한 correction이 중복되지 않게 한다.
+
+## Safe bring-up
+
+1. SG RF OFF, PSU output OFF, PA discharge 상태를 확인한다.
+2. Input/output sensor connector의 예상 average·peak와 DC 유입을 계산한다.
+3. PSU voltage/current limit, OVP와 bias sequence를 설정하고 query-back한다.
+4. Sensor zero/calibration과 measurement frequency를 확인한다.
+5. SA reference level과 external attenuation을 보호 조건으로 설정한다.
+6. PA bias를 안전 순서로 켜고 quiescent current를 확인한다.
+7. SG를 최소 drive에서 켠다.
+8. P1,fwd, P2,fwd, V, I, SA trace를 같은 test-point ID와 trigger로 저장한다.
+9. 작은 input-power step으로 sweep한다.
+10. 어떤 장비에서든 overload, unlevel, protection 또는 error가 발생하면 SG RF OFF를 먼저 수행하고 bias를 안전하게 종료한다.
+
+<MeasurementNote title="Output sensor correction 값으로 sensor 자체 안전을 판단하지 않는다" kind="warning">
+Output sensor가 `0 dBm`을 읽고 `+40 dB` correction으로 DUT-plane forward power `40 dBm`을 표시하더라도 sensor connector가 실제로 받는 average는 `0 dBm`이다. Damage 판단은 correction 전 connector input과 peak로 한다. Reverse path가 없다면 correction 후 값도 load-delivered power라고 재명명하지 않는다.
+</MeasurementNote>
+
+## 각 test point에 저장할 record
+
+- Test point ID, timestamp와 common trigger index
+- SG frequency, waveform, average setpoint, PAPR와 RF state
+- PA bias setpoint와 PSU V/I readback
+- P1/P2 forward sensor raw reading, detector mode, aperture/VBW, frequency와 correction state
+- DUT-plane forward value, reverse measurement 유무와 individual uncertainty
+- Gain convention, output compression delta, efficiency와 PAE가 estimate인지 여부
+- SA/VSA EVM, ACLR, SEM과 overload status
+- Temperature, duty cycle와 dwell time
+- 모든 instrument error queue와 cleanup result
+
+## Sensor가 맡지 않는 결과
+
+U2061XA는 연결된 한 방향 path의 average·peak와 burst timing을 측정하지만 다음을 직접 제공하지 않는다.
+
+- EVM, ACLR, SEM, harmonic/spurious spectrum
+- AM-PM 또는 constellation phase error
+- DC voltage/current source·protection
+- DUT small-signal S-parameter와 stability
+
+이 결과를 power sensor reading에서 추정해 실제 측정값처럼 저장하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Forward·accepted·delivered convention을 정한 뒤 linear power로 계산하자">
+
+<FormulaDisclosure title="Forward RF reference-plane correction" formula="P1,fwd = P1,sensor + C1;   P2,fwd = P2,sensor + C2">
+모든 항이 dBm/dB일 때의 식이다. `C1`, `C2`는 각 forward sensor connector에서 PA input/output plane으로 되돌리는 signed correction이다. Directivity와 mismatch uncertainty는 correction 숫자 하나로 사라지지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="이 lab의 gain convention" formula="Gfwd(dB) = P2,fwd(dBm) − P1,fwd(dBm)">
+이는 forward-wave ratio다. `Paccepted=P1,fwd−P1,refl`, `Pdelivered=P2,fwd−P2,refl`은 watt 단위로 뺀다. 따라서 operating gain, transducer gain 또는 accepted-to-delivered gain과 같은 이름을 쓰려면 reverse measurement와 reference impedance를 추가해야 한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="DC power와 forward-wave efficiency estimate" formula="Pdc(W)=VDD·IDD;   ηfwd=P2,fwd(W)/Pdc(W)">
+`P2,fwd`는 dBm에서 watt로 변환한다. Load-delivered drain efficiency를 주장하려면 output reverse wave를 반영한다. Pulsed PA라면 V와 I가 RF gate와 같은 시간 구간을 나타내야 한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Forward-wave PAE estimate" formula="PAEfwd(%)=100·(P2,fwd(W)−P1,fwd(W))/Pdc(W)">
+`P2,fwd(dBm)−P1,fwd(dBm)`을 watt처럼 Pdc에서 빼지 않는다. 두 RF power를 각각 linear watt로 변환한다. 엄밀한 accepted/delivered PAE가 필요하면 reverse wave를 각각 빼고 계산한다.
+</FormulaDisclosure>
+
+## 예시
+
+- Input forward sensor `−10 dBm`, input correction `+20 dB` → P1,fwd `10 dBm = 0.01 W`
+- Output forward sensor `0 dBm`, output correction `+40 dB` → P2,fwd `40 dBm = 10 W`
+- PSU `28 V × 0.5 A` → Pdc `14 W`
+- Forward-wave gain `30 dB`
+- Forward-wave efficiency estimate `10/14 = 71.43%`
+- Forward-wave PAE estimate `(10−0.01)/14 = 71.36%`
+
+이 숫자들은 matched termination을 검증하거나 reverse path를 함께 측정하기 전에는 accepted/delivered KPI가 아니다.
+
+## Uncertainty를 KPI에 전달한다
+
+P1/P2 uncertainty가 독립이면 forward gain의 standard dB uncertainty는 RSS로 결합할 수 있다. PAE는 forward/reverse RF와 DC의 nonlinear 함수이므로 각 입력의 uncertainty와 correlation을 포함한 propagation이 필요하다. Lab의 중앙값 계산만으로 compliance margin을 선언하지 않는다.
+
+## 완료 전 자기 설명
+
+1. Output sensor raw reading과 DUT-plane forward 값은 왜 다른가?
+2. 한 sensor 순차 측정과 두 sensor 동시 측정의 dominant error는 무엇인가?
+3. PAE 계산에서 dBm을 watt로 먼저 변환해야 하는 이유는 무엇인가?
+4. EVM·ACLR·SEM을 power sensor 결과라고 부르면 안 되는 이유는 무엇인가?
+5. Forward coupled reading 하나만으로 accepted 또는 delivered power를 선언할 수 없는 이유는 무엇인가?
+
+</LessonLayer>

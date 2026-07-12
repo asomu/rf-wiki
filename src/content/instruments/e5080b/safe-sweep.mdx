@@ -1,0 +1,171 @@
+---
+title: "VNA source를 켜기 전에 sweep의 어떤 경계를 정해야 할까?"
+description: "Keysight E5080B-2K0에서 RF OFF를 출발점으로 source power limit, frequency range, points, IFBW와 averaging을 정하고 complex ratio가 만들어지는 경로를 읽는다."
+instrumentId: "keysight-e5080b"
+chapter: "safe-sweep"
+order: 1
+estimatedMinutes: 55
+prerequisites:
+  - "foundations"
+  - "vna-smith"
+outcomes:
+  - "VNA가 coherent stimulus를 보내고 incident/reflected/transmitted receiver의 complex ratio로 S-parameter를 만든다고 설명할 수 있다."
+  - "RF OFF, 명시적 power limit, 낮은 source power와 query-back으로 안전한 sweep를 구성할 수 있다."
+  - "Start/stop, points, IFBW, averaging이 frequency grid, noise와 sweep time을 각각 어떻게 바꾸는지 예측할 수 있다."
+concepts:
+  - "incident and reflected power waves"
+  - "coherent receiver"
+  - "source power limit"
+  - "frequency sweep"
+  - "IF bandwidth"
+  - "averaging"
+  - "reference plane"
+  - "receiver compression"
+equipmentContext:
+  source: "Keysight E5080B-2K0 ENA, 2-port 9 kHz–20 GHz profile, source RF OFF"
+  dut: "50 Ω through 또는 충분히 감쇠된 connectorized passive DUT"
+  analyzer: "E5080B R/A/B complex receiver와 필요 시 독립 power sensor"
+references:
+  - title: "E5080B ENA Vector Network Analyzer Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06574/data-sheets/5992-3843.pdf"
+    kind: "vendor"
+  - title: "E5080B Online Help — Getting Started"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/S0_Start/Getting_Started.htm"
+    kind: "vendor"
+  - title: "E5080B SCPI Command Tree"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/Programming/GP-IB_Command_Finder/SCPI_Command_Tree.htm"
+    kind: "vendor"
+labId: "ena-safe-sweep"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+VNA의 trace는 DUT가 내보내는 spectrum이 아니다. E5080B가 알고 있는 주파수의 작은 CW를 한 점씩 보내고, 같은 reference clock으로 incident와 response의 amplitude·phase를 읽은 뒤 **complex ratio**를 만든 결과다. 따라서 source 설정, receiver 조건과 calibration plane을 함께 기록해야 `S21 = −1.2 dB`가 재현 가능한 문장이 된다.
+
+<LessonLayer level="intuition" title="한 sweep를 수백 번의 작은 complex 실험으로 보자">
+
+## 한 frequency point에서 일어나는 일
+
+1. Source가 정확히 아는 주파수의 coherent CW를 만든다.
+2. Directional separation이 진행파와 반사파를 receiver 경로로 나눈다.
+3. Reference receiver는 incident wave `a`, response receiver는 `b`를 complex 값으로 읽는다.
+4. Calibration error terms를 적용한다.
+5. `b/a`를 LogMag, phase, Smith 또는 group delay로 표시한다.
+6. 다음 frequency point로 이동한다.
+
+<Definition term="Power wave" symbol="a, b">
+50 Ω reference impedance에서 port로 들어가는 incident wave를 `a`, port에서 나오는 wave를 `b`로 표현한다. S-parameter는 voltage 하나가 아니라 다른 port의 incident wave를 정해 둔 complex ratio다.
+</Definition>
+
+<Definition term="Intermediate-Frequency Bandwidth" symbol="IFBW">
+Down-converted receiver가 한 frequency point에서 통과시키는 measurement bandwidth다. 좁히면 receiver noise가 줄지만 settling과 acquisition 시간이 늘어난다. RF sweep span을 줄이는 knob가 아니다.
+</Definition>
+
+<InstrumentLab labId="ena-safe-sweep" />
+
+## S11과 S21은 같은 receiver 조합이 아니다
+
+- `S11 = b1/a1`: port 1로 incident wave를 보내고 port 1 reflection을 읽는다.
+- `S21 = b2/a1`: 같은 incident wave에 대해 port 2 transmission을 읽는다.
+- `S22 = b2/a2`, `S12 = b1/a2`: stimulus 방향이 반대다.
+
+PA의 output에 port 2가 연결되어 있을 때 full 2-port sweep는 port 2 source가 PA output을 reverse-drive할 수 있다. “네 S-parameter를 한 번에”가 항상 안전한 기본값은 아니다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="RF OFF에서 power·grid·receiver 조건을 닫고 sweep하자">
+
+## Preset보다 먼저 RF OFF를 명시한다
+
+E5080B 문서의 `OUTP` 기본값은 ON이며 factory preset도 source power를 켤 수 있다. Active DUT나 민감한 입력이 연결된 bench에서 `SYST:FPR` 또는 preset을 습관적인 첫 명령으로 쓰지 않는다.
+
+~~~text
+*IDN?
+*OPT?
+OUTP OFF
+*CLS
+SYST:POW1:LIM -20 DBM
+SYST:POW1:LIM:STAT ON
+SENS1:FREQ:STAR 1 GHZ
+SENS1:FREQ:STOP 6 GHZ
+SENS1:SWE:POIN 201
+SENS1:BWID 1 KHZ
+SOUR1:POW1 -30 DBM
+*OPC?
+SOUR1:POW1?
+OUTP?
+SYST:ERR?
+~~~
+
+`SYST:POW1:LIM`의 일반 기본값은 보호 목표로 볼 수 없는 높은 값일 수 있다. DUT와 fixture 기준의 낮은 limit을 **명시적으로 설정하고 state를 ON**한 뒤 query-back한다.
+
+<MeasurementNote title="Calibration power limit은 일반 limit과 자동으로 같은 상태가 아니다" kind="warning">
+SCPI calibration에서는 `SYST:POW1:LIM:CAL <dBm>`와 `SYST:POW:LIM:CAL:STAT ON`을 별도로 설정한다. Guided calibration이 끝났거나 실패하면 `...:STAT OFF`를 finally에서 정리한다. Cal standard의 power rating과 active DUT의 reverse path를 별도로 확인한다.
+</MeasurementNote>
+
+## Sweep knob를 원인별로 분리한다
+
+| 변경 | 직접 바뀌는 것 | 화면에서 기대할 것 | 비용·주의 |
+|---|---|---|---|
+| Start/stop | 관찰 frequency range | resonance 포함 여부, time resolution | Calibration range 밖이면 correction 무효 |
+| Points | frequency sample spacing | 좁은 feature를 놓칠 가능성 | 점이 많으면 sweep time·data size 증가 |
+| IFBW 감소 | receiver noise bandwidth | trace noise 감소 | point당 settling 증가 |
+| Averaging 증가 | 여러 sweep/sample 통계 | random noise 감소 | drift·DUT heating을 평균에 섞을 수 있음 |
+| Source power 증가 | DUT에 incident wave | SNR 증가 가능 | DUT/receiver compression·damage 위험 |
+
+## 연결 전 bench checklist
+
+- DUT와 cable의 connector type·gender·torque·frequency/power rating을 확인한다.
+- DC가 test port로 들어올 수 있으면 bias tee/DC block topology와 rating을 확인한다.
+- Active DUT output에는 VNA port 2 앞의 **external attenuator 또는 coupler**를 계산한다.
+- VNA receiver의 auto gain은 damage protection이 아니다.
+- Port 2 source가 켜지는 S12/S22 sweep는 DUT reverse input limit과 별도 허가가 있을 때만 수행한다.
+- Cable을 움직인 뒤에는 calibration validity와 connector repeatability를 다시 평가한다.
+
+## 한 점씩 증거를 쌓는 순서
+
+`connect → identity/options → RF OFF → explicit limit → sweep configure → query-back/errors → calibration check → low-power RF ON → trigger → *OPC? → data → OUTP OFF`
+
+통신 단절 뒤 software `OUTP OFF`가 실행됐다고 가정하지 않는다. Front panel state, external RF switch/interlock와 DUT bias safe-down이 필요하다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Complex ratio, frequency spacing과 시간 비용을 수식으로 닫자">
+
+<FormulaDisclosure title="2-port S-parameter" formula="b₁=S₁₁a₁+S₁₂a₂,   b₂=S₂₁a₁+S₂₂a₂">
+`S21`을 측정할 때 port 2 incident wave를 0으로 만드는 matched termination 조건을 가정해 `S21=b2/a1`로 읽는다. 실제 fixture와 DUT mismatch는 calibration, multiple reflection과 reference plane의 영향을 받는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Linear sweep frequency spacing" formula="Δf=(f_stop−f_start)/(N−1)">
+1–6 GHz를 201 point로 읽으면 spacing은 25 MHz다. 5 MHz 폭의 resonance를 정확히 보려면 span을 줄이거나 point를 늘려야 한다. Marker interpolation은 측정하지 않은 complex 정보를 새로 만들지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="IFBW와 noise의 1차 직관" formula="Noise amplitude ∝ √BW,   noise power ∝ BW">
+IFBW를 100배 줄이면 이상적인 white-noise power는 약 20 dB 줄 수 있지만 실제 trace 개선과 sweep time은 receiver architecture, settling, averaging과 DUT drift에 의존한다.
+</FormulaDisclosure>
+
+## Receiver compression specification을 안전 한계로 쓰지 않는다
+
+E5080B-2K0, bias tee가 없는 구성의 data-sheet receiver compression 표에는 frequency 구간별 test point가 제시된다. 예를 들어 10 MHz–6.5 GHz에서 +10 dBm 수준의 0.2 dB/5° compression test point가 있다. 이것은 **specified comparison point**이지 권장 working input이 아니다. Frequency별 성능, 외부 attenuation, uncertainty와 guard를 포함해 훨씬 보수적인 station limit을 정한다.
+
+또한 +27 dBm 또는 ±35 VDC damage level을 “그 아래면 안전”이라고 해석하지 않는다. Damage level, compression level, 정확도 보장 범위와 실제 working limit은 네 개의 다른 경계다.
+
+## Cause/Effect를 자기 말로 연결하기
+
+“IFBW를 10 kHz에서 1 kHz로 줄였기 때문에 receiver filter noise bandwidth가 줄어 trace가 안정될 수 있지만, 각 frequency point의 settling 시간이 늘었다. Source frequency와 DUT S-parameter가 바뀐 것은 아니며, calibration 조건과 DUT heating이 유지되는지 확인해야 한다.”
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. SA spectrum과 VNA S21 trace가 각각 어떤 acquisition을 하는지 비교할 수 있는가?
+2. `OUTP OFF`와 source power limit을 preset보다 먼저 두는 이유는 무엇인가?
+3. Points·IFBW·averaging을 바꿨을 때 변하는 물리량과 변하지 않는 물리량을 말할 수 있는가?

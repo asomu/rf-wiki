@@ -1,0 +1,63 @@
+.mxa-path { isolation: isolate; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 0; padding: var(--space-4); list-style: none; background: var(--color-instrument); }
+.mxa-path li { position: relative; min-width: 0; padding: var(--space-3); border-block: var(--stroke-hairline) solid var(--color-instrument-grid); border-inline-start: var(--stroke-hairline) solid var(--color-instrument-grid); color: var(--color-instrument-muted); }
+.mxa-path li:last-child { border-inline-end: var(--stroke-hairline) solid var(--color-instrument-grid); }
+.mxa-path li::after { position: absolute; inset-block-start: 50%; inset-inline-end: calc(var(--space-2) * -1); content: '→'; color: var(--color-instrument-muted); transform: translateY(-50%); }
+.mxa-path li:last-child::after { content: none; }
+.mxa-path li.is-active { border-color: var(--color-forward-bright); color: var(--color-instrument-ink); }
+.mxa-path i, .mxa-path strong, .mxa-path span { display: block; }
+.mxa-path i { margin-bottom: var(--space-1); color: var(--color-instrument-muted); font-style: normal; }
+.mxa-path .is-active i { color: var(--color-forward-bright); }
+.mxa-path strong { font: var(--font-weight-semibold) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+.mxa-path span { margin-top: var(--space-1); overflow-wrap: anywhere; font-size: var(--font-size-data); }
+.mxa-readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: var(--stroke-hairline) solid var(--color-instrument-grid); background: var(--color-instrument); }
+.mxa-readouts > div { min-width: 0; padding: var(--space-3); border-inline-end: var(--stroke-hairline) solid var(--color-instrument-grid); }
+.mxa-readouts > div:last-child { border-inline-end: 0; }
+.mxa-readouts dt, .mxa-readouts dd { margin: 0; }
+.mxa-readouts dt { color: var(--color-instrument-muted); font-size: var(--font-size-data); }
+.mxa-readouts dd { margin-top: var(--space-1); overflow-wrap: anywhere; color: var(--color-instrument-ink); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+.mxa-readouts [data-tone='active'] dd { color: var(--color-forward-bright); }
+.mxa-readouts [data-tone='reference'] dd { color: var(--color-reference-bright); }
+.mxa-readouts [data-tone='warning'] dd { color: var(--color-reverse-bright); }
+.mxa-plot-bg { fill: var(--color-instrument); }
+.mxa-axis, .mxa-grid { stroke: var(--color-instrument-muted); stroke-width: var(--stroke-hairline); }
+.mxa-grid { opacity: .32; }
+.mxa-axis-label { fill: var(--color-instrument-muted); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+.mxa-label { font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+.mxa-label--active { fill: var(--color-forward-bright); }
+.mxa-label--reference { fill: var(--color-reference-bright); }
+.mxa-label--warning { fill: var(--color-reverse-bright); }
+.mxa-limit { stroke: var(--color-reverse-bright); stroke-width: calc(var(--stroke-hairline) * 2); }
+.mxa-reference { stroke: var(--color-reference-bright); stroke-width: calc(var(--stroke-hairline) * 2); }
+.mxa-marker { stroke: var(--color-instrument); stroke-width: calc(var(--stroke-hairline) * 2); }
+.mxa-marker--active { fill: var(--color-forward-bright); }
+.mxa-marker--reference { fill: var(--color-reference-bright); }
+.mxa-marker--warning { fill: var(--color-reverse-bright); }
+.mxa-trace { stroke: var(--color-forward-bright); stroke-width: calc(var(--stroke-hairline) * 2); vector-effect: non-scaling-stroke; }
+.mxa-marker-line { stroke: var(--color-reference-bright); stroke-width: var(--stroke-hairline); }
+.mxa-iq-circle { fill: none; stroke: var(--color-instrument-grid); stroke-width: var(--stroke-hairline); }
+.mxa-iq-band { fill: var(--color-forward-bright); fill-opacity: .12; stroke: var(--color-forward-bright); stroke-width: var(--stroke-hairline); }
+.mxa-table, .mxa-dependency { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--color-instrument); color: var(--color-instrument-ink); }
+.mxa-table caption, .mxa-dependency caption { padding: var(--space-3) var(--space-4); color: var(--color-instrument-muted); text-align: start; }
+.mxa-table th, .mxa-table td, .mxa-dependency th, .mxa-dependency td { padding: var(--space-3); border: var(--stroke-hairline) solid var(--color-instrument-grid); text-align: start; vertical-align: top; }
+.mxa-table th, .mxa-table td, .mxa-dependency th, .mxa-dependency td { overflow-wrap: anywhere; }
+.mxa-table th, .mxa-dependency th { color: var(--color-reference-bright); font-size: var(--font-size-data); }
+.mxa-table td, .mxa-dependency td { font-size: var(--font-size-label); }
+.mxa-console-entry { display: grid; gap: var(--space-2); padding: var(--space-3); border: var(--stroke-hairline) solid var(--color-rule); background: var(--color-surface); }
+.mxa-console-entry input { width: 100%; min-height: var(--target-min); box-sizing: border-box; padding: var(--space-2) var(--space-3); border: var(--stroke-hairline) solid var(--color-rule-strong); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+.mxa-console-entry input:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.mxa-console-entry > div, .mxa-recipe-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.mxa-console-entry p { margin: 0; color: var(--color-muted); font-size: var(--font-size-data); }
+.mxa-recipe-buttons { padding: var(--space-3); border: var(--stroke-hairline) solid var(--color-rule); }
+.mxa-recipe-buttons > span { flex-basis: 100%; color: var(--color-muted); font-size: var(--font-size-data); }
+.mxa-console { background: var(--color-instrument); color: var(--color-instrument-ink); }
+.mxa-console-status { display: flex; flex-wrap: wrap; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--stroke-hairline) solid var(--color-instrument-grid); color: var(--color-instrument-muted); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+.mxa-console-status strong { color: var(--color-instrument-ink); }
+.mxa-console ol { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-4); list-style: none; }
+.mxa-console li { display: grid; grid-template-columns: minmax(var(--space-16), auto) minmax(0, 1fr); gap: var(--space-3); padding-block: var(--space-1); border-bottom: var(--stroke-hairline) solid var(--color-instrument-grid); }
+.mxa-console li span { color: var(--color-forward-bright); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); text-transform: uppercase; }
+.mxa-console li code { overflow-wrap: anywhere; color: var(--color-instrument-ink); }
+.mxa-console li[data-outcome='error'] span, .mxa-console li[data-outcome='error'] code { color: var(--color-reverse-bright); }
+.mxa-console li[data-outcome='would-time-out'] span, .mxa-console li[data-outcome='would-time-out'] code { color: var(--color-reference-bright); }
+@container (max-width: 760px) { .mxa-path { grid-template-columns: repeat(3, minmax(0, 1fr)); } .mxa-path li:nth-child(3)::after { content: none; } .mxa-readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mxa-readouts > div:nth-child(2) { border-inline-end: 0; } }
+@container (max-width: 480px) { .mxa-axis-label, .mxa-label { font-size: calc(var(--font-size-data) * 2); } .mxa-path { grid-template-columns: minmax(0, 1fr); } .mxa-path li { border-inline-end: var(--stroke-hairline) solid var(--color-instrument-grid); border-bottom: 0; } .mxa-path li:last-child { border-bottom: var(--stroke-hairline) solid var(--color-instrument-grid); } .mxa-path li::after { inset-block-start: auto; inset-block-end: calc(var(--space-2) * -1); inset-inline-end: 50%; transform: rotate(90deg); } .mxa-path li:nth-child(3)::after { content: '→'; } .mxa-path li:last-child::after { content: none; } .mxa-console li { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }
+@media (prefers-reduced-motion: reduce) { .mxa-trace { transition: none; } }

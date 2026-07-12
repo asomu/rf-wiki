@@ -1,0 +1,42 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import InstrumentLessonLayout from '../../../layouts/InstrumentLessonLayout.astro';
+import LessonReferences from '../../../components/astro/LessonReferences.astro';
+import { isPublishedLesson } from '../../../lib/content-publication';
+import { n5182b, type InstrumentChapterId } from '../../../data/instruments';
+
+export async function getStaticPaths() {
+  const lessons = await getCollection(
+    'instrumentLesson',
+    ({ data }) => data.instrumentId === n5182b.id && isPublishedLesson(data),
+  );
+  return lessons.map((lesson) => ({
+    params: { chapter: lesson.data.chapter },
+    props: { lesson },
+  }));
+}
+
+interface Props {
+  lesson: CollectionEntry<'instrumentLesson'>;
+}
+
+const { lesson }: Props = Astro.props;
+const { Content } = await render(lesson);
+const { data } = lesson;
+---
+
+<InstrumentLessonLayout
+  title={data.title}
+  description={data.description}
+  instrumentId={n5182b.id}
+  chapterId={data.chapter as InstrumentChapterId}
+  estimatedMinutes={data.estimatedMinutes}
+>
+  <Content />
+  <LessonReferences
+    outcomes={data.outcomes}
+    equipmentContext={data.equipmentContext}
+    standards={[]}
+    references={data.references}
+  />
+</InstrumentLessonLayout>

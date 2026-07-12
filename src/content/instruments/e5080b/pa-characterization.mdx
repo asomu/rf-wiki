@@ -1,0 +1,195 @@
+---
+title: "VNA로 PA를 볼 때 small-signal 가정을 언제 멈춰야 할까?"
+description: "E5080B로 PA의 low-drive S-parameter와 gain compression을 측정할 때 source drive, reverse stimulus, receiver protection, bias·thermal state와 후속 SA/sensor/PSU 경계를 안전하게 설계한다."
+instrumentId: "keysight-e5080b"
+chapter: "pa-characterization"
+order: 5
+estimatedMinutes: 85
+prerequisites:
+  - "safe-sweep"
+  - "calibration-reference-plane"
+  - "sparameters-smith-time"
+  - "vna-scpi-data"
+  - "pa-pull"
+outcomes:
+  - "Small-signal S-parameter와 power-dependent gain compression의 가정 차이를 설명할 수 있다."
+  - "PA Pout, external attenuation와 receiver working limit을 계산하고 reverse drive를 명시적으로 차단할 수 있다."
+  - "Source compression, DUT compression, oscillation과 calibration invalidation을 분리하는 multi-instrument PA workflow를 설계할 수 있다."
+concepts:
+  - "small-signal S-parameter"
+  - "gain compression"
+  - "receiver protection"
+  - "reverse drive"
+  - "source compression"
+  - "stability"
+  - "bias state"
+  - "thermal memory"
+  - "gain compression application"
+  - "measurement dependency map"
+equipmentContext:
+  source: "Keysight E5080B-2K0 port 1 with explicit source limit and low-power start"
+  dut: "Connectorized PA with approved bias, input/output and thermal safety envelope"
+  analyzer: "E5080B port 2 behind external attenuation/coupler; power sensor, SA/VSA and PSU as dependent instruments"
+references:
+  - title: "E5080B ENA Vector Network Analyzer Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06574/data-sheets/5992-3843.pdf"
+    kind: "vendor"
+  - title: "E5080B Online Help — Gain Compression Application"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/Applications/Gain_Compression_Application.htm"
+    kind: "vendor"
+  - title: "E5080B Configuration Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06573/configuration-guides/5992-3842.pdf"
+    kind: "vendor"
+labId: "ena-pa-characterization"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+PA의 `S21 = 24 dB`는 보통 한 bias, 한 frequency와 충분히 작은 incident wave에서의 complex derivative에 가깝다. Drive를 올려 compression, temperature와 supply current가 달라지면 DUT는 더 이상 같은 linear two-port가 아니다. VNA를 쓰는 이유가 사라지는 것이 아니라 **측정 state에 power 축이 추가된다.**
+
+<LessonLayer level="intuition" title="PA measurement를 source·DUT·receiver의 세 power envelope로 보자">
+
+## Port 1에 작은 power를 넣어도 port 2에는 큰 power가 올 수 있다
+
+`Pin = −10 dBm`, PA gain `25 dB`라면 Pout은 약 `+15 dBm`이다. Port 2 앞에 20 dB external attenuation이 있으면 receiver path에는 약 `−5 dBm`이 도달한다. Source setpoint 하나만 보고 receiver safety를 판단할 수 없다.
+
+<Definition term="Small-signal S-parameter">
+DUT operating point 주위의 작은 perturbation에 대한 linear complex ratio다. Bias, frequency, temperature, source/load termination과 drive level이 달라지면 새로운 S-parameter state다.
+</Definition>
+
+<Definition term="Gain compression">
+Input power를 올릴 때 output power가 linear extrapolation보다 덜 증가해 gain이 줄어드는 현상이다. DUT compression을 결론 내리기 전에 VNA source, receiver, external attenuator와 fixture가 linear한지 확인한다.
+</Definition>
+
+<InstrumentLab labId="ena-pa-characterization" />
+
+## Full 2-port sweep의 숨은 reverse stimulus
+
+S22와 S12를 측정하려면 port 2 source가 켜진다. PA output은 reverse input power rating이 매우 낮거나 output network가 source drive를 예상하지 않을 수 있다. 처음 bring-up에서는 S21-only forward measurement로 시작한다. 제공 Python 예제는 physical S12/S22에 `--execute --rf-on --reverse-drive` 세 consent를 모두 요구한다. 모든 physical sweep는 DUT input limit, receiver working limit, 최대 DUT gain과 signed path gain/loss·uncertainty·guard를 명시하고, full configuration query-back과 clean error queue가 확인된 뒤에만 RF를 켠다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Receiver를 보호하고 compression 원인을 분리하는 state machine을 만들자">
+
+## 네 종류의 한계를 구분한다
+
+1. **Damage limit**: 넘으면 하드웨어 손상 가능성이 있는 절대 경계다.
+2. **Receiver compression test point**: data sheet가 특정 amplitude/phase compression을 평가한 조건이다.
+3. **Specified accuracy range**: 동적 정확도와 traceability가 보장되는 조건이다.
+4. **Station working limit**: uncertainty와 guard를 포함해 사용자가 더 낮게 정한 실제 운용 경계다.
+
+E5080B-2K0 without bias tee의 receiver compression 표에는 예를 들어 10 MHz–6.5 GHz에서 +10 dBm, 6.5–9 GHz +9 dBm, 9–16 GHz +7 dBm, 16–20 GHz +4 dBm의 test point가 제시된다. 이 숫자는 보수적인 safe input이 아니다. +27 dBm 또는 ±35 VDC damage condition 역시 작업 목표가 아니다.
+
+<MeasurementNote title="ENA receiver gain auto는 external 보호 소자가 아니다" kind="warning">
+E5080B ENA에서 PNA식 receiver attenuator control을 기대하지 않는다. External attenuator/coupler, DC block, isolator의 frequency·power·mismatch·thermal rating을 계산하고 port 2 바로 앞 물리적 보호를 사용한다.
+</MeasurementNote>
+
+## Receiver budget을 DUT output plane에서 계산한다
+
+`P_port2,estimated = P_DUT,out − L_external_path`
+
+`P_permitted = P_working_limit − uncertainty − guard`
+
+두 값을 비교한다. External path에는 attenuator nominal loss뿐 아니라 cable/coupler loss, frequency response, calibration uncertainty와 worst-case mismatch를 포함한다.
+
+## Safe bring-up 순서
+
+1. DUT를 연결하지 않은 상태에서 VNA identity/options/firmware를 확인한다.
+2. `OUTP OFF`, explicit source power limit와 port 2 external protection을 확인한다.
+3. Through/attenuator path에서 VNA source linearity와 receiver dynamic accuracy를 baseline으로 만든다.
+4. DUT별 gate/drain/bias sequence, current limit, interlock와 temperature limit을 적용한다.
+5. S21-only, 최소 verified Pin, narrow safe frequency range로 시작한다.
+6. RF ON 후 Pout sensor/receiver, supply current, unexpected oscillation을 확인한다.
+7. 작은 step과 dwell로 Pin을 올리고 각 point에서 source query-back, Pout, gain, current, temperature와 receiver range를 저장한다.
+8. Limit 초과·timeout·사용자 abort 시 `OUTP OFF`를 먼저 시도하고 DUT-specific bias safe-down과 diagnostics를 수행한다.
+
+## Source compression과 DUT compression을 분리한다
+
+PA를 제거한 verified through/attenuator path에서 같은 source power sweep를 수행한다.
+
+- Requested source가 1 dB 증가했을 때 measured incident power도 1 dB 증가하는가?
+- Receiver response가 같은 비율로 linear한가?
+- Internal source leveling/range change 지점에서 discontinuity가 없는가?
+- Fixture/attenuator가 heating으로 loss를 바꾸지 않는가?
+
+그 뒤 DUT 측정에서 **measured Pin** 대비 Pout 증가량을 비교한다. Source setpoint만 x-axis로 쓰면 source/path compression이 DUT P1dB로 잘못 보일 수 있다.
+
+## Calibration power와 measurement power를 혼동하지 않는다
+
+Active DUT가 연결된 채 guided calibration을 실행하지 않는다. Calibration standard와 DUT topology를 안전하게 전환하고 calibration source limit을 별도로 켠다. Power sweep 중 calibration 조건을 벗어나면 correction validity와 source power calibration method를 다시 평가한다.
+
+## Optional Gain Compression Application
+
+E5080B의 Gain Compression Application은 S96086B option/라이선스와 설치 환경에 따라 사용할 수 있다. Application이 compression search와 display를 돕더라도 다음을 자동 해결하지 않는다.
+
+- PA bias/interlock와 thermal policy
+- External receiver protection
+- DUT input/output absolute power plane calibration
+- Source compression baseline
+- Reverse-drive safety
+- Power sensor/SA/PSU measurement synchronization
+
+Option이 없는 장비에 GCA 전용 명령을 보내지 않고 capability를 `*OPT?`와 설치 software에서 확인한다.
+
+## Stability는 K 숫자 하나로 끝내지 않는다
+
+Low-drive S-parameter에서 K, μ와 stability circle을 계산할 수 있지만, large-signal PA는 bias network, harmonic termination, output power, temperature와 load modulation에 따라 stability가 달라진다. 예상하지 않은 tone이나 noise rise는 SA에서 확인하고 bias current/temperature를 동기화한다.
+
+## 장비별 책임 지도
+
+| 질문 | 주 장비 | E5080B가 제공하는 것 |
+|---|---|---|
+| S11/S21 complex ratio, group delay | VNA | 직접 측정 |
+| DUT-plane absolute Pin/Pout | Calibrated power sensor | VNA source/receiver calibration을 보조 |
+| Harmonic, spur, ACLR, EVM | SA/VSA | stimulus/network state만 제공, 결과 직접 산출 아님 |
+| Voltage, current, DC power | PSU/power analyzer | Bias state를 measurement metadata로 연결 |
+| PAE | Sensor + PSU + orchestration | VNA gain/phase와 함께 해석 가능 |
+
+E5080B core workflow가 EVM·ACLR를 직접 측정한다고 표현하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Compression, receiver budget과 gain 정의를 수식으로 닫자">
+
+<FormulaDisclosure title="Measured power gain" formula="G_P(dB)=P_out,DUT-plane(dBm)−P_in,DUT-plane(dBm)">
+두 power는 같은 frequency, waveform, time state와 명시된 planes에서 측정한다. VNA source setpoint를 calibrated DUT Pin과 같은 field로 덮어쓰지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="1 dB gain compression" formula="G_linear(Pin)−G_actual(Pin)=1 dB">
+Low-drive linear fit은 receiver noise보다 충분히 높고 DUT compression보다 낮은 points로 만든다. Step size, interpolation, sweep direction, dwell과 temperature를 결과에 포함한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Receiver working envelope" formula="P_RX,worst=P_out,max−L_path,min+U_path,   require P_RX,worst≤P_working−guard">
+Loss는 최솟값, uncertainty는 receiver 쪽 power를 가장 크게 만드는 방향으로 계산한다. Average, peak와 CW rating이 다르면 가장 위험한 waveform condition을 별도 평가한다.
+</FormulaDisclosure>
+
+## Small-signal S21과 transducer/operating gain
+
+VNA S21은 matched port convention의 complex wave ratio다. 실제 source/load mismatch에서 delivered gain을 계산할 때는 S11/S22/S12, ΓS/ΓL과 multiple reflection이 필요하다. PA가 compression에 들어가면 한 세트의 linear S-parameter로 모든 drive level을 예측하지 않는다.
+
+## One-point transaction
+
+`RF OFF → source power set/query → receiver range check → RF ON → settle → INIT/*OPC? → complex data + sensor + PSU read → limits/validity → commit → RF OFF on failure/end`
+
+각 point는 calibration ID, path correction, bias/current, temperature, source/receiver overload state와 error queue가 모두 valid일 때만 정상 결과로 commit한다.
+
+## Cause/Effect를 자기 말로 닫기
+
+“DUT Pin을 올렸기 때문에 PA Pout이 증가해 port 2 receiver 예상 power도 증가했다. External attenuator 뒤 worst-case input을 자체 working limit과 guard에 비교했고, through baseline에서 source/receiver linearity가 유지된 점만 DUT compression fit에 사용했다. Reverse S-parameter stimulus는 별도 승인 전까지 차단했다.”
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. Damage, compression test point, specified range와 station working limit을 어떻게 구분하는가?
+2. Full 2-port sweep가 PA output을 reverse-drive할 수 있는 이유는 무엇인가?
+3. VNA source/path compression과 DUT compression을 어떤 baseline으로 분리할 것인가?
+4. EVM·ACLR·PAE 결과를 얻으려면 어떤 후속 장비가 필요한가?

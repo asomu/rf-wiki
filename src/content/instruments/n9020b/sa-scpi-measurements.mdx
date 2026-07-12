@@ -1,0 +1,318 @@
+---
+title: "자주 쓰는 SA 동작을 어떤 SCPI 상태기계로 묶어야 할까?"
+description: "N9020B를 LAN/HiSLIP·PyVISA로 제어할 때 mode, front-end, sweep, marker, trace, Channel Power, OBW와 ACP를 동기화된 transaction으로 설계한다."
+instrumentId: "keysight-n9020b"
+chapter: "sa-scpi-measurements"
+order: 4
+estimatedMinutes: 90
+prerequisites:
+  - "safe-input"
+  - "sweep-rbw-detector"
+  - "iq-capture-trigger"
+outcomes:
+  - "Mode·measurement·front-end·acquisition·result를 분리한 N9020B SCPI state machine을 설명할 수 있다."
+  - "Single sweep, peak marker, trace fetch, Channel Power, OBW와 ACP의 자주 쓰는 sequence를 작성할 수 있다."
+  - "*OPC?, query-back, output queue, error queue, stale data와 timeout을 구분해 PyVISA transaction을 검증할 수 있다."
+concepts:
+  - "VISA alias"
+  - "HiSLIP"
+  - "SCPI mode tree"
+  - "single acquisition"
+  - "query-back"
+  - "operation complete"
+  - "output queue"
+  - "error queue"
+  - "trace data"
+  - "marker search"
+  - "one-button measurement"
+equipmentContext:
+  source: "Keysight N5182B known CW·two-tone·OFDM-like signal, low-power validation state"
+  dut: "50 Ω through를 먼저 검증하고 이후 protected connectorized PA path"
+  analyzer: "Keysight N9020B-526/B1X/MPB/P26 firmware A.43.49, Connection Expert VISA alias MXA_N9020B"
+references:
+  - title: "X-Series Signal Analyzer Programmer's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-02192/programming-guides/9018-02192.pdf"
+    kind: "vendor"
+  - title: "X-Series Signal Analyzer Spectrum Analyzer Mode User's & Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04666/user-manuals/9018-04666.pdf"
+    kind: "vendor"
+  - title: "Programming Instruments with Keysight IO Libraries"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/IO_Libraries_Suite/English/IOLS_Windows/IOLS/Content/ProgrammingGuide/Conceptual_Topics/Programming_Instruments.htm"
+    kind: "vendor"
+labId: "mxa-scpi-measurements"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+`write("INIT:IMM")`가 성공했다는 사실은 새 trace가 준비됐다는 뜻이 아니다. Command는 acquisition을 시작했을 뿐이고, trigger·sweep·averaging·measurement calculation이 끝난 뒤에야 result를 가져올 수 있다. 안정적인 SA 프로그램은 명령 목록보다 **상태와 증거의 순서**가 먼저다.
+
+<LessonLayer level="intuition" title="SCPI를 mode tree와 acquisition timeline으로 나눠 보자">
+
+## 객체 축: instrument → mode → measurement → trace/result
+
+- **Instrument session** — VISA transport, timeout, identity와 option을 소유한다.
+- **Mode** — `SA`, IQ Analyzer처럼 유효한 SCPI tree를 선택한다.
+- **Measurement** — Swept SA, Channel Power, OBW, ACP처럼 계산 목적과 state를 선택한다.
+- **Acquisition** — continuous/single, trigger, pending/complete를 소유한다.
+- **Trace/result** — display point array 또는 scalar/vector measurement result다.
+
+Mode가 SA여도 measurement가 `SAN`인지 `CHP`인지에 따라 같은 `FETCh?`의 의미와 valid command가 달라진다. `TRAC? TRACE1`과 `FETC:CHP?`는 둘 다 숫자를 반환하지만 전자는 display trace, 후자는 measurement algorithm의 결과다.
+
+<Definition term="Query-back">
+설정 command 뒤 같은 state를 query해 instrument가 실제로 수용·couple한 값을 확인하는 단계다. `BAND:RES 100KHZ` write 성공보다 `BAND:RES? → 100000`과 error queue가 함께 있어야 configuration evidence가 된다.
+</Definition>
+
+<Definition term="Stale data">
+이전 acquisition의 result는 memory에 남아 있을 수 있다. 새 frequency·attenuation·trigger를 쓴 뒤 acquisition complete 전에 읽은 숫자는 transport 관점에서는 response여도 현재 설정의 측정값은 아니다. RF Wiki reducer와 host adapter는 새 configuration 뒤 result를 stale로 표시하고, 새 acquisition complete 전 fetch를 error로 거절한다.
+</Definition>
+
+<InstrumentLab labId="mxa-scpi-measurements" />
+
+## 시간 축: connect → configure → acquire → fetch → close
+
+~~~text
+open VISA alias
+  → *IDN? / *OPT? / firmware check
+  → ABOR / single / safe front-end
+  → mode + measurement + settings
+  → query-back + error drain
+  → INIT:IMM
+  → *OPC? = 1
+  → marker / trace / scalar fetch
+  → metadata + errors 저장
+  → ABOR / safe front-end / close
+~~~
+
+`*OPC?`는 결과의 물리적 타당성을 증명하지 않는다. 앞선 overlapped operation이 완료됐음을 알려줄 뿐이다. Overload status, point count, units, reference plane과 independent known signal 검증이 따로 필요하다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="자주 쓰는 동작을 재사용 가능한 transaction으로 만든다">
+
+## Session 시작과 안전한 기본 상태
+
+Connection Expert에서 N9020B serial number를 확인하고 `MXA_N9020B` 같은 alias를 만든다. Production code는 `list_resources()[0]` 또는 고정 IP를 사용하지 않는다.
+
+~~~python
+import os
+import pyvisa
+
+resource = os.environ["N9020B_VISA_RESOURCE"]
+rm = pyvisa.ResourceManager()
+sa = rm.open_resource(resource)
+sa.timeout = 30_000
+sa.read_termination = "\n"
+sa.write_termination = "\n"
+
+try:
+    identity = sa.query("*IDN?").strip()
+    options = sa.query("*OPT?").strip()
+    if "N9020B" not in identity:
+        raise RuntimeError(f"unexpected analyzer: {identity}")
+    for required in ("526", "B1X", "MPB", "P26"):
+        if required not in options:
+            raise RuntimeError(f"missing required option {required}: {options}")
+    sa.write("ABOR")
+    sa.write("*CLS")
+    sa.write("INST:SEL SA")
+    sa.write("CONF:SAN:NDEF")
+    sa.write("INIT:CONT OFF")
+    sa.write("POW:GAIN OFF")
+    sa.write("POW:ATT:AUTO OFF")
+    sa.write("POW:ATT 40 DB")
+finally:
+    try:
+        sa.write("ABOR")
+        sa.write("INIT:CONT OFF")
+        sa.write("POW:GAIN OFF")
+        sa.write("POW:ATT 40 DB")
+    finally:
+        sa.close()
+        rm.close()
+~~~
+
+N9020B는 source가 아니므로 `RF OFF` command가 없다. Cleanup의 목적은 이미 들어오는 external RF를 끄는 것이 아니라 pending acquisition을 abort하고, preamp OFF·높은 attenuation의 보수적 front-end state로 복귀하는 것이다. 실제 RF는 SG RF OFF, PA bias sequence와 hardware switch가 담당한다.
+
+## 자주 쓰는 command map
+
+| 의도 | 대표 command/query | 저장할 증거 |
+|---|---|---|
+| Identity·option | `*IDN?`, `*OPT?` | Model, serial, firmware, option string |
+| Mode catalog·select | `INST:CAT?`, `INST:SEL SA`, `INST:SEL?` | 실제 mode 이름 |
+| Measurement select | `CONF:SAN:NDEF`, `CONF:CHP`, `CONF:OBW`, `CONF:ACP`, `CONF?` | 선택 후 measurement |
+| Stop / single | `ABOR`, `INIT:CONT OFF`, `INIT:IMM`, `*OPC?` | Pending, latency, completion |
+| Frequency | `FREQ:CENT`, `FREQ:SPAN`, `FREQ:STAR`, `FREQ:STOP` | Query-back Hz |
+| Front end | `POW:ATT:AUTO`, `POW:ATT`, `POW:GAIN`, reference level | Attenuation, preamp, range |
+| Filtering | `BAND:RES`, `BAND:VID`, 각 `:AUTO` | Actual RBW/VBW |
+| Detector·trace | `DET:TRAC1`, `TRAC1:TYPE`, `TRAC? TRACE1` | Enum, points, units |
+| Trigger | `TRIG:SAN:SOUR IMM|VID|EXT1|RFB` | Source, event wiring, delay |
+| Marker | `CALC:MARK1:STAT`, max search, `CALC:MARK1:X?`, `CALC:MARK1:Y?` | Frequency·amplitude pair |
+| Error/status | `SYST:ERR?`, ADC over-range/status query | Full FIFO와 overload flags |
+
+Command의 long/short form은 대문자로 표시된 keyword 경계만 줄인다. `FREQuency`는 `FREQ` 또는 `FREQUENCY`이고 `FRE`처럼 임의로 자르지 않는다.
+
+## Recipe 1 — Single swept spectrum + peak marker + trace
+
+~~~text
+ABOR
+INST:SEL SA
+CONF:SAN:NDEF
+INIT:CONT OFF
+CHP:FREQ:CENT 3.5 GHZ
+FREQ:SPAN 200 MHZ
+POW:GAIN OFF
+POW:ATT:AUTO OFF
+POW:ATT 30 DB
+BAND:RES:AUTO OFF
+BAND:RES 100 KHZ
+BAND:VID:AUTO ON
+DET:TRAC1 NORM
+TRAC1:TYPE WRIT
+SWE:POIN 1001
+TRIG:SAN:SOUR IMM
+FREQ:CENT?
+FREQ:SPAN?
+POW:ATT?
+BAND:RES?
+TRIG:SAN:SOUR?
+SYST:ERR?
+INIT:IMM
+*OPC?
+CALC:MARK1:STAT ON
+CALC:MARK1:MAX
+CALC:MARK1:X?
+CALC:MARK1:Y?
+TRAC? TRACE1
+SYST:ERR?
+~~~
+
+Firmware의 exact marker-max form은 A.43.49 command tree에서 확인해 catalog에 고정한다. Long-form synonym을 임의로 조립하지 않는다. Trace는 `SWE:POIN?`과 같은 길이인지 확인하고 start/stop frequency와 함께 저장한다.
+
+## Recipe 2 — Channel Power
+
+~~~text
+ABOR
+INST:SEL SA
+CONF:CHP
+OBW:FREQ:CENT 3.5 GHZ
+CHP:BAND:INT 100 MHZ
+CHP:BAND:INT?
+INIT:CONT OFF
+INIT:IMM
+*OPC?
+FETC:CHP?
+SYST:ERR?
+~~~
+
+`FETC:CHP?`는 현재 Channel Power acquisition 결과를 가져오며 새 acquisition을 암묵적으로 시작시키지 않는다. Scalar 한 개만 필요하면 현재 reference가 제공하는 result-specific query를 사용하고, 반환 field 순서를 metadata로 고정한다.
+
+## Recipe 3 — 99% Occupied Bandwidth
+
+~~~text
+ABOR
+CONF:OBW
+ACP:FREQ:CENT 3.5 GHZ
+OBW:PPOW 99
+OBW:PPOW?
+INIT:CONT OFF
+INIT:IMM
+*OPC?
+FETC:OBW?
+SYST:ERR?
+~~~
+
+OBW는 “신호가 존재하는 모든 주파수”가 아니라 configured span 안 total integrated power의 지정 percent를 포함하는 폭이다. Span이 signal skirt를 자르거나 noise를 과도하게 포함하면 결과가 달라진다.
+
+## Recipe 4 — Adjacent Channel Power
+
+~~~text
+ABOR
+CONF:ACP
+FREQ:CENT 3.5 GHZ
+# carrier integration BW, offset frequency, offset BW, offset state를 명시
+ACP:OFFS1:LIST 120MHZ,240MHZ,360MHZ,480MHZ,600MHZ,720MHZ
+ACP:OFFS1:LIST:BAND 100MHZ,100MHZ,100MHZ,100MHZ,100MHZ,100MHZ
+ACP:OFFS1:LIST:STAT ON,OFF,OFF,OFF,OFF,OFF
+ACP:OFFS1:LIST?
+ACP:OFFS1:LIST:BAND?
+ACP:OFFS1:LIST:STAT?
+INIT:CONT OFF
+INIT:IMM
+*OPC?
+FETC:ACP?
+SYST:ERR?
+~~~
+
+Carrier integration bandwidth는 waveform standard에 맞게 별도 설정한다. Offset center와 offset integration bandwidth를 혼동하지 않는다. `FETC:ACP?`의 vector field 수와 order는 measurement type·offset count에 따라 달라질 수 있으므로 index를 하드코딩하기 전에 현재 manual의 result table과 길이를 검증한다.
+
+<MeasurementNote title="READ?, FETCh?와 MEASure?를 편의에 따라 섞지 않는다" kind="warning">
+`FETCh?`는 완료된 현재 result를 읽고, `READ?`는 현재 configuration에서 새 acquisition을 시작해 결과를 반환하는 계열이다. `MEASure?`는 measurement 기본 configuration까지 바꿀 수 있다. Production flow에서는 configure와 acquisition을 분리해 `INIT → *OPC? → FETCh?`를 기본으로 둔다.
+</MeasurementNote>
+
+## Output queue와 error queue
+
+Query를 보낸 뒤 response를 읽지 않고 다음 program message를 보내면 output queue가 끊길 수 있다. `query()`로 write+read를 묶고, binary block query는 text query와 다른 reader를 사용한다. `SYST:ERR?`는 별도 FIFO이며 no-error가 나올 때까지 bounded drain한다.
+
+~~~python
+import re
+
+def drain_errors(sa, maximum=32):
+    errors = []
+    for _ in range(maximum):
+        response = sa.query("SYST:ERR?").strip()
+        match = re.match(r"^\s*([+-]?\d+)", response)
+        if not match:
+            raise RuntimeError(f"malformed error response: {response!r}")
+        if int(match.group(1)) == 0:
+            if errors:
+                raise RuntimeError(f"analyzer errors: {errors}")
+            return
+        errors.append(response)
+    raise RuntimeError("error queue did not terminate within bound")
+~~~
+
+기존 오류를 log하기 전에 `*CLS`로 지우지 않는다. Configure 뒤 nonzero error가 하나라도 있었다면 마지막에 no-error가 나와도 그 transaction은 실패다.
+
+사이트의 [N9020B PyVISA 실행 가이드](/instruments/sa-mxa/python-examples/)는 dry-run이 기본이다. `--execute`가 있어야 VISA session을 열고, 실제 acquisition은 connector power·external path·SG RF state를 확인하는 별도 consent가 필요하다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Trace와 scalar result의 consistency를 검증하자">
+
+<FormulaDisclosure title="Linear trace X-axis reconstruction" formula="f[k]=f_start+k·(f_stop−f_start)/(N−1)">
+Swept SA의 linear grid에만 사용하는 fallback이다. Instrument가 X-values를 제공하면 그것을 우선하고, `N`, start/stop, detector, RBW와 units를 trace artifact에 저장한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Channel power의 linear integration" formula="P_ch(W)=ΣₖPₖ(W)·wₖ;   P_ch(dBm)=10log₁₀(P_ch/1 mW)">
+`wk`는 bin/RBW filter와 window normalization을 반영한다. dBm을 직접 더하지 않는다. Built-in Channel Power와 host integration이 다르면 detector, ENBW, span edge와 correction을 먼저 비교한다.
+</FormulaDisclosure>
+
+## 한 result record의 최소 metadata
+
+`timestamp · VISA alias · *IDN? · *OPT? · firmware · mode · measurement · center/span · attenuation/preamp/reference level · RBW/VBW/detector · trigger · point count · *OPC? latency · overload status · result schema · error queue · cleanup result`
+
+## Timeout을 결과값으로 바꾸지 않는다
+
+- `*OPC?` timeout은 measurement fail 또는 missing trigger일 수 있다. 이전 trace를 새 result로 반환하지 않는다.
+- Timeout 후 먼저 `ABOR`, status·error capture와 safe front-end cleanup을 수행한다.
+- 자동 retry는 동일 조건에서 무한 반복하지 않고 횟수를 제한한다.
+- Mode load·narrow RBW·large averaging의 valid latency를 baseline으로 측정해 timeout을 설정한다.
+- LAN 단절 때 software cleanup이 실행됐다고 가정하지 않는다. SG RF와 PA bias의 physical safe state를 독립적으로 감시한다.
+
+## 완료 전 자기 설명
+
+1. Mode, measurement, acquisition과 result가 각각 어떤 state를 소유하는가?
+2. `INIT:IMM` 뒤 바로 `TRAC? TRACE1`을 읽으면 stale data가 될 수 있는 이유는 무엇인가?
+3. `*OPC?`, query-back과 `SYST:ERR?`는 각각 무엇을 증명하고 무엇을 증명하지 못하는가?
+4. Swept trace와 Channel Power result를 같은 array로 취급하면 안 되는 이유는 무엇인가?
+5. `READ?`와 `FETCh?`를 production transaction에서 구분해야 하는 이유는 무엇인가?
+
+</LessonLayer>

@@ -40,6 +40,45 @@ test('mobile lab DOM, visual order, and focus follow settings → prediction →
   await expect(firstControl).toBeFocused();
 });
 
+for (const viewportWidth of [1025, 1200]) {
+  test(`MXG lab stacks by its container at ${viewportWidth}px and keeps actions inside`, async ({ page }) => {
+    await page.setViewportSize({ width: viewportWidth, height: 900 });
+    await page.goto('/instruments/sg-mxg/safe-cw/');
+    const lab = page.locator('[data-lab-id="instrument:sg:mxg-safe-cw"]');
+    await expect(lab).toBeAttached({ timeout: 15_000 });
+
+    const layout = await lab.locator('.lab-shell__workbench').evaluate((workbench) => {
+      const bounds = workbench.getBoundingClientRect();
+      const children = Array.from(workbench.children).map((element) => {
+        const item = element as HTMLElement;
+        const rect = item.getBoundingClientRect();
+        return { className: item.className, top: rect.top, bottom: rect.bottom };
+      });
+      return { width: bounds.width, children };
+    });
+
+    expect(layout.width).toBeLessThanOrEqual(1024);
+    expect(layout.children.map(({ className }) => className)).toEqual([
+      'lab-controls',
+      'lab-prediction',
+      'lab-views',
+    ]);
+    expect(layout.children[1]!.top).toBeGreaterThanOrEqual(layout.children[0]!.bottom - 1);
+    expect(layout.children[2]!.top).toBeGreaterThanOrEqual(layout.children[1]!.bottom - 1);
+
+    const clippedActions = await lab.locator('.lab-prediction button, .lab-explain button').evaluateAll((buttons) => (
+      buttons.flatMap((button) => {
+        const action = button.getBoundingClientRect();
+        const shell = button.closest('.lab-shell')?.getBoundingClientRect();
+        if (!shell || (action.left >= shell.left && action.right <= shell.right)) return [];
+        return [{ label: button.textContent?.trim(), left: action.left, right: action.right, shellLeft: shell.left, shellRight: shell.right }];
+      })
+    ));
+    expect(clippedActions, JSON.stringify(clippedActions, null, 2)).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  });
+}
+
 for (const route of appRoutes.filter((entry) => entry.labId !== undefined)) {
   test(`${route.path} lab controls expose at least 44 × 44 CSS px hit targets`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });

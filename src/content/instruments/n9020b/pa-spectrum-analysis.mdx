@@ -1,0 +1,250 @@
+---
+title: "PA의 compression과 analyzer overload를 어떻게 구분할까?"
+description: "N9020B를 PA bench에 배치해 output power, harmonic·spur, OBW, ACLR·SEM·EVM을 측정하고 DUT 비선형성과 analyzer-generated error를 분리한다."
+instrumentId: "keysight-n9020b"
+chapter: "pa-spectrum-analysis"
+order: 5
+estimatedMinutes: 90
+prerequisites:
+  - "safe-input"
+  - "sweep-rbw-detector"
+  - "iq-capture-trigger"
+  - "sa-scpi-measurements"
+outcomes:
+  - "PA spectrum KPI를 N9020B, power sensor, SG와 PSU가 담당하는 측정으로 분리할 수 있다."
+  - "Internal attenuation step test로 DUT distortion과 analyzer overload·generated distortion을 구분할 수 있다."
+  - "DUT reference plane correction, channel power, OBW, ACLR, harmonic·spur, SEM·EVM의 조건을 기록한 자동 시험을 설계할 수 있다."
+concepts:
+  - "PA output reference plane"
+  - "channel power"
+  - "occupied bandwidth"
+  - "adjacent channel leakage ratio"
+  - "spectrum emission mask"
+  - "harmonic distortion"
+  - "analyzer-generated distortion"
+  - "gain compression"
+  - "error vector magnitude"
+  - "power-added efficiency"
+equipmentContext:
+  source: "Keysight N5182B calibrated low-power CW·two-tone·OFDM stimulus, RF enable을 별도 허가"
+  dut: "Connectorized PA, input/output directional coupler, rated attenuation, DC block와 50 Ω load"
+  analyzer: "Keysight N9020B-526/B1X/MPB/P26, U2061XA sensor와 N6705C/N6752A PSU readback 병행"
+references:
+  - title: "Characterizing the Key Performance Indicators of Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3122-1770/application-notes/Characterizing-the-Key-Performance-Indicators-of-Power-Amplifiers.pdf"
+    kind: "application-note"
+  - title: "N9020B MXA Signal Analyzer Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+  - title: "X-Series Signal Analyzer Spectrum Analyzer Mode User's & Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04666/user-manuals/9018-04666.pdf"
+    kind: "vendor"
+labId: "mxa-pa-analysis"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+PA output에서 third-order product가 보였다고 곧바로 DUT IM3라고 부를 수는 없다. DUT가 만든 distortion, coupler·pad의 compression, N9020B mixer가 만든 distortion과 ADC clipping이 모두 비슷한 frequency에 나타날 수 있다. **Analyzer input attenuation을 바꿔도 DUT plane 결과가 유지되는지**가 첫 번째 분리 실험이다.
+
+<LessonLayer level="intuition" title="한 PA 시험점을 stimulus·DUT·analysis·DC의 네 record로 보자">
+
+## 장비별 책임
+
+~~~text
+N5182B stimulus → input coupler → PA → output coupler / load
+                      ↓ Pin sensor     ↓ attenuator → N9020B
+                         N6705C/N6752A → VDD / IDD
+~~~
+
+- **SG** — frequency, waveform, average drive, PAPR와 trigger를 만든다.
+- **Input/output power sensor** — calibrated forward power 또는 accepted/delivered convention의 근거를 준다.
+- **N9020B** — spectrum, channel power, OBW, ACP/ACLR, harmonic·spur와 IQ/demod result를 준다.
+- **PSU** — V, I, protection state와 DC power를 준다.
+
+SA 하나로 PA gain, PAE와 EVM을 모두 얻었다고 쓰지 않는다. Gain에는 Pin 기준면, PAE에는 RF input/output과 DC power, EVM에는 IQ demodulation reference와 measurement application이 필요하다.
+
+<Definition term="Analyzer-generated distortion">
+DUT가 아니라 analyzer mixer, IF 또는 ADC의 비선형성으로 생긴 harmonic·intermodulation·spectral regrowth다. Internal attenuation을 올려 mixer level을 낮췄을 때 DUT-plane 보정 후 distortion이 줄어들면 analyzer contribution을 의심한다.
+</Definition>
+
+<Definition term="Adjacent channel leakage ratio" symbol="ACLR">
+Main channel integrated power와 지정 offset의 adjacent channel integrated power 사이의 ratio다. Marker peak 차이가 아니며 carrier/offset integration bandwidth, detector, averaging와 offset definition을 함께 기록해야 한다.
+</Definition>
+
+<InstrumentLab labId="mxa-pa-analysis" />
+
+## 같은 spectrum에서 읽는 KPI도 계산 window가 다르다
+
+| KPI | 필요한 data/window | N9020B 역할 | 추가 장비·조건 |
+|---|---|---|---|
+| Pout | Channel integration | Channel Power | DUT-plane path correction, sensor cross-check |
+| Harmonic | `2fc`, `3fc`, … 주변 narrow span | Swept SA / Harmonics measurement | Fundamental rejection, off-screen overload 확인 |
+| Spur | Specified search ranges·RBW | Swept SA / Spurious measurement | Limit convention, max hold dwell |
+| OBW | Total-power percent window | OBW measurement | Span이 전체 emission을 포함 |
+| ACLR | Main + adjacent integration windows | ACP measurement | Offset, BW, absolute/relative result schema |
+| SEM | Standard-specific segmented mask | SEM measurement/app | Release·band·BS/UE type·RBW·limit table |
+| EVM | Coherent IQ + demod reference | IQ/VMA/LTE/NR app | Analysis BW, sync, equalizer, reference signal |
+| Gain / P1dB | Pin과 Pout sweep | Pout 쪽 evidence | Input sensor·SG path, small-signal gain fit |
+| PAE | RF input/output + DC | Spectrum 품질 evidence | Sensor와 PSU, power-wave convention |
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Low-power bring-up에서 ACLR·harmonic까지 같은 reference plane으로 묶자">
+
+## 1. Station reference plane과 working limit
+
+PA output connector를 DUT plane으로 정하고 N9020B RF INPUT까지의 signed path loss를 frequency별로 측정한다. Coupler coupled port, cable, pad, filter와 DC block을 포함한다. Correction으로 화면 값을 올려도 connector damage 판단은 correction 전 physical input으로 한다.
+
+1. SG RF OFF, PSU output OFF, PA discharge를 확인한다.
+2. 예상 maximum PA average·peak와 output transient를 적는다.
+3. Coupler·pad·cable의 frequency response, directivity와 power rating을 확인한다.
+4. N9020B connector worst-case를 계산하고 station limit 아래인지 검증한다.
+5. Preamp OFF, 30–40 dB internal attenuation과 충분한 reference headroom으로 시작한다.
+6. PSU limit·OVP/OCP와 bias sequence를 설정하고 quiescent current를 확인한다.
+7. SG를 minimum drive에서 켜고 sensor와 SA가 같은 방향으로 증가하는지 확인한다.
+
+<MeasurementNote title="화면 span 밖의 강한 신호도 front end를 압축할 수 있다" kind="warning">
+화면이 carrier 주변 100 MHz만 보여도 analyzer connector에는 PA fundamental, harmonics와 다른 송신기가 동시에 들어온다. Preselector·filter가 모든 off-screen power를 제거한다고 가정하지 않는다. Total input power를 계산하고 필요하면 external band-pass/notch filter를 사용한다.
+</MeasurementNote>
+
+## 2. Analyzer compression을 찾는 attenuation step test
+
+같은 PA state에서 N9020B internal attenuation을 `A`와 `A+10 dB`로 바꿔 두 번 acquire한다. Analyzer amplitude correction이 정상이라면 DUT carrier와 실제 DUT spur의 DUT-plane 값은 uncertainty 안에서 유지되어야 한다.
+
+| 관찰 | 해석 후보 | 다음 확인 |
+|---|---|---|
+| Carrier와 spur 모두 유지 | Analyzer linear 가능성 | 다른 attenuation point·sensor cross-check |
+| Carrier 유지, spur가 감소 | Analyzer-generated distortion | 더 높은 attenuation, external filtering |
+| Carrier·channel power가 감소 | ADC/IF range·calibration·sensitivity 문제 | overload/status, noise floor, query-back |
+| Spur가 noise에 묻힘 | 높은 attenuation의 DANL 제한 | 좁은 RBW, low-noise 재측정, preamp는 약신호에서만 |
+| IQ peak shape가 잘림 | ADC clipping | Range/ref level/attenuation 증가 후 재획득 |
+
+Reference level만 바꾼 화면 비교보다 internal attenuation step이 더 직접적인 mixer-level 실험이다. 단, auto attenuation과 auto range를 끄고 actual query-back을 저장해야 한다.
+
+## 3. Output power와 compression sweep
+
+각 Pin step마다 다음을 같은 test-point ID로 저장한다.
+
+- SG setpoint, waveform ID, sample rate, PAPR, RF state
+- Input sensor raw/corrected Pin과 reference plane
+- N9020B channel power, path correction, attenuation/preamp/RBW와 overload
+- Output sensor가 있으면 raw/corrected Pout cross-check
+- PSU V/I, CV/CC/protection state와 temperature
+- Gain, small-signal gain reference와 compression delta
+- Dwell time, trigger index와 모든 error queue
+
+Source 자체가 compression 또는 unlevel이면 PA P1dB처럼 보일 수 있다. DUT input sensor가 실제 Pin을 추적하는지 확인한다. N9020B channel power가 sensor Pout과 다르면 integration bandwidth, crest factor response, path correction와 analyzer overload를 먼저 비교한다.
+
+## 4. OFDM 계열 ACLR·OBW
+
+~~~text
+ABOR
+INST:SEL SA
+CONF:CHP
+CHP:FREQ:CENT 3.5 GHZ
+# carrier integration BW 설정
+INIT:CONT OFF
+INIT:IMM
+*OPC?
+FETC:CHP?
+
+ABOR
+CONF:OBW
+OBW:FREQ:CENT 3.5 GHZ
+OBW:PPOW 99
+INIT:IMM
+*OPC?
+FETC:OBW?
+
+ABOR
+CONF:ACP
+ACP:FREQ:CENT 3.5 GHZ
+# main BW, adjacent offset·BW·state를 표준/시험계획에서 명시
+INIT:IMM
+*OPC?
+FETC:ACP?
+SYST:ERR?
+~~~
+
+ACLR은 `dBc` 상대 결과와 `dBm` absolute adjacent power를 둘 다 저장하면 해석이 쉬워진다. Main power가 compression으로 줄어도 adjacent absolute power가 증가할 수 있고, ratio 하나만 보면 원인을 놓칠 수 있다.
+
+## 5. Harmonic과 wide-span spur
+
+1. Fundamental에서 safe level과 path correction을 검증한다.
+2. `2fc`, `3fc`가 N9020B-526의 26.5 GHz 범위 안인지 확인한다.
+3. Wide-span discovery를 수행하되 expected harmonic마다 narrow span·RBW로 다시 측정한다.
+4. Fundamental이 analyzer 내부에서 harmonic을 만들지 않도록 attenuation step과 필요 시 external notch/high-pass filter를 사용한다.
+5. Filter insertion loss와 harmonic frequency의 path correction을 각각 적용한다.
+6. Max hold dwell, detector, RBW와 search range를 기록한다.
+
+Carrier frequency가 15 GHz면 second harmonic은 30 GHz이므로 이 26.5 GHz 프로필로 직접 측정할 수 없다. 화면 start/stop 숫자가 아니라 installed frequency option이 물리 한계다.
+
+## 6. SEM과 EVM은 basic trace의 다른 이름이 아니다
+
+- **SEM**은 standard-specific offset segment, RBW, detector와 absolute/relative limit을 사용하는 mask measurement다. Release, band, channel BW, device type와 application version을 고정한다.
+- **EVM**은 coherent IQ를 known reference constellation과 비교한다. Center error, analysis BW, trigger/sync, equalizer, pilot/reference configuration과 analyzer residual EVM이 필요하다.
+- Basic swept trace의 marker를 mask와 비교해 SEM이라고 저장하거나, spectrum 모양만 보고 EVM을 추정하지 않는다.
+
+B1X 160 MHz는 100 MHz NR carrier를 한 번에 capture할 수 있는 headroom을 제공하지만, 필요한 guard·filter transition과 measurement application configuration이 자동으로 맞는다는 뜻은 아니다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="DUT plane power, compression과 leakage를 linear power로 닫자">
+
+<FormulaDisclosure title="DUT output plane correction" formula="P_DUT(f)=P_SA(f)+L_path(f)">
+dBm/dB 식이다. `Lpath(f)`는 DUT output에서 analyzer connector까지의 frequency-dependent attenuation이다. Coupler directivity, mismatch와 calibration uncertainty는 단일 correction 값으로 없어지지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="PA gain과 compression" formula="G(Pin)=Pout−Pin;   C(Pin)=G_small−G(Pin)">
+모든 power는 같은 reference-plane convention이어야 한다. `C=1 dB`가 되는 input/output point를 P1dB로 보고할 때 interpolation method, step size, waveform과 thermal state를 기록한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Adjacent channel leakage ratio" formula="ACLR_upper=10log₁₀(P_main/P_adj,upper)">
+Linear watt로 적분한 main·adjacent power ratio다. Instrument가 `Padj/Pmain` convention의 negative dBc를 반환할 수도 있으므로 result sign과 field definition을 그대로 저장한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Harmonic level" formula="Hₙ(dBc)=P(nf_c,dBm)−P(f_c,dBm)">
+Fundamental과 harmonic의 path correction이 다르면 각각 DUT plane으로 옮긴 뒤 차를 낸다. 서로 다른 RBW·detector로 측정했다면 비교 조건을 명시한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="PAE" formula="PAE=100·(Pout−Pin)/Pdc">
+세 power는 watt로 계산한다. N9020B의 Pout spectrum만으로 PAE를 만들 수 없다. Input/output reverse wave를 측정하지 않았다면 forward-wave estimate인지 accepted/delivered 가정을 쓰는지 명시한다.
+</FormulaDisclosure>
+
+## DUT distortion과 analyzer distortion의 scaling
+
+Input attenuation을 10 dB 늘리면 analyzer mixer의 carrier가 약 10 dB 줄어든다. Analyzer 내부 second-order product는 이상적으로 더 빠르게, third-order product는 그보다 더 빠르게 줄 수 있다. Display correction 뒤 DUT carrier가 유지되는데 distortion만 변하면 analyzer-generated component의 강한 증거다. 실제 slope는 mixer, IF/ADC, noise와 correction에 의해 이상적인 정수 배수가 아닐 수 있으므로 여러 attenuation point를 사용한다.
+
+## PA 자동화의 종료 조건
+
+다음 중 하나라도 발생하면 SG RF를 먼저 끄고 bias safe-down sequence로 간다.
+
+- N9020B connector/mixer/ADC limit 또는 overload
+- Sensor overrange·damage guard 접근
+- PSU CC entry, OVP/OCP/temperature trip
+- SG unlevel 또는 waveform/ARB error
+- Gain이 예상보다 급격히 감소하거나 Pout가 station limit 접근
+- Error queue nonzero, timeout, trigger miss 또는 data length mismatch
+
+Software cleanup은 통신이 살아 있을 때만 실행될 수 있다. Hardware RF switch, attenuator, remote inhibit, fuse/interlock와 DUT-specific bias sequencing을 별도로 둔다.
+
+## 완료 전 자기 설명
+
+1. Attenuation step test에서 carrier는 유지되고 spur만 줄면 무엇을 의심해야 하는가?
+2. Marker peak와 channel power가 PA Pout에서 다른 이유는 무엇인가?
+3. ACLR ratio와 adjacent absolute power를 함께 저장하면 compression 해석이 왜 쉬워지는가?
+4. SEM·EVM을 basic swept trace에서 직접 얻었다고 쓰면 안 되는 이유는 무엇인가?
+5. N9020B만으로 gain·PAE를 완성할 수 없는 이유는 무엇인가?
+6. 화면 span 밖의 fundamental·harmonic이 analyzer 결과를 왜 망칠 수 있는가?
+
+이 교육 모델은 실제 compliance 판정, N9020B residual distortion, path calibration, PA safe operating area 또는 station interlock를 대신하지 않는다.
+
+</LessonLayer>

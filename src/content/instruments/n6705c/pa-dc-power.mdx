@@ -1,0 +1,104 @@
+---
+title: "Supply readback으로 PA의 어떤 성능까지 계산할 수 있을까?"
+description: "VDD·IDD에서 DC input power를 얻고 RF Pin/Pout, time aperture와 thermal condition을 결합해 PAE와 droop를 올바르게 해석한다."
+instrumentId: "keysight-n6705c"
+chapter: "pa-dc-power"
+order: 5
+estimatedMinutes: 85
+prerequisites: ["psu-scpi-sequence"]
+outcomes:
+  - "DC power, drain efficiency와 PAE를 구분한다."
+  - "RF Pin/Pout은 PSU가 측정하지 않으며 sensor/SA가 필요함을 장비 의존성으로 설명한다."
+  - "Average·burst·thermal droop 결과의 time aperture와 trigger를 맞춘다."
+concepts: ["DC input power", "power-added efficiency", "drain efficiency", "thermal droop", "time alignment"]
+equipmentContext:
+  source: "N5182B 등 SG와 N6705C/N6752A DC bias"
+  dut: "Connectorized PA module, low-power bring-up 후 RF drive sweep"
+  analyzer: "Input/output power sensors 또는 SA/VSA와 PSU digitized V/I"
+references:
+  - title: "N6700 Modular Power System Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04533/technical-specifications/9018-04533.pdf"
+    kind: "vendor"
+  - title: "Measuring Power Added Efficiency of RF Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/7018-01656/application-notes/5989-7293.pdf"
+    kind: "application-note"
+labId: "psu-pa-dc-power"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Power supply가 정확한 VDD와 IDD를 읽어도 PAE는 완성되지 않는다. PSU가 제공하는 것은 DC input side이고, PAE 분자에는 DUT 기준면의 RF output과 RF input power가 필요하다.
+
+<LessonLayer level="intuition" title="PAE를 장비 세 대가 만나는 계산으로 그리자">
+
+<InstrumentLab labId="psu-pa-dc-power" />
+
+<Definition term="Power-added efficiency" symbol="PAE">
+PA가 DC에서 가져온 power 중 RF input에 이미 있던 power를 제외하고 RF output 증가분으로 변환한 비율이다. `Pout`, `Pin`, `Pdc`를 모두 watt로 바꾼 뒤 계산한다.
+</Definition>
+
+| 값 | 담당 장비 | 기준면 |
+|---|---|---|
+| VDD, IDD | N6705C/N6752A | DUT DC terminal 또는 보정된 sense plane |
+| RF Pin | Input sensor/coupler 또는 calibrated receiver | DUT RF input |
+| RF Pout | Output sensor/SA | DUT RF output |
+| EVM, ACLR | VSA/SA | DUT RF output |
+| Temperature | Thermal sensor/chamber | 명시한 DUT 위치 |
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="같은 stimulus·시간·기준면으로 DC와 RF를 묶자">
+
+## PA sweep의 한 measurement point
+
+1. RF OFF, PSU OFF에서 protection과 bias sequence를 확인한다.
+2. 낮은 current limit로 bias를 올리고 idle current와 CV state를 확인한다.
+3. SG를 최저 drive에서 켜고 DUT input plane Pin을 검증한다.
+4. Settling 후 Pin, Pout, VDD, IDD, temperature, EVM/ACLR을 같은 point ID로 수집한다.
+5. DC/RF power를 watt로 변환해 gain, Pdc, drain efficiency와 PAE를 계산한다.
+6. Compression, CC entry, OVP/OCP, temperature 또는 analyzer overload를 stop condition으로 둔다.
+7. 예외 시 RF OFF를 먼저, PSU output OFF를 다음으로 실행하고 cleanup 실패도 보고한다.
+
+<MeasurementNote title="Average current와 peak RF power를 섞으면 PAE가 가짜가 된다" kind="warning">
+Burst PA에서 long-term average IDD와 burst peak Pout을 조합하면 100%를 넘는 등 물리적으로 모순된 PAE가 나올 수 있다. Trigger, aperture, duty cycle, averaging과 repetition period를 DC/RF 측정에 맞춘다.
+</MeasurementNote>
+
+## N6752A digitizer의 역할과 한계
+
+10.24 µs minimum interval, 약 97.656 kSa/s는 ms-scale bias droop와 thermal trend에는 유용하지만 RF carrier와 빠른 modulation envelope를 직접 capture하지 않는다. 또한 N6752A에서 voltage와 current의 완전 동시 digitized power array라고 가정하지 않는다. 빠른 instantaneous Pdc가 필요하면 동시성 사양이 맞는 module/SMU 또는 외부 probes를 선택한다.
+
+## PA 자동화에 포함할 stop condition
+
+- 예상보다 큰 idle/current step 또는 CC entry
+- DUT input, output, temperature limit
+- PSU OVP/OCP, unregulated/status fault
+- SG source compression/unlevel
+- Sensor overrange 또는 SA input overload
+- 통신 timeout, trigger timeout, stale data
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="dBm을 watt로 바꾼 뒤 효율과 열을 계산하자">
+
+<FormulaDisclosure title="DC input power" formula="P_DC = mean(v(t) · i(t))">
+DC가 안정적이면 `VDD × IDD`로 근사할 수 있다. Pulsed supply droop에서는 `mean(v) × mean(i)`가 `mean(v·i)`와 다를 수 있으므로 동시성 조건을 기록한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Power-added efficiency" formula="PAE = (P_RF,out − P_RF,in) / P_DC × 100%">
+Pin과 Pout은 cable/coupler loss를 보정한 DUT reference plane 값이어야 한다. dBm을 직접 빼서 분자에 넣지 말고 각각 watt로 변환한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Drain efficiency와 dissipated power" formula="η_D = P_RF,out / P_DC,   P_heat ≈ P_DC + P_RF,in − P_RF,out">
+PAE와 drain efficiency는 RF input을 처리하는 방식이 다르다. Dissipated power는 thermal system이 제거해야 할 1차 근사이며 harmonic, leakage와 다른 port power도 uncertainty에 포함될 수 있다.
+</FormulaDisclosure>
+
+PSU는 PA의 RF 결과를 직접 측정하지 않는다. 좋은 자동화는 장비마다 책임을 분리하고 point ID, timestamp, reference plane, aperture와 uncertainty로 다시 결합한다.
+
+</LessonLayer>

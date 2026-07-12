@@ -84,7 +84,7 @@ main document는 다음 한 흐름으로 읽습니다.
 4. 실무 조작·해석
 5. 수식·규격과 참고자료
 
-1024px 이하에서는 학습 지도가 접혀 있습니다. `학습 지도`를 누르면 여섯 학습 축을 펼칠 수 있습니다. 페이지와 학습 지도에는 별도의 가로 스크롤이 없으며, 위에서 아래로 한 번만 스크롤하면 됩니다.
+1024px 이하에서는 학습 지도가 접혀 있습니다. `학습 지도` 또는 `장비 스터디`를 누르면 현재 트랙의 경로를 펼칠 수 있습니다. 페이지와 학습 지도에는 별도의 가로 스크롤이 없으며, 위에서 아래로 한 번만 스크롤하면 됩니다.
 
 ### 세 가지 학습 깊이
 
@@ -162,7 +162,79 @@ main document는 다음 한 흐름으로 읽습니다.
 
 탭을 전환해도 이미 변경한 설정값은 유지됩니다. 탭에는 마우스뿐 아니라 왼쪽·오른쪽 방향키와 `Home`, `End`를 사용할 수 있습니다.
 
-## 6. 검색과 용어 사전 사용하기
+## 6. 계측장비 스터디와 PyVISA 예제 사용하기
+
+상단 `장비 스터디`에서 장비를 엽니다. 장비 진도는 RF 개념 6개 축과 별도로, 장비마다 독립적으로 계산됩니다.
+
+| 순서 | 기준 장비 | 먼저 닫을 질문 | 실행 가이드 |
+|---|---|---|---|
+| SG | Keysight N5182B-506 + 656 | IQ와 source level이 DUT 입력이 되는 과정 | [MXG 가이드](MXG_PYVISA_GUIDE.md) |
+| SA | Keysight N9020B-526 + B1X + MPB + P26 | RF input이 safe front-end를 지나 spectrum·IQ·power result가 되는 과정 | [N9020B 가이드](N9020B_PYVISA_GUIDE.md) |
+| NA(VNA) | Keysight E5080B-2K0 | ratio, calibration과 reference plane이 S-parameter가 되는 과정 | [E5080B 가이드](E5080B_PYVISA_GUIDE.md) |
+| Power Sensor | Keysight U2061XA | average·peak·aperture와 correction이 DUT plane power가 되는 과정 | [U2061XA 가이드](U2061XA_PYVISA_GUIDE.md) |
+| Power Supply | Keysight N6705C + N6752A-761 | setpoint·CV/CC·sense·transient가 PA bias가 되는 과정 | [N6705C 가이드](N6705C_PYVISA_GUIDE.md) |
+
+### N5182B MXG
+
+1. `안전한 CW`에서 RF OFF, frequency, average power, ALC와 DUT 기준면을 확인합니다.
+2. `Waveform·IQ`에서 carrier, sample rate와 runtime scaling을 각각 바꿉니다.
+3. `ARB 재생`에서 segment, marker, trigger와 loop boundary를 연결합니다.
+4. `SCPI·PyVISA`에서 한 줄 command, query response, error queue와 `*OPC?`를 실행합니다.
+5. `PA 시험 프로그램`에서 PAPR·path loss·uncertainty·guard margin을 합쳐 RF enable 가능 여부를 판단합니다.
+
+실제 장비용 파일은 `/instruments/sg-mxg/python-examples/`에서 받을 수 있습니다. 웹사이트는 장비에 연결하지 않습니다. 로컬 예제도 기본은 dry-run이며 실제 통신에는 `--execute`, RF 출력에는 `--rf-on`이 추가로 필요합니다.
+
+SCPI console에서는 세 동작을 구분합니다.
+
+- `WRITE만`: command를 보내고 query response가 있으면 output queue에 남깁니다.
+- `QUERY + READ`: query를 보내고 response를 즉시 한 번 읽습니다.
+- `READ queue`: 새 command 없이 대기 중인 response를 읽습니다.
+
+`*IDN?`을 `WRITE만`으로 보낸 뒤 다른 write를 보내면 unread response가 중단되어 `-410 Query INTERRUPTED`가 error queue에 남는 과정을 직접 확인할 수 있습니다. `SYST:ERR?`는 그 error queue를 FIFO로 한 항목씩 소비합니다.
+
+Python 예제 페이지에서는 개별 파일보다 `rf-wiki-mxg-pyvisa.zip`을 우선 사용하세요. ZIP에는 package 전체, fake-transport tests와 운영 가이드가 같은 디렉터리 구조로 들어 있으며 별도의 SHA-256 파일을 제공합니다.
+
+### N9020B MXA
+
+1. `안전한 입력`에서 connector average·peak·DC limit, 외부 attenuation, preamp와 mixer/ADC headroom을 따로 확인합니다.
+2. `Sweep·RBW·Detector`에서 center/span, RBW/VBW, detector, point 수와 sweep time이 한 trace를 만드는 과정을 봅니다.
+3. `IQ·Trigger`에서 analysis bandwidth, sample rate, record length와 trigger가 time·frequency linked view를 어떻게 묶는지 확인합니다.
+4. `SCPI·자주 쓰는 측정`에서 single sweep, marker peak, trace fetch, channel power, ACP와 OBW를 configure → acquire → verify → fetch 순서로 실행합니다.
+5. `PA Spectrum 분석`에서 DUT compression과 analyzer overload를 분리하고 harmonic·spur·ACLR 결과의 기준면과 적분 조건을 저장합니다.
+
+실제 장비용 파일은 `/instruments/sa-mxa/python-examples/`에서 받습니다. 기본은 dry-run이며 실제 VISA I/O에는 `--execute`가 필요합니다. Analyzer는 RF를 출력하지 않지만 이미 connector에 도달한 과전력을 software abort로 막을 수 없으므로 coupler·attenuator·DC block과 입력 envelope를 연결 전에 준비해야 합니다. Configuration을 바꾼 뒤에는 single acquisition 완료와 fresh trace를 확인하고 marker·trace·power result를 읽습니다.
+
+### E5080B ENA
+
+1. 낮은 source power와 RF source OFF에서 sweep 범위를 정합니다.
+2. SOLT/ECal이 directivity·match·tracking error를 제거하고 cable 끝으로 reference plane을 이동하는 과정을 봅니다.
+3. 같은 complex S-parameter를 LogMag, phase, Smith와 time-domain/fixture view로 연결합니다.
+4. SCPI에서는 channel·measurement·trace·trigger를 분리하고 corrected complex `SDATA`를 읽습니다.
+5. PA output이 receiver linearity/damage limit 또는 reverse-drive 한계를 넘으면 sweep를 차단합니다.
+
+실제 통신은 `--execute`, source enable은 추가 `--rf-on`이 필요합니다. Physical RF ON에는 DUT input limit, receiver working limit, 최대 DUT gain도 명시해야 하며 signed path gain/loss·uncertainty·guard를 포함한 envelope와 full configuration query-back을 통과해야 합니다. 일반 power limit의 초기값을 보호 장치로 믿지 마세요.
+
+### U2061XA Power Sensor
+
+1. Sensor connector의 average·short-pulse damage level보다 충분히 낮아지도록 coupler/attenuator를 계산합니다.
+2. Average, peak, PAPR, gate와 duty cycle을 같은 burst timeline에서 비교합니다.
+3. Frequency 설정은 tuner가 아니라 sensor correction을 선택한다는 점을 확인합니다.
+4. `READ?`와 `INIT → trigger → FETCh?`의 상태 차이를 실습합니다.
+5. Peak path의 5 MHz VBW가 광대역 OFDM의 true peak를 완전히 포착하지 못하는 한계를 남깁니다.
+
+실제 USB session은 `--execute`를 요구합니다. Sensor가 RF를 만들지는 않지만, 연결과 zero/cal 전에 upstream SG가 RF OFF인지 별도 확인해야 합니다.
+
+### N6705C + N6752A Power System
+
+1. 50 V와 10 A를 동시에 낼 수 있다고 해석하지 않고 100 W autoranging envelope를 확인합니다.
+2. Voltage setpoint와 current limit, CV/CC, OVP/OCP를 서로 다른 state로 읽습니다.
+3. Force lead drop, remote sense, slew와 capacitive inrush를 DUT plane에 연결합니다.
+4. LIST, trigger와 multi-rail bias sequence를 query-back과 status bit로 검증합니다.
+5. Supply의 DC power와 sensor의 RF Pin/Pout을 합쳐 PAE를 계산합니다.
+
+실제 통신은 `--execute`, output enable은 추가 `--output-on`이 필요합니다. 통신 단절 시 software OFF가 보장되지 않으므로 remote inhibit/interlock와 fuse는 별도입니다.
+
+## 7. 검색과 용어 사전 사용하기
 
 ### 전체 검색
 
@@ -173,6 +245,12 @@ RBW
 S21
 100 MHz RB
 load-pull
+SCPI
+ARB
+Reference level
+Mixer level
+Channel power
+SYST:ERR?
 ```
 
 `Enter` 또는 `찾기`를 누르면 `/search/?q=...`로 이동합니다.
@@ -191,7 +269,7 @@ load-pull
 3. 양의 loss magnitude인가 signed dB 값인가
 4. 어떤 bandwidth와 calibration 조건인가
 
-## 7. 진도 저장과 초기화
+## 8. 진도 저장과 초기화
 
 > **진도와 개인정보**
 > 완료 여부는 현재 브라우저에만 저장되며 로그인이나 기기 간 동기화는 없습니다. 사이트 데이터를 지우면 진도도 삭제됩니다. 작성한 원인 설명 문장은 저장되지 않습니다.
@@ -202,6 +280,7 @@ load-pull
 - `localhost`와 `127.0.0.1`은 서로 다른 저장 공간입니다.
 - 포트가 달라도 서로 다른 origin이므로 진도가 공유되지 않습니다.
 - 홈의 진행 숫자는 완료한 simulator 수가 아니라 완료한 학습 축 `0 / 6`입니다.
+- 다섯 장비 허브는 각각 `instrument:sg:*`, `instrument:sa:*`, `instrument:vna:*`, `instrument:sensor:*`, `instrument:psu:*` namespaced lab ID로 5개 chapter 진도를 별도로 표시합니다.
 - 순서를 건너뛸 수 있지만 `이어서 학습`은 가장 앞의 미완료 축을 가리킵니다.
 
 전체 진도를 지우는 별도 화면 버튼은 없습니다. 브라우저 개발자 도구의 Console에서 다음 명령을 실행하면 현재 주소의 진도를 초기화할 수 있습니다.
@@ -211,7 +290,7 @@ localStorage.removeItem('rf-wiki:v1:progress');
 location.reload();
 ```
 
-## 8. 키보드와 작은 화면에서 사용하기
+## 9. 키보드와 작은 화면에서 사용하기
 
 - `Tab`과 `Shift+Tab`: 다음·이전 control로 이동
 - `Enter` 또는 `Space`: button, 선택 가능한 marker 실행
@@ -222,7 +301,7 @@ location.reload();
 
 좁은 화면에서는 Signal Spine이 `Source → DUT → Acquisition → DSP/Math → Display` 순서로 위에서 아래로 표시됩니다. 실험도 `설정 → 예측 → 결과 → Cause/Effect Ledger → 설명` 순서로 이어지므로 좌우 스크롤할 필요가 없습니다. 움직임을 줄이는 OS 설정을 사용하면 신호 이동 애니메이션을 제거하고 상태 변화만 표시합니다.
 
-## 9. 실행 문제 해결
+## 10. 실행 문제 해결
 
 ### 주소가 열리지 않습니다
 
@@ -271,7 +350,7 @@ simulator 안에서 답을 선택하고 `예측 고정`을 눌렀는지 확인�
 
 이전에 사용한 브라우저 profile, hostname과 port가 같은지 확인하세요. 시크릿 창, 다른 브라우저, `localhost`와 `127.0.0.1`, 다른 port 사이에는 진도가 공유되지 않습니다.
 
-## 10. 개발·검증 명령 참고표
+## 11. 개발·검증 명령 참고표
 
 | 목적 | 명령 |
 |---|---|

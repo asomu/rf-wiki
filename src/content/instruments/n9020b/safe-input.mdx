@@ -1,0 +1,201 @@
+---
+title: "SA에 PA 출력을 연결하기 전에 어떤 level을 먼저 계산해야 할까?"
+description: "Keysight N9020B-526/B1X/MPB/P26에서 connector damage, input attenuation, preamp, mixer level, ADC clipping과 reference level을 분리하고 안전한 PA 입력 경로를 구성한다."
+instrumentId: "keysight-n9020b"
+chapter: "safe-input"
+order: 1
+estimatedMinutes: 55
+prerequisites:
+  - "foundations"
+  - "spectrum-iq"
+outcomes:
+  - "+30 dBm average와 조건부 +50 dBm pulse가 운용 목표가 아닌 connector damage level임을 설명할 수 있다."
+  - "PA output, coupling·attenuation, PAPR와 uncertainty로 SA connector average·peak를 계산할 수 있다."
+  - "Reference level, input attenuation, preamp, mixer level과 ADC headroom을 서로 다른 경계로 설정할 수 있다."
+concepts:
+  - "maximum safe input"
+  - "connector reference plane"
+  - "input attenuation"
+  - "preamplifier"
+  - "mixer level"
+  - "ADC full scale"
+  - "reference level"
+  - "analyzer-generated distortion"
+equipmentContext:
+  source: "Keysight N5182B MXG, RF OFF에서 시작하고 PA input drive를 최소값으로 제한"
+  dut: "Connectorized PA output, 방향이 확인된 coupler·external attenuator·DC block와 50 Ω load"
+  analyzer: "Keysight N9020B-526 + B1X + MPB + P26, firmware A.43.49, preamp OFF와 높은 input attenuation으로 시작"
+references:
+  - title: "N9020B MXA Signal Analyzer Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+  - title: "N9020B MXA Configuration Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-05047/configuration-guides/5992-1254.pdf"
+    kind: "vendor"
+  - title: "Spectrum Analysis Basics"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06714/application-notes/5952-0292.pdf"
+    kind: "application-note"
+labId: "mxa-safe-input"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+SA 화면의 맨 위가 `+20 dBm Ref`라고 표시돼도 RF connector가 자동으로 `+20 dBm`에서 보호되는 것은 아니다. Reference level은 display와 내부 level plan을 정하는 **측정 설정**이고, coupler·attenuator·DC block은 PA 에너지가 connector에 도착하기 전에 줄이는 **물리 보호**다.
+
+<LessonLayer level="intuition" title="한 개의 input level 대신 네 개의 경계를 보자">
+
+## PA 출력에서 trace까지
+
+~~~text
+PA output plane
+  → coupler / external pad / cable / DC block
+  → N9020B RF INPUT connector
+  → step attenuator → P26 preamp → preselector / mixer
+  → IF gain / anti-alias filter → ADC
+  → RBW / detector / measurement → trace
+~~~
+
+이 경로에는 서로 대신할 수 없는 경계가 있다.
+
+1. **Connector average·peak·DC** — 손상을 막는 절대 경계다.
+2. **Mixer level** — 내부 distortion과 noise의 균형을 정한다.
+3. **ADC full scale** — wideband peak가 digitizer를 clip하는 경계다.
+4. **Reference level** — 결과를 화면 어디에 놓고 auto level plan을 어떻게 잡을지 정한다.
+
+<Definition term="Mixer level" symbol="Pmix">
+RF input connector의 신호가 내부 input attenuation과 preamp를 지난 뒤 mixer에 도착하는 level이다. 같은 connector power라도 attenuation을 10 dB 늘리면 mixer stress와 analyzer-generated distortion이 줄고, noise floor는 상대적으로 나빠질 수 있다.
+</Definition>
+
+<Definition term="Reference level" symbol="Ref">
+Display 최상단의 amplitude reference이자 auto attenuation·IF gain이 level plan을 잡을 때 쓰는 기준이다. 화면의 Ref를 높이는 것만으로 external path가 보호되지 않으며, manual attenuation 상태에서는 실제 내부 headroom을 반드시 따로 확인한다.
+</Definition>
+
+<InstrumentLab labId="mxa-safe-input" />
+
+## Damage, overload와 정확도는 같은 선이 아니다
+
+N9020B 공식 사양의 maximum safe input은 preamp 유무와 관계없이 average total power `+30 dBm (1 W)`다. `+50 dBm (100 W)` pulse는 다음 세 조건을 **모두** 만족할 때만 제시된다.
+
+- Pulse width `≤10 µs`
+- Duty cycle `≤1%`
+- Input attenuation `≥30 dB`
+
+DC safe input도 coupling 상태에 따라 다르다. DC coupled는 `±0.2 Vdc`, AC coupled는 `±100 Vdc`다. 이 숫자는 정확도를 보장하는 반복 운용점이 아니고, 넘으면 손상될 수 있는 절대 한계다. Station working limit은 uncertainty와 transient를 포함해 이보다 충분히 낮아야 한다.
+
+## Preamp는 약한 신호를 위한 SNR knob다
+
+P26 preamp를 켜면 weak spur를 보기 쉬워질 수 있지만 PA output을 연결하는 첫 상태로 사용하지 않는다. Preamp 앞의 connector damage 경계는 사라지지 않고, preamp와 뒤쪽 mixer·ADC headroom은 더 작아진다. 먼저 preamp OFF, 충분한 external attenuation과 높은 internal attenuation으로 신호 존재를 확인한다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Connector budget을 닫은 뒤 front end를 한 단계씩 연다">
+
+## 1. SA connector에 실제로 도착할 power를 계산한다
+
+PA가 `40 dBm average`, waveform PAPR가 `9 dB`, PA output에서 SA connector까지의 coupler·pad·cable 총 attenuation이 `45 dB`라면 nominal 입력은 다음과 같다.
+
+| 기준면 | Average | Peak | 해석 |
+|---|---:|---:|---|
+| PA output | 40 dBm | 49 dBm | DUT가 낼 수 있는 worst-case를 사용 |
+| SA connector | −5 dBm | 4 dBm | path component가 압축되지 않을 때 |
+| 30 dB internal attenuation 뒤 | −35 dBm | −26 dBm | 내부 level plan의 출발점 |
+
+External pad와 coupler는 PA output의 **through·coupled peak power rating**을 각각 견뎌야 한다. Coupling factor 오차, cable loss 오차, PA overshoot와 temperature drift를 합친 uncertainty는 허용 한계를 낮추는 방향으로 적용한다.
+
+<MeasurementNote title="Internal attenuation은 connector와 앞단 회로를 구하지 못할 수 있다" kind="warning">
+Step attenuator는 RF INPUT 뒤에 있다. 잘못 연결된 PA power, DC 또는 너무 긴 high-power pulse가 connector와 attenuator 앞단에 이미 도착한 뒤 software가 할 수 있는 일은 없다. External coupler·rated attenuator·DC block·limiter와 hardware interlock가 먼저다.
+</MeasurementNote>
+
+## 2. 안전한 front-panel bring-up
+
+1. SG RF OFF, PA bias safe-down, SA input cable 분리 상태에서 path를 확인한다.
+2. Coupler 방향, external pad 값·주파수·average/peak rating과 DC block을 확인한다.
+3. N9020B에서 Spectrum Analyzer mode를 선택한다.
+4. Preamp `OFF`, input attenuation `30–40 dB`, reference level을 예상 connector peak보다 높게 둔다.
+5. Center/span을 신호와 예상 harmonic·spur 관찰 범위에 맞춘다.
+6. SA를 먼저 arm한 뒤 PA를 낮은 drive에서 시작한다.
+7. `OVLD`, `IF overload`, `ADC overload` 표시와 error queue를 확인한다.
+8. Trace가 예상보다 낮을 때만 attenuation을 작은 step으로 줄인다. Preamp는 weak-signal 전용 재측정에서 마지막에 고려한다.
+9. Internal attenuation을 `+10 dB` 바꿔 DUT trace가 보정 후 같은 level인지 확인한다. Spur·ACLR이 크게 좋아지면 analyzer distortion을 의심한다.
+
+## 3. Preset에 기대지 않는 remote preflight
+
+다음은 의도를 보여주는 기본 sequence다. 실제 실행에서는 각 command를 query-back하고 A.43.49 command reference의 범위·coupling을 확인한다.
+
+~~~text
+*IDN?
+*OPT?
+ABOR
+*CLS
+INST:SEL SA
+CONF:SAN:NDEF
+INIT:CONT OFF
+POW:GAIN OFF
+POW:ATT:AUTO OFF
+POW:ATT 40 DB
+DISP:WIND:TRAC:Y:RLEV 10 DBM
+FREQ:CENT 3.5 GHZ
+FREQ:SPAN 200 MHZ
+POW:GAIN?
+POW:ATT?
+DISP:WIND:TRAC:Y:RLEV?
+SYST:ERR?
+~~~
+
+`*RST`는 input cable에 이미 power가 들어오는 상황에서 안전 명령이 아니다. Preset이 attenuation·preamp·measurement mode를 바꿀 수 있기 때문이다. Automation의 시작은 현재 오류를 기록하고 `ABOR`, single acquisition, preamp OFF와 보수적인 attenuation을 명시하는 것이다.
+
+## 4. Overload를 DUT 성능으로 저장하지 않는다
+
+다음 중 하나라도 있으면 해당 acquisition은 invalid다.
+
+- Front-panel overload 또는 clipping indicator
+- Error queue의 overload·uncalibrated 상태
+- Attenuation을 10 dB 늘렸더니 spur 또는 ACLR이 의미 있게 좋아짐
+- 같은 physical input에서 reference level만 바꿨는데 결과가 비정상적으로 이동함
+- Trace top이 평평해지거나 IQ time waveform peak가 잘림
+- 예상 channel power와 independent power sensor가 uncertainty를 넘어 불일치함
+
+Reference level을 올려 경고가 사라졌다는 사실만으로 이전 data를 복구할 수 없다. 새 level plan에서 다시 acquire한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Connector, mixer와 ADC margin을 서로 다른 식으로 닫자">
+
+<FormulaDisclosure title="SA connector average와 peak" formula="P_SA,avg = P_PA,avg − L_path;   P_SA,peak = P_PA,avg + PAPR − L_path">
+모든 항이 dBm/dB일 때의 식이다. `Lpath`는 DUT output plane에서 SA connector까지의 signed total attenuation이다. Coupler, pad, cable과 adapter loss를 포함하고 path compression이 없다는 조건이 필요하다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Guard를 포함한 worst-case connector power" formula="P_worst = P_nominal + U_path + U_source + G_guard">
+Uncertainty와 guard는 예상 입력을 높이는 방향으로 더한다. Damage limit에서 guard를 빼는 방식으로 구현해도 같은 부등식을 만들어야 한다. `Pworst`가 station working limit과 같거나 높으면 acquisition을 거절한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Mixer level의 1차 모델" formula="P_mix ≈ P_SA − A_input + G_preamp">
+`Ainput`과 `Gpreamp`는 dB다. 실제 N9020B level plan에는 preselector, frequency band, IF path와 auto ranging이 관여하므로 instrument overload status와 specification의 measurement별 optimum mixer level을 함께 사용한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Wideband peak headroom" formula="H_ADC = P_full-scale − P_peak,at ADC">
+Average power만 맞아도 OFDM peak가 ADC full scale을 넘으면 clipping된다. B1X 160 MHz path의 full scale은 frequency, IF path, attenuation과 gain state에 의존한다. 화면 trace의 average와 IQ peak를 함께 확인한다.
+</FormulaDisclosure>
+
+## 왜 attenuation을 올리면 weak spur가 사라질 수 있을까?
+
+Input attenuation을 10 dB 올리면 mixer에 들어가는 DUT와 noise가 함께 10 dB 낮아진다. Analyzer가 display calibration으로 carrier level을 보정해도 내부 noise contribution은 상대적으로 커진다. 반대로 mixer-generated IMD는 빠르게 줄어들 수 있다. 따라서 **낮은 attenuation은 항상 정확**도 아니고, **높은 attenuation은 항상 안전하고 정확**도 아니다. 목적은 connector protection을 물리적으로 확보한 뒤 measurement-specific dynamic range가 최대가 되는 mixer level을 찾는 것이다.
+
+## 완료 전 자기 설명
+
+1. Reference level을 높여도 왜 PA의 connector damage risk가 사라지지 않는가?
+2. `+50 dBm pulse`를 사용할 수 있는 세 조건은 무엇이며, 왜 working target이 아닌가?
+3. Input attenuation을 10 dB 바꿔 spur가 크게 달라지면 DUT와 analyzer 중 무엇을 의심해야 하는가?
+4. PAPR가 높은 waveform에서 average connector power와 ADC peak headroom을 왜 따로 계산하는가?
+
+이 교육 모델은 실제 N9020B calibration, connector 상태, 외부 보호 부품의 rating 또는 bench interlock를 대신하지 않는다.
+
+</LessonLayer>

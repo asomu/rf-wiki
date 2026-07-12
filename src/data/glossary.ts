@@ -6,14 +6,20 @@ export type GlossaryCategory =
   | 'waveform'
   | 'network'
   | 'power'
-  | 'pa';
+  | 'pa'
+  | 'instrument-control';
 
 export interface GlossaryTerm {
   term: string;
   label: string;
   symbol?: string;
   category: GlossaryCategory;
-  moduleId: CurriculumModuleId;
+  moduleId: CurriculumModuleId
+    | 'keysight-n5182b'
+    | 'keysight-n9020b'
+    | 'keysight-e5080b'
+    | 'keysight-u2061xa'
+    | 'keysight-n6705c';
   definition: string;
   caution?: string;
   href: string;
@@ -26,7 +32,8 @@ export const glossaryCategoryLabels: Record<GlossaryCategory, string> = {
   waveform: 'OFDM·LTE·NR',
   network: 'VNA·network',
   power: 'Power flow·coupling',
-  pa: 'PA·pull'
+  pa: 'PA·pull',
+  'instrument-control': '계측장비·SCPI 제어'
 };
 
 export const glossary: readonly GlossaryTerm[] = [
@@ -446,6 +453,322 @@ export const glossary: readonly GlossaryTerm[] = [
     definition: '선택한 기준면에서 incident wave에 대한 reflected wave의 복소 비입니다.',
     href: '/learn/vna-smith/',
     aliases: ['gamma', 'reflection coefficient']
+  },
+  {
+    term: 'Calibration reference plane',
+    label: 'VNA 교정 기준면',
+    category: 'instrument-control',
+    moduleId: 'keysight-e5080b',
+    definition: 'VNA가 systematic error를 제거한 뒤 incident·reflected·transmitted wave를 정의하는 물리적 connector 위치입니다.',
+    caution: '교정 뒤 cable이나 adapter를 바꾸면 기준면과 error model이 함께 바뀌므로 confidence check 또는 재교정이 필요합니다.',
+    href: '/instruments/vna-ena/calibration-reference-plane/',
+    aliases: ['cal plane', 'SOLT', 'ECal']
+  },
+  {
+    term: 'IFBW',
+    label: 'VNA IF bandwidth',
+    category: 'instrument-control',
+    moduleId: 'keysight-e5080b',
+    definition: 'VNA receiver가 각 frequency point에서 통과시키는 intermediate-frequency filter 폭입니다.',
+    caution: 'IFBW를 줄이면 보통 trace noise가 감소하지만 sweep 시간이 늘며, DUT drift가 있으면 무조건 더 정확해지는 것은 아닙니다.',
+    href: '/instruments/vna-ena/safe-sweep/',
+    aliases: ['intermediate frequency bandwidth', 'SENS:BWID']
+  },
+  {
+    term: 'SDATA',
+    label: 'Corrected complex VNA data',
+    category: 'instrument-control',
+    moduleId: 'keysight-e5080b',
+    definition: 'VNA가 선택한 measurement의 corrected complex 값을 real·imaginary pair로 반환하는 SCPI data form입니다.',
+    caution: 'FDATA는 display format에 의존하고 RDATA는 raw/uncorrected이므로 automation에서 서로 바꾸어 쓰지 않습니다.',
+    href: '/instruments/vna-ena/vna-scpi-data/',
+    aliases: ['CALC:DATA:SDAT?', 'complex S-parameter']
+  },
+  {
+    term: 'De-embedding',
+    label: 'Fixture 제거',
+    category: 'network',
+    moduleId: 'keysight-e5080b',
+    definition: '측정된 fixture–DUT–fixture network에서 알려진 fixture의 complex loss와 mismatch를 수학적으로 제거해 DUT plane을 복원하는 과정입니다.',
+    caution: 'Port extension은 delay만 이동하며 full de-embedding과 같지 않고, fixture loss가 큰 band에서는 역연산이 noise를 증폭할 수 있습니다.',
+    href: '/instruments/vna-ena/sparameters-smith-time/',
+    aliases: ['fixture simulator', 'AFR', 'port extension']
+  },
+  {
+    term: 'Analysis bandwidth',
+    label: '순간 분석 대역폭',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'Signal analyzer가 한 번의 digitized acquisition에서 동시에 보존해 IQ·vector measurement에 사용할 수 있는 주파수 폭입니다.',
+    caution: '화면에 표시하는 frequency span, 인접 tone을 분리하는 RBW와 같은 설정이 아닙니다. N9020B B1X 교육 프로필의 최대값은 160 MHz입니다.',
+    href: '/instruments/sa-mxa/iq-capture-trigger/',
+    aliases: ['instantaneous bandwidth', 'IF bandwidth', 'B1X']
+  },
+  {
+    term: 'Input attenuation',
+    label: 'SA 입력 감쇠',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'RF connector와 mixer 사이의 step attenuator가 입력 신호를 줄여 front-end와 ADC에 headroom을 만드는 설정입니다.',
+    caution: 'Attenuation을 늘리면 overload 여유는 커지지만 analyzer의 표시 noise floor와 작은 신호 감도는 불리해집니다.',
+    href: '/instruments/sa-mxa/safe-input/',
+    aliases: ['input attenuator', 'mechanical attenuation', 'POW:ATT']
+  },
+  {
+    term: 'Mixer level',
+    label: 'SA mixer 입력 레벨',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'Analyzer RF front-end의 frequency-conversion mixer에 실제로 도달하는 신호 레벨로, 교육 모델에서는 connector input − attenuation + preamp gain으로 추적합니다.',
+    caution: 'Connector damage limit보다 훨씬 낮은 입력에서도 attenuation이 작거나 preamp가 켜져 있으면 내부 overload가 먼저 발생할 수 있습니다.',
+    href: '/instruments/sa-mxa/safe-input/',
+    aliases: ['mixer drive', 'front-end level']
+  },
+  {
+    term: 'Reference level',
+    label: 'SA 기준 레벨',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'Spectrum display의 위쪽 기준값이며 auto-coupled attenuation·gain과 ADC range를 정하는 데 사용되는 analyzer 상태입니다.',
+    caution: 'Reference level을 높였다는 사실만으로 물리적인 입력 power가 줄거나 connector가 보호되지는 않습니다.',
+    href: '/instruments/sa-mxa/safe-input/',
+    aliases: ['RLEV', 'display reference', 'DISP:WIND:TRAC:Y:RLEV']
+  },
+  {
+    term: 'Trace detector',
+    label: 'SA trace 검파 방식',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: '한 display bucket 안에 들어온 여러 measurement sample을 positive peak, negative peak, sample, average 또는 RMS 같은 한 trace 값으로 줄이는 규칙입니다.',
+    caution: 'Detector는 DUT 신호를 바꾸지 않지만 좁은 spur, noise와 burst가 화면에 보이는 방식과 측정 편향을 바꿉니다.',
+    href: '/instruments/sa-mxa/sweep-rbw-detector/',
+    aliases: ['positive peak detector', 'RMS average detector', 'DET:TRAC1']
+  },
+  {
+    term: 'Zero span',
+    label: 'SA zero-span 시간 관측',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'Analyzer를 한 center frequency에 고정하고 RBW filter와 detector를 통과한 amplitude를 시간축 trace로 표시하는 방식입니다.',
+    caution: '광대역 complex IQ를 그대로 저장하는 capture가 아니며 RBW, VBW, detector와 sweep time이 시간 응답을 제한합니다.',
+    href: '/instruments/sa-mxa/iq-capture-trigger/',
+    aliases: ['time domain sweep', 'SPAN 0']
+  },
+  {
+    term: 'Spectrum marker',
+    label: 'Spectrum trace marker',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: '현재 trace의 선택한 frequency point에서 amplitude를 읽거나 peak search 결과를 가리키는 display cursor입니다.',
+    caution: 'Marker readout은 마지막으로 완료된 trace를 읽으므로 configuration 변경 뒤에는 새 acquisition 완료와 trace freshness를 확인합니다.',
+    href: '/instruments/sa-mxa/sa-scpi-measurements/',
+    aliases: ['peak search', 'CALC:MARK:MAX', 'CALC:MARK:X?']
+  },
+  {
+    term: 'Channel power',
+    label: '채널 적분 전력',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: '지정한 channel bandwidth 안의 spectral power를 적분해 한 개의 평균 RF power 결과로 만드는 analyzer measurement입니다.',
+    caution: 'Channel center, integration bandwidth, detector·averaging, input correction과 기준면을 결과와 함께 저장해야 합니다.',
+    href: '/instruments/sa-mxa/sa-scpi-measurements/',
+    aliases: ['CHP', 'integrated channel power']
+  },
+  {
+    term: 'Occupied bandwidth',
+    label: '점유 대역폭',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: '측정 span 안의 전체 적분 전력 중 지정한 비율, 보통 99%를 포함하는 연속 주파수 구간의 폭입니다.',
+    caution: 'Span edge에 신호가 잘리거나 noise·spur가 포함되면 결과가 달라지므로 percentage, span과 integration 조건을 함께 기록합니다.',
+    href: '/instruments/sa-mxa/sa-scpi-measurements/',
+    aliases: ['OBW', '99% bandwidth']
+  },
+  {
+    term: 'Adjacent channel power',
+    label: '인접 채널 전력 측정',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'Main channel과 offset된 adjacent channel의 전력을 각각 적분하고 dBm 또는 main 대비 dBc로 보고하는 analyzer measurement입니다.',
+    caution: 'ACLR 해석 전 main·adjacent integration bandwidth, offset, filter와 기준면이 시험 규격에 맞는지 먼저 확인합니다.',
+    href: '/instruments/sa-mxa/pa-spectrum-analysis/',
+    aliases: ['ACP', 'ACPR', 'adjacent channel leakage']
+  },
+  {
+    term: 'Analyzer overload',
+    label: 'SA 내부 overrange',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: 'Mixer, IF 또는 ADC에 허용 headroom보다 큰 신호가 들어와 trace와 IQ가 clipping·compression되거나 거짓 spur를 만드는 상태입니다.',
+    caution: 'DUT compression으로 결론 내리기 전에 preamp OFF, input attenuation 증가, reference level 조정 뒤 같은 결과가 유지되는지 재측정합니다.',
+    href: '/instruments/sa-mxa/pa-spectrum-analysis/',
+    aliases: ['ADC overload', 'IF overload', 'overrange']
+  },
+  {
+    term: 'Trace data',
+    label: 'SA 표시 trace 배열',
+    category: 'instrument-control',
+    moduleId: 'keysight-n9020b',
+    definition: '현재 sweep·RBW·detector·averaging과 display processing을 거쳐 각 frequency point에 저장된 amplitude 값 배열입니다.',
+    caution: 'Trace query 결과는 raw time-domain IQ sample이 아니며 start/stop, point count, unit와 acquisition freshness를 함께 저장합니다.',
+    href: '/instruments/sa-mxa/sa-scpi-measurements/',
+    aliases: ['TRAC? TRACE1', 'spectrum trace array']
+  },
+  {
+    term: 'Measurement aperture',
+    label: 'Power sensor 적분 창',
+    category: 'instrument-control',
+    moduleId: 'keysight-u2061xa',
+    definition: 'Power sensor가 average readout 하나를 만들 때 포함하는 시간 구간입니다.',
+    caution: '짧은 aperture는 burst를 더 잘 분리하지만 포함 sample이 줄어 noise와 trigger 민감도가 불리해질 수 있습니다.',
+    href: '/instruments/power-sensor/sensor-scpi-trigger/',
+    aliases: ['SENS:SWE:APER', 'gate time', 'integration time']
+  },
+  {
+    term: 'Peak VBW',
+    label: 'Peak detector video bandwidth',
+    category: 'instrument-control',
+    moduleId: 'keysight-u2061xa',
+    definition: 'Power sensor의 빠른 detector path가 envelope 변화를 따라갈 수 있는 baseband bandwidth입니다.',
+    caution: 'U2061XA의 최대 5 MHz peak VBW는 광대역 OFDM average-power capability와 별개이며 true PAPR를 낮게 읽을 수 있습니다.',
+    href: '/instruments/power-sensor/average-peak-burst/',
+    aliases: ['video bandwidth', 'SENS:BAND:VID']
+  },
+  {
+    term: 'Sensor frequency correction',
+    label: 'Power sensor 주파수 보정',
+    category: 'instrument-control',
+    moduleId: 'keysight-u2061xa',
+    definition: '입력한 RF frequency에 대응하는 sensor calibration factor를 적용해 주파수 응답 오차를 보정하는 과정입니다.',
+    caution: '이 설정은 RF를 선택하는 tuner가 아니며 외부 cable·attenuator loss는 별도 FDO 또는 path correction으로 관리합니다.',
+    href: '/instruments/power-sensor/correction-uncertainty/',
+    aliases: ['calibration factor', 'FDO', 'SENS:FREQ']
+  },
+  {
+    term: 'CV mode',
+    label: 'Constant-voltage mode',
+    category: 'instrument-control',
+    moduleId: 'keysight-n6705c',
+    definition: 'Load가 요구하는 current가 limit와 power envelope 안에 있을 때 supply가 voltage setpoint를 유지하는 조절 상태입니다.',
+    caution: 'CV 표시는 DUT 단자의 voltage가 setpoint와 같다는 보장이 아니며 force lead drop과 remote-sense plane을 확인해야 합니다.',
+    href: '/instruments/power-supply/cv-cc-protection/',
+    aliases: ['constant voltage', 'STAT:OPER CV']
+  },
+  {
+    term: 'CC mode',
+    label: 'Constant-current mode',
+    category: 'instrument-control',
+    moduleId: 'keysight-n6705c',
+    definition: 'Load demand가 current setting에 도달해 supply가 current를 제한하고 output voltage를 낮추는 조절 상태입니다.',
+    caution: '예상 밖 CC 진입은 PA의 과전류, short, inrush 또는 잘못된 limit를 뜻할 수 있으므로 정상 measurement point로 그대로 저장하지 않습니다.',
+    href: '/instruments/power-supply/cv-cc-protection/',
+    aliases: ['constant current', 'current limit']
+  },
+  {
+    term: 'Remote sense',
+    label: '4-wire 전압 감지',
+    category: 'instrument-control',
+    moduleId: 'keysight-n6705c',
+    definition: '전류가 거의 흐르지 않는 sense pair로 DUT 단자 전압을 읽고 force lead의 I·R drop을 supply가 보상하는 방식입니다.',
+    caution: 'Sense open, polarity 오류와 보상 headroom 초과를 막아야 하며 N6752A specification은 load lead당 최대 1 V drop 조건입니다.',
+    href: '/instruments/power-supply/remote-sense-wiring/',
+    aliases: ['four wire', '4-wire', 'Kelvin sense']
+  },
+  {
+    term: 'OVP',
+    label: 'Over-voltage protection',
+    category: 'instrument-control',
+    moduleId: 'keysight-n6705c',
+    definition: '감시된 output voltage가 설정 threshold를 넘으면 supply output을 차단하는 보호 기능입니다.',
+    caution: 'Voltage setpoint와 OVP threshold는 다른 상태이며, trip 원인을 제거하기 전에 protection clear를 자동 반복하지 않습니다.',
+    href: '/instruments/power-supply/safe-bias/',
+    aliases: ['overvoltage protection', 'VOLT:PROT']
+  },
+  {
+    term: 'Autoranging power envelope',
+    label: 'Autoranging 출력 한계',
+    category: 'instrument-control',
+    moduleId: 'keysight-n6705c',
+    definition: 'Voltage와 current 최대값을 직사각형으로 동시에 제공하지 않고 정격 power 안에서 가능한 operating point를 결정하는 V–I 경계입니다.',
+    caution: 'N6752A의 50 V, 10 A 표기를 500 W로 해석하면 안 되며 실제 output은 100 W envelope 안에 있어야 합니다.',
+    href: '/instruments/power-supply/safe-bias/',
+    aliases: ['100 W envelope', 'autoranging source']
+  },
+  {
+    term: 'ALC',
+    label: 'Automatic Level Control',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: 'Signal generator가 검출한 출력 레벨을 기준으로 내부 gain을 되먹임 제어해 설정한 평균 RF power를 유지하는 loop입니다.',
+    caution: 'burst, 깊은 amplitude modulation, pulse 조건에서는 ALC mode와 marker 기반 hold 조건을 함께 확인합니다.',
+    href: '/instruments/sg-mxg/safe-cw/',
+    aliases: ['automatic level control', 'unlevel']
+  },
+  {
+    term: 'ARB',
+    label: 'Arbitrary Waveform Generator',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: '메모리에 저장한 I/Q sample과 sample clock을 순서대로 재생해 vector RF 변조를 만드는 baseband generator입니다.',
+    caution: 'RF carrier frequency와 ARB sample rate는 서로 다른 설정입니다.',
+    href: '/instruments/sg-mxg/arb-playback/',
+    aliases: ['arbitrary waveform', 'baseband generator']
+  },
+  {
+    term: 'Error queue',
+    label: 'SCPI 오류 큐',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: '장비가 받은 잘못된 명령, 범위 위반 또는 실행 실패를 순서대로 보관하는 FIFO queue입니다.',
+    caution: '통신 timeout과 장비 error queue는 다른 실패 경로이므로 둘을 각각 처리합니다.',
+    href: '/instruments/sg-mxg/scpi-pyvisa/',
+    aliases: ['SYST:ERR?', 'system error']
+  },
+  {
+    term: 'Marker',
+    label: 'Waveform marker',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: 'waveform의 특정 sample 구간에 붙여 event output, trigger 동기, RF blanking 또는 ALC hold 같은 하드웨어 동작을 정렬하는 digital 표시입니다.',
+    href: '/instruments/sg-mxg/arb-playback/'
+  },
+  {
+    term: 'PAPR',
+    label: 'Peak-to-Average Power Ratio',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: '파형의 peak power와 평균 power 사이의 비이며 modulated signal의 필요한 source·PA headroom을 결정합니다.',
+    caution: 'SG에 표시된 평균 power에 PAPR을 더한 PEP가 source와 DUT의 허용 peak를 넘지 않는지 확인합니다.',
+    href: '/instruments/sg-mxg/waveform-iq/',
+    aliases: ['crest factor', 'CCDF']
+  },
+  {
+    term: 'SCPI',
+    label: 'Standard Commands for Programmable Instruments',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: '계측기 설정과 상태 query를 계층적인 ASCII command로 표현하는 원격 제어 명령 체계입니다.',
+    caution: '같은 MXG 이름이라도 N5182B와 N5186A의 native command tree를 섞지 않습니다.',
+    href: '/instruments/sg-mxg/scpi-pyvisa/'
+  },
+  {
+    term: 'Trigger',
+    label: 'Waveform 재생 트리거',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: 'continuous 또는 single playback이 시작·재시작되는 시점을 BUS, external input 또는 내부 조건으로 정하는 사건입니다.',
+    href: '/instruments/sg-mxg/arb-playback/',
+    aliases: ['*TRG', 'external trigger']
+  },
+  {
+    term: 'VISA',
+    label: 'Virtual Instrument Software Architecture',
+    category: 'instrument-control',
+    moduleId: 'keysight-n5182b',
+    definition: 'LAN, USB, GPIB 같은 transport 차이를 공통 resource와 read/write/query API로 감싸는 계측기 I/O 표준 계층입니다.',
+    caution: 'VISA alias는 주소를 편하게 부르는 이름이며 실제 통신 interface와 timeout 설정을 대체하지 않습니다.',
+    href: '/instruments/sg-mxg/scpi-pyvisa/',
+    aliases: ['PyVISA', 'Connection Expert', 'HiSLIP']
   }
 ] as const;
 

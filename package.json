@@ -18,12 +18,14 @@
     "check:content": "node scripts/check-content.mjs",
     "check:visual-baselines": "node scripts/check-visual-baselines.mjs",
     "new:lesson": "node scripts/new-lesson.mjs",
+    "new:instrument-lesson": "node scripts/new-instrument-lesson.mjs",
     "test:unit": "vitest run",
     "test:hosting": "node --test tests/hosting/sites-worker.test.mjs",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run build && playwright test",
+    "test:python": "node scripts/test-python.mjs",
     "audit:lighthouse": "npm run build && node scripts/run-lighthouse.mjs",
-    "test": "npm run check:design && npm run check:content && npm run check:visual-baselines && npm run typecheck && npm run test:unit && npm run test:hosting && npm run build",
+    "test": "npm run check:design && npm run check:content && npm run check:visual-baselines && npm run typecheck && npm run test:unit && npm run test:python && npm run test:hosting && npm run build",
     "test:all": "npm run test && npm run test:e2e && npm run audit:lighthouse"
   },
   "dependencies": {

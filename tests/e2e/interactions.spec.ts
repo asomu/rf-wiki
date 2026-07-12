@@ -313,3 +313,112 @@ test('lesson hydration restores a saved lab completion', async ({ page }) => {
   const lab = await waitForHydratedLab(page, '[data-lab-id="spectrum"]');
   await expect(lab.locator('.lab-explain__done')).toContainText('이전 세션에서 완료');
 });
+
+test('MXG SCPI console drives the deterministic N5182B state and error queue', async ({ page }) => {
+  await page.goto('/instruments/sg-mxg/scpi-pyvisa/');
+  const lab = await waitForHydratedLab(page, '[data-lab-id="instrument:sg:mxg-scpi-pyvisa"]');
+
+  await lab.getByRole('radio', { name: '*OPC? 응답과 error queue를 확인' }).check();
+  await lab.getByRole('button', { name: '예측 고정' }).click();
+  const command = lab.getByRole('textbox', { name: 'SCPI program message' });
+  await command.fill('SOUR:FREQ:CW 2.4GHz');
+  await lab.getByRole('button', { name: 'WRITE만' }).click();
+  await expect(lab.locator('.mxg-state-diff')).toContainText('2.400 GHz');
+  await expect(lab.locator('.mxg-state-diff')).toContainText('RF OFF');
+
+  await command.fill('BAD:COMMAND');
+  await lab.getByRole('button', { name: 'WRITE만' }).click();
+  await expect(lab.locator('.mxg-transcript')).toContainText('-113');
+  await expect(lab.locator('.mxg-state-diff')).toContainText('errors 1');
+
+  await command.fill('*IDN?');
+  await lab.getByRole('button', { name: 'WRITE만' }).click();
+  await expect(lab.locator('.mxg-state-diff')).toContainText('output 1');
+
+  await command.fill('FREQ 2.5GHz');
+  await lab.getByRole('button', { name: 'WRITE만' }).click();
+  await expect(lab.locator('.mxg-state-diff')).toContainText('output 0');
+  await expect(lab.locator('.mxg-state-diff')).toContainText('errors 2');
+
+  await command.fill('SYST:ERR?');
+  await lab.getByRole('button', { name: 'QUERY + READ' }).click();
+  await expect(lab.locator('.mxg-transcript')).toContainText('-113,"Undefined header"');
+  await expect(lab.locator('.mxg-state-diff')).toContainText('errors 1');
+
+  await lab.getByRole('button', { name: 'QUERY + READ' }).click();
+  await expect(lab.locator('.mxg-transcript')).toContainText('-410,"Query INTERRUPTED"');
+  await expect(lab.locator('.mxg-state-diff')).toContainText('errors 0');
+
+  await command.fill('*OPC?');
+  await lab.getByRole('button', { name: 'QUERY + READ' }).click();
+  await expect(lab.locator('.mxg-transcript')).toContainText('1');
+
+  await command.fill('*OPT?');
+  await lab.getByRole('button', { name: 'WRITE만' }).click();
+  await expect(lab.locator('.mxg-state-diff')).toContainText('output 1');
+  await lab.getByRole('button', { name: 'READ queue' }).click();
+  await expect(lab.locator('.mxg-transcript')).toContainText('506,656');
+  await expect(lab.locator('.mxg-state-diff')).toContainText('output 0');
+
+  await command.fill('RAD:ARB:WAV "WFM1:OFDM_LIKE"');
+  await lab.getByRole('button', { name: 'WRITE만' }).click();
+  await expect(lab.locator('.mxg-queue-strip')).toContainText('OPERATIONS 1');
+  await expect(lab.locator('.mxg-pending-operations')).toContainText('Select WFM1:OFDM_LIKE');
+
+  await command.fill('*OPC?');
+  await lab.getByRole('button', { name: 'QUERY + READ' }).click();
+  await expect(lab.locator('.mxg-queue-strip')).toContainText('OPERATIONS 0');
+});
+
+test('MXG Option 656 caps sample rate and ARB selection changes the linked timeline', async ({ page }) => {
+  await page.goto('/instruments/sg-mxg/waveform-iq/');
+  const waveformLab = await waitForHydratedLab(
+    page,
+    '[data-lab-id="instrument:sg:mxg-waveform-iq"]',
+  );
+  const sampleRate = waveformLab.getByRole('slider', { name: 'Sample rate · Option 656' });
+  await expect(sampleRate).toHaveAttribute('max', '100');
+  await expect(waveformLab.locator('.cause-ledger')).toContainText('656+657');
+
+  await page.goto('/instruments/sg-mxg/arb-playback/');
+  const arbLab = await waitForHydratedLab(
+    page,
+    '[data-lab-id="instrument:sg:mxg-arb-playback"]',
+  );
+  await arbLab.getByRole('radio', { name: 'armed 상태에서 재생을 기다림' }).check();
+  await arbLab.getByRole('button', { name: '예측 고정' }).click();
+  await arbLab.getByRole('combobox', { name: 'Waveform segment' }).selectOption('Two-tone');
+  await expect(arbLab.locator('svg').first()).toContainText('WFM1:TWO_TONE');
+});
+
+test('instrument progress is namespaced per device and does not change the six-axis RF progress', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('rf-wiki:v1:progress', JSON.stringify({
+      frequency: { completed: true, completedAt: '2026-07-12T00:00:00.000Z' },
+      'instrument:sg:mxg-safe-cw': { completed: true, completedAt: '2026-07-12T00:01:00.000Z' },
+      'instrument:sa:mxa-safe-input': { completed: true, completedAt: '2026-07-12T00:02:00.000Z' },
+      'instrument:vna:ena-safe-sweep': { completed: true, completedAt: '2026-07-12T00:03:00.000Z' },
+      'instrument:sensor:sensor-safe-power': { completed: true, completedAt: '2026-07-12T00:04:00.000Z' },
+      'instrument:psu:psu-safe-bias': { completed: true, completedAt: '2026-07-12T00:05:00.000Z' },
+    }));
+  });
+
+  const expected = [
+    ['/instruments/sg-mxg/', 'Waveform 파일', '/instruments/sg-mxg/waveform-iq/'],
+    ['/instruments/sa-mxa/', 'SA는 입력 RF를', '/instruments/sa-mxa/sweep-rbw-detector/'],
+    ['/instruments/vna-ena/', 'Calibration을 하면', '/instruments/vna-ena/calibration-reference-plane/'],
+    ['/instruments/power-sensor/', '같은 burst가', '/instruments/power-sensor/average-peak-burst/'],
+    ['/instruments/power-supply/', '설정한 voltage가', '/instruments/power-supply/cv-cc-protection/'],
+  ] as const;
+  for (const [route, title, href] of expected) {
+    await page.goto(route);
+    const instrumentProgress = page.locator('[data-instrument-progress]');
+    await expect(instrumentProgress.locator('[data-progress-count]')).toHaveText('1');
+    await expect(instrumentProgress.locator('[data-progress-title]')).toContainText(title);
+    await expect(instrumentProgress.locator('[data-progress-action]')).toHaveAttribute('href', href);
+  }
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-progress] [data-progress-count]')).toHaveText('1');
+  await expect(page.locator('[data-home-progress] [data-progress-title]')).toContainText('SA의 trace');
+});

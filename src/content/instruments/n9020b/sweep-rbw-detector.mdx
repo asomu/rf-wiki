@@ -1,0 +1,201 @@
+---
+title: "SA는 입력 RF를 어떻게 한 줄의 spectrum trace로 바꿀까?"
+description: "N9020B의 RF front end, superheterodyne conversion, digital IF, RBW·VBW, detector, trace와 sweep time을 연결하고 같은 신호가 설정에 따라 다르게 보이는 이유를 익힌다."
+instrumentId: "keysight-n9020b"
+chapter: "sweep-rbw-detector"
+order: 2
+estimatedMinutes: 75
+prerequisites:
+  - "safe-input"
+  - "spectrum-iq"
+outcomes:
+  - "RF input이 LO·mixer·IF filter·ADC·RBW·detector를 거쳐 amplitude-versus-frequency trace가 되는 경로를 설명할 수 있다."
+  - "Center/span, points, RBW, VBW, detector와 sweep time이 각각 무엇을 바꾸는지 예측할 수 있다."
+  - "두 tone 분리, noise density, pulsed signal과 spur 탐색에 맞는 detector·trace 설정을 선택할 수 있다."
+concepts:
+  - "superheterodyne analyzer"
+  - "local oscillator"
+  - "intermediate frequency"
+  - "resolution bandwidth"
+  - "video bandwidth"
+  - "detector bucket"
+  - "sweep time"
+  - "trace type"
+  - "noise bandwidth"
+equipmentContext:
+  source: "Keysight N5182B single-tone, two-tone 또는 OFDM-like built-in waveform"
+  dut: "50 Ω through 또는 충분히 감쇠된 PA output path"
+  analyzer: "Keysight N9020B-526/B1X/MPB/P26 Spectrum Analyzer mode, overload 없는 front-end state"
+references:
+  - title: "Spectrum Analysis Basics"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06714/application-notes/5952-0292.pdf"
+    kind: "application-note"
+  - title: "X-Series Signal Analyzer Spectrum Analyzer Mode User's & Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04666/user-manuals/9018-04666.pdf"
+    kind: "vendor"
+  - title: "N9020B MXA Signal Analyzer Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+labId: "mxa-sweep-rbw"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+Spectrum trace는 입력 신호의 사진이 아니다. N9020B가 선택한 frequency range를 관찰하고, 각 frequency bucket을 RBW filter와 detector로 요약한 **측정 결과**다. 같은 RF input도 RBW, detector와 sweep time이 달라지면 trace 모양과 숫자가 달라진다.
+
+<LessonLayer level="intuition" title="LO가 RF 대역을 IF 창 앞으로 지나가게 만든다고 생각하자">
+
+## Swept spectrum의 mental model
+
+~~~text
+RF input spectrum
+  → input attenuator / preselector
+  → mixer × swept LO
+  → fixed IF neighborhood
+  → ADC / digital IF
+  → RBW filter → detector bucket → VBW / trace math
+  → amplitude versus RF frequency
+~~~
+
+Mixer는 입력의 모든 주파수를 한 번에 최종 trace로 바꾸지 않는다. LO를 움직이거나 digital IF에서 FFT 구간을 처리하면서, 관심 RF 성분이 IF passband 안으로 들어오는 순간을 측정한다. Frequency axis는 “어느 LO/FFT bin이 이 성분을 보았는가”, Y axis는 “그 구간에서 detector가 어떤 amplitude statistic을 남겼는가”다.
+
+<Definition term="Resolution bandwidth" symbol="RBW">
+서로 가까운 frequency 성분을 분리하고 한 trace point에 들어오는 noise bandwidth를 정하는 IF/digital filter 폭이다. Span의 표시 폭이나 modulation occupied bandwidth 자체를 바꾸는 설정이 아니다.
+</Definition>
+
+<Definition term="Detector bucket">
+한 display point가 담당하는 시간·frequency sample 묶음에서 어떤 값을 대표로 남길지 정하는 규칙이다. Positive peak, sample, negative peak, RMS/average는 같은 입력 sample을 다른 방식으로 요약한다.
+</Definition>
+
+<InstrumentLab labId="mxa-sweep-rbw" />
+
+## Knob를 역할별로 분리한다
+
+| 설정 | 직접 바뀌는 것 | 화면에서 보이는 변화 | 대가·주의 |
+|---|---|---|---|
+| Center / span | 관찰 RF 구간 | 신호가 화면 안팎으로 이동, 넓은 문맥 | 넓은 span은 작은 feature의 point spacing을 키울 수 있음 |
+| Points | X-axis sample grid | 좁은 peak·notch를 놓칠 확률 감소 | data와 sweep/processing time 증가 |
+| RBW 감소 | IF noise·resolution filter 폭 | 가까운 tone 분리, displayed noise 감소 | settling·sweep time 증가, burst를 놓칠 수 있음 |
+| VBW 감소 | detected trace의 video smoothing | random fluctuation이 부드러워짐 | transient와 peak를 평균 내고 response가 느려짐 |
+| Detector | bucket statistic | peak 보존, RMS power 또는 sample 모양 변화 | 목적과 맞지 않으면 bias 발생 |
+| Trace type | sweep 간 결합 | Clear/write, max hold, min hold, average | 서로 다른 DUT state를 한 trace에 섞을 수 있음 |
+
+## RBW와 VBW를 같은 low-pass knob로 보지 않는다
+
+RBW는 detector **앞**에서 frequency selection과 noise bandwidth를 바꾼다. VBW는 detector **뒤**의 amplitude fluctuation을 부드럽게 한다. VBW를 줄이면 두 tone의 물리적 frequency 분해능이 좋아지는 것이 아니며, RBW를 줄이면 무조건 보기 좋은 결과가 되는 것도 아니다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="무엇을 찾는지 정한 뒤 span→RBW→detector→time 순으로 조정한다">
+
+## Front-panel 기본 절차
+
+1. 안전한 attenuation·preamp·reference level을 먼저 닫고 overload가 없는지 확인한다.
+2. `Frequency`에서 center/span 또는 start/stop을 정한다.
+3. 넓은 span과 auto RBW로 carrier, harmonic, 예상 밖 spur의 위치를 찾는다.
+4. 관심 구간으로 span을 줄이고 RBW를 두 신호 간격보다 충분히 좁힌다.
+5. Modulated power는 RMS/average 계열 detector, 놓치면 안 되는 intermittent spur는 positive peak와 max hold를 우선 검토한다.
+6. VBW는 trace fluctuation을 줄일 필요가 있을 때만 RBW와의 ratio를 기록하며 줄인다.
+7. Single sweep로 고정하고 marker·trace data를 acquisition state와 함께 저장한다.
+8. Attenuation 또는 RBW를 바꿔 analyzer contribution이 결과를 지배하지 않는지 교차 확인한다.
+
+## 자주 쓰는 deterministic sweep sequence
+
+~~~text
+*IDN?
+*OPT?
+ABOR
+*CLS
+INST:SEL SA
+CONF:SAN:NDEF
+INIT:CONT OFF
+FREQ:CENT 3.5 GHZ
+FREQ:SPAN 200 MHZ
+POW:GAIN OFF
+POW:ATT:AUTO OFF
+POW:ATT 30 DB
+DISP:WIND:TRAC:Y:RLEV 10 DBM
+BAND:RES:AUTO OFF
+BAND:RES 100 KHZ
+BAND:VID:AUTO OFF
+BAND:VID 300 KHZ
+DET:TRAC1 AVER
+TRAC1:TYPE WRIT
+SWE:POIN 1001
+TRIG:SAN:SOUR IMM
+INIT:IMM
+*OPC?
+TRAC? TRACE1
+SYST:ERR?
+~~~
+
+`CONF:SAN:NDEF`는 Swept SA measurement를 선택하되 measurement default를 암묵적으로 다시 적용하지 않는 form이다. 이후 frequency, amplitude, bandwidth, detector와 trace를 **명시하고 query-back**한다. 저장된 이전 state나 auto coupling을 암묵적으로 재사용하지 않는다.
+
+<MeasurementNote title="Trace point 수보다 더 많은 정보가 실제로 측정됐다고 가정하지 않는다" kind="condition">
+Display가 선으로 연결되어 매끄러워 보여도 host가 가져오는 trace는 유한한 point array다. `N`개 Y값을 start/stop frequency와 index로 묶고, instrument가 제공하는 X-value query가 있으면 그 배열을 우선한다. Interpolation은 측정하지 않은 narrow spur를 되살리지 못한다.
+</MeasurementNote>
+
+## 목적별 detector·trace 선택
+
+| 목적 | 시작 detector / trace | 확인할 함정 |
+|---|---|---|
+| CW amplitude | Sample 또는 normal/positive peak, clear/write | RBW filter response와 marker interpolation |
+| OFDM channel power | RMS/average, power integration | Log trace 평균을 linear power 평균으로 오해 |
+| Intermittent spur | Positive peak + max hold | Max hold 시간 동안 DUT state·temperature 변화 |
+| Noise floor | RMS/average, averaging | DANL, preamp, attenuation, noise marker correction |
+| Pulsed spectrum | Peak 또는 gated acquisition | Sweep가 pulse와 비동기면 point별 다른 pulse를 봄 |
+| Minimum envelope | Negative peak / min hold | Noise minima를 signal minimum으로 오해 |
+
+Detector 이름과 허용 조합은 선택한 N9020B measurement와 firmware에서 query한다. 다른 Keysight analyzer의 enum을 그대로 복사하지 않는다.
+
+## RBW를 내렸는데 carrier power까지 내려갈 때
+
+CW tone의 amplitude는 RBW passband 안에서 원칙적으로 크게 변하지 않아야 한다. 크게 내려간다면 다음을 확인한다.
+
+- Signal이 RBW filter center에 충분히 settle했는가?
+- Sweep time을 지나치게 짧게 강제했는가?
+- Burst duty 또는 hopping 때문에 measurement가 같은 event를 보지 않았는가?
+- Detector·trace averaging이 바뀌었는가?
+- Carrier가 phase noise/skirt를 포함한 wide signal이라 integrated power가 RBW 밖으로 잘렸는가?
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Frequency grid, noise와 sweep time의 trade-off를 수식으로 닫자">
+
+<FormulaDisclosure title="Linear trace frequency grid" formula="f[k] = f_start + k·(f_stop−f_start)/(N−1),   k=0…N−1">
+Start/stop이 선형이고 instrument가 동일 grid를 반환한다는 조건의 식이다. Segmented, log, zero-span 또는 measurement-specific trace에는 해당 mode의 X-values를 query한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="RBW 변화에 따른 white-noise power" formula="ΔP_noise ≈ 10log₁₀(RBW₂/RBW₁)">
+RBW를 100 kHz에서 10 kHz로 줄이면 이상적인 white-noise contribution은 약 10 dB 낮아진다. Filter noise-equivalent bandwidth, detector, averaging와 instrument DANL 때문에 실제 변화는 정확히 10 dB가 아닐 수 있다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="두 equal tone 분리 조건의 직관" formula="RBW ≪ |f₂−f₁|">
+정확한 분리 기준은 RBW filter shape factor와 필요한 amplitude accuracy에 달려 있다. N9020B 사양은 RBW별 bandwidth accuracy와 selectivity를 제공한다. 단순히 `RBW = tone spacing`을 충분한 조건으로 쓰지 않는다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Swept-filter time의 고전적 근사" formula="T_sweep ∝ Span / RBW²">
+Analog swept analyzer에서 좁은 RBW가 settle하려면 sweep가 급격히 느려진다는 직관이다. N9020B의 digital IF·FFT·auto coupling은 더 복잡하므로 실제 `SWE:TIME?`와 `*OPC?` latency를 기록한다.
+</FormulaDisclosure>
+
+## Power는 dBm trace를 산술 평균하지 않는다
+
+Channel 안의 total power를 host에서 계산하려면 각 trace bucket의 dBm을 watt로 바꾸고 filter bandwidth·bin spacing에 맞춰 합산한 뒤 다시 dBm으로 변환한다. Detector output의 의미와 trace 단위가 `dBm/RBW`, `dBm/Hz` 또는 bin power인지 확인하지 않고 숫자만 더하지 않는다. 가능한 경우 N9020B의 Channel Power measurement를 사용하고 같은 설정으로 cross-check한다.
+
+## 완료 전 자기 설명
+
+1. Center/span과 RBW는 각각 frequency axis의 무엇을 바꾸는가?
+2. VBW를 줄여도 두 가까운 tone의 분리능이 좋아지지 않는 이유는 무엇인가?
+3. Positive-peak max hold와 RMS clear/write가 같은 OFDM 신호를 다르게 표시하는 이유는 무엇인가?
+4. RBW를 10배 줄일 때 noise와 sweep time은 어떤 방향으로 움직이는가?
+5. Trace point를 선으로 연결한 화면이 continuous spectrum 측정과 같지 않은 이유는 무엇인가?
+
+</LessonLayer>

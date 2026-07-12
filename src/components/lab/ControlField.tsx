@@ -1,6 +1,10 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes } from 'react';
 import { useLabControlInteraction } from './LabControlInteraction';
 
+function describedBy(existing: string | undefined, ...ids: (string | false | undefined)[]) {
+  return [existing, ...ids.filter(Boolean)].filter(Boolean).join(' ') || undefined;
+}
+
 interface RangeProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   id: string;
   label: string;
@@ -10,6 +14,7 @@ interface RangeProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>
 
 export function RangeControl({ label, valueText, help, id, onChange, ...props }: RangeProps) {
   const reportInteraction = useLabControlInteraction();
+  const helpId = help ? `${id}-help` : undefined;
 
   return (
     <div className="control-field">
@@ -21,12 +26,15 @@ export function RangeControl({ label, valueText, help, id, onChange, ...props }:
         id={id}
         type="range"
         {...props}
+        name={props.name ?? id}
+        aria-valuetext={props['aria-valuetext'] ?? valueText}
+        aria-describedby={describedBy(props['aria-describedby'], helpId)}
         onChange={(event) => {
           onChange?.(event);
           reportInteraction(id);
         }}
       />
-      {help && <p>{help}</p>}
+      {help && <p id={helpId}>{help}</p>}
     </div>
   );
 }
@@ -39,6 +47,7 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export function SelectControl({ label, help, id, children, onChange, ...props }: SelectProps) {
   const reportInteraction = useLabControlInteraction();
+  const helpId = help ? `${id}-help` : undefined;
 
   return (
     <div className="control-field">
@@ -46,6 +55,8 @@ export function SelectControl({ label, help, id, children, onChange, ...props }:
       <select
         id={id}
         {...props}
+        name={props.name ?? id}
+        aria-describedby={describedBy(props['aria-describedby'], helpId)}
         onChange={(event) => {
           onChange?.(event);
           reportInteraction(id);
@@ -53,7 +64,7 @@ export function SelectControl({ label, help, id, children, onChange, ...props }:
       >
         {children}
       </select>
-      {help && <p>{help}</p>}
+      {help && <p id={helpId}>{help}</p>}
     </div>
   );
 }
@@ -67,6 +78,9 @@ interface NumberProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'
 
 export function NumberControl({ label, unit, help, id, onChange, ...props }: NumberProps) {
   const reportInteraction = useLabControlInteraction();
+  const helpId = help ? `${id}-help` : undefined;
+  const unitId = `${id}-unit`;
+  const displayedValue = props.value ?? props.defaultValue;
 
   return (
     <div className="control-field">
@@ -76,14 +90,17 @@ export function NumberControl({ label, unit, help, id, onChange, ...props }: Num
           id={id}
           type="number"
           {...props}
+          name={props.name ?? id}
+          aria-valuetext={props['aria-valuetext'] ?? (displayedValue === undefined ? undefined : `${displayedValue} ${unit}`)}
+          aria-describedby={describedBy(props['aria-describedby'], unitId, helpId)}
           onChange={(event) => {
             onChange?.(event);
             reportInteraction(id);
           }}
         />
-        <span>{unit}</span>
+        <span id={unitId}>{unit}</span>
       </div>
-      {help && <p>{help}</p>}
+      {help && <p id={helpId}>{help}</p>}
     </div>
   );
 }

@@ -1,0 +1,238 @@
+---
+title: "VNA automation에서 channel, trace, trigger와 data format은 왜 따로 관리할까?"
+description: "E5080B를 Python·PyVISA로 제어할 때 channel/measurement/trace, sweep trigger, *OPC?, output·error queue와 SDATA/FDATA/X-values를 재현 가능한 transaction으로 설계한다."
+instrumentId: "keysight-e5080b"
+chapter: "vna-scpi-data"
+order: 4
+estimatedMinutes: 80
+prerequisites:
+  - "safe-sweep"
+  - "calibration-reference-plane"
+  - "sparameters-smith-time"
+outcomes:
+  - "Channel, measurement, display trace와 data array가 같은 객체가 아님을 설명할 수 있다."
+  - "INIT→*OPC?→SDATA/X-values→error drain의 동기화된 acquisition을 작성할 수 있다."
+  - "ASCII와 REAL,32 binary data의 complex pair, byte order와 point count를 검증할 수 있다."
+concepts:
+  - "VISA and HiSLIP"
+  - "channel"
+  - "measurement parameter"
+  - "display trace"
+  - "trigger scope"
+  - "operation complete"
+  - "output queue"
+  - "error queue"
+  - "SDATA"
+  - "FDATA"
+  - "RDATA"
+  - "binary block"
+equipmentContext:
+  source: "Keysight E5080B-2K0 connected through a verified VISA alias, HiSLIP preferred for LAN example"
+  dut: "50 Ω through/passive DUT for software validation before active-device use"
+  analyzer: "E5080B channel 1 complex measurement and local Python 3/PyVISA"
+references:
+  - title: "E5080B Programming Guide"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/Programming/Programming_Guide.htm"
+    kind: "vendor"
+  - title: "Controlling the VNA Using Python and HiSLIP"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/Programming/GPIB_Example_Programs/Controlling_the_VNA_Using_Python.htm"
+    kind: "vendor"
+  - title: "Understanding Command Synchronization"
+    organization: "Keysight Technologies"
+    url: "https://helpfiles.keysight.com/csg/e5080b/Programming/Learning_about_GPIB/Understanding_Command_Synchronization.htm"
+    kind: "vendor"
+labId: "ena-scpi-data"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+`CALC1:MEAS1:DATA:SDAT?`가 숫자 배열을 돌려줬다고 해서 그 배열의 의미가 자동으로 증명되지는 않는다. 어떤 channel stimulus, 어떤 measurement definition, 어떤 correction state와 trigger 뒤에 읽었는지를 같이 고정해야 complex data가 재현 가능한 S-parameter가 된다.
+
+<LessonLayer level="intuition" title="VNA 프로그램을 객체와 시간의 두 축으로 보자">
+
+## 객체 축: channel → measurement → trace → data
+
+- **Channel**: frequency, power, IFBW, averaging와 trigger 같은 sweep state를 가진다.
+- **Measurement**: `S11`, `S21`처럼 receiver ratio를 정의한다.
+- **Trace/window**: measurement를 front-panel에 어떤 format·scale로 보일지 연결한다.
+- **Data**: corrected/un-corrected complex pair 또는 formatted values를 host로 가져온다.
+
+Display trace가 없어도 measurement data를 query할 수 있고, trace format을 Smith로 바꿔도 underlying corrected complex SDATA가 Smith 좌표로 바뀌어 저장되는 것은 아니다.
+
+<Definition term="SDATA">
+선택된 measurement의 corrected complex data를 real/imaginary pair로 반환하는 data access다. 한 point마다 두 숫자가 필요하며 frequency x-axis는 별도로 읽고 길이를 맞춘다.
+</Definition>
+
+<Definition term="FDATA">
+현재 display format에 맞춘 formatted data다. LogMag라면 point당 dB 값, Smith/complex format에서는 반환 구조가 달라질 수 있다. 계산 원본이 필요하면 SDATA를 우선하고 format metadata를 별도로 저장한다.
+</Definition>
+
+<InstrumentLab labId="ena-scpi-data" />
+
+## 시간 축: configure → trigger → complete → fetch
+
+`INIT1:IMM`은 acquisition을 시작하거나 trigger를 기다리도록 arm하는 명령이다. Host write가 끝난 순간 receiver sweep까지 끝났다는 뜻이 아니다. `TRIG:SOUR IMM`이면 INIT가 즉시 trigger event가 되고, `MAN`이면 `*TRG`, `EXT`이면 실제 external edge가 있어야 sweep가 시작된다. 그 뒤 `*OPC?` 또는 장비가 문서화한 status/event synchronization으로 완료를 확인하고 data를 가져온다.
+
+가상 console도 `idle → armed → sweeping → complete`를 분리한다. MAN/EXT가 armed인 동안 `*OPC?`는 완료 `1`을 위조하지 않고 would-time-out으로 남는다. Event와 completion 전 `SDAT?`/`FDAT?`는 `−230 stale data`로 거절한다. EXT는 console의 **EXT edge simulation** 버튼으로 한 번의 edge를 재현한다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="PyVISA transaction을 안전한 source state와 동기화하자">
+
+## VISA alias와 identity를 configuration으로 받는다
+
+Keysight IO Libraries Suite/Connection Expert에서 장비를 발견하고 alias를 만든다. Production code는 IP를 source에 하드코딩하지 않고 `E5080B_VISA_RESOURCE` 또는 CLI argument로 승인된 alias/resource를 받는다.
+
+~~~python
+import os
+import pyvisa
+
+resource = os.environ["E5080B_VISA_RESOURCE"]
+rm = pyvisa.ResourceManager()
+vna = rm.open_resource(resource)
+vna.timeout = 20_000
+vna.read_termination = "\n"
+vna.write_termination = "\n"
+
+try:
+    identity = vna.query("*IDN?").strip()
+    if "E5080B" not in identity:
+        raise RuntimeError(f"unexpected instrument: {identity}")
+    vna.write("OUTP OFF")
+finally:
+    try:
+        vna.write("OUTP OFF")
+    finally:
+        vna.close()
+        rm.close()
+~~~
+
+사이트와 함께 제공하는 [E5080B PyVISA 실행 가이드](/instruments/vna-ena/python-examples/)의 예제는 dry-run이 기본이다. 실제 통신은 `--execute`, source enable은 추가 `--rf-on` consent가 필요하다. Physical RF ON은 DUT input limit, receiver working limit, 최대 DUT gain을 명시하고 signed path gain/loss·uncertainty·guard를 포함한 worst-case envelope와 full configuration query-back이 통과해야 한다. S12/S22처럼 port 2 source를 쓰는 physical acquisition은 세 번째 `--reverse-drive` consent가 없으면 driver와 CLI 양쪽에서 거절한다.
+
+## 안전한 single-S21 acquisition
+
+~~~text
+*IDN?
+*OPT?
+OUTP OFF
+*CLS
+SYST:POW1:LIM -20 DBM
+SYST:POW1:LIM:STAT ON
+SOUR1:POW1 -30 DBM
+SENS1:FREQ:STAR 1 GHZ
+SENS1:FREQ:STOP 6 GHZ
+SENS1:SWE:POIN 201
+SENS1:BWID 1 KHZ
+CALC1:PAR:DEF:EXT 'RF_WIKI_S21','S21'
+CALC1:PAR:SEL 'RF_WIKI_S21'
+CALC1:PAR:MNUM?
+TRIG:SOUR IMM
+OUTP ON
+INIT1:IMM
+*OPC?
+FORM:DATA ASC,0
+FORM:DATA?
+SENS1:CORR:STAT?
+SENS1:CORR:CSET:ACT? NAME
+CALC1:MEAS<mnum>:X:VAL?
+CALC1:MEAS<mnum>:DATA:SDAT?
+SYST:ERR?
+OUTP OFF
+~~~
+
+`<mnum>`은 `RF_WIKI_S21`을 선택한 뒤 `CALC1:PAR:MNUM?`으로 읽은 실제 번호로 치환한다. 저장된 상태가 우연히 `MEAS1`이라고 추측하지 않는다. 예제는 ASCII를 강제하고 `FORM:DATA?`를 확인하며, correction ON과 active CalSet name이 사용자가 지정한 `--expected-calset`과 일치할 때만 결과를 corrected SDATA로 표시한다. `OUTP ON`은 identity, `*OPT?`의 `2K0`, limit, DUT, receiver protection과 bias preflight가 통과한 별도 단계에만 둔다.
+
+<MeasurementNote title="Query는 write처럼 보내고 나중에 잊어도 되는 command가 아니다" kind="warning">
+Query response를 읽지 않은 채 다음 program message를 보내면 output queue가 중단되어 `Query INTERRUPTED`가 생길 수 있다. `query()`로 write+read를 묶거나 low-level write/read 순서를 상태기계로 관리한다. Error queue와 output queue는 서로 다른 FIFO다.
+</MeasurementNote>
+
+## `*OPC?`와 timeout을 함께 설계한다
+
+- Timeout은 longest valid sweep보다 길고 hang detection에는 충분히 짧게 정한다.
+- Sweep time은 points, IFBW, averaging, calibration/fixture math와 trigger 조건에 따라 바뀐다.
+- MAN/EXT에서 event가 오지 않으면 `*OPC?`가 기다리는 것이 정상이다. Timeout을 sweep 완료로 바꾸거나 이전 trace를 새 data로 반환하지 않는다.
+- 순서는 `INIT → trigger event → *OPC?=1 → SDATA/FDATA`다. 새 configuration 또는 `ABOR` 뒤에는 data를 stale로 되돌린다.
+- `*OPC?` timeout 뒤 같은 sweep를 무조건 재시작하지 않는다. Instrument state와 pending operation을 먼저 진단한다.
+- Abort path에서는 `ABOR`, `OUTP OFF`, error/status capture 순서를 장비 문서와 station safety policy에 맞춘다.
+- Network loss에서는 software OFF가 보장되지 않으므로 hardware interlock가 필요하다.
+
+## SDATA 배열 검증
+
+1. 고유 measurement name을 정의·선택하고 `MNUM?`으로 data query 대상 번호를 확인한다.
+2. `FORM:DATA?`가 코드가 해석할 ASCII 또는 명시된 binary format과 같은지 확인한다.
+3. `SENS1:CORR:STAT?`와 active CalSet name을 확인한다. 하나라도 다르면 “corrected” label을 붙이지 않는다.
+4. `X:VAL?`의 frequency count가 requested points와 같은지 확인한다.
+5. SDATA scalar count가 `2 × points`인지 확인한다.
+6. `[Re0, Im0, Re1, Im1, ...]`로 complex pair를 만든다.
+7. NaN/Inf, truncated block와 unexpected endian을 거절한다.
+8. Measurement name/number, parameter, correction/CalSet state와 stimulus snapshot을 data artifact에 함께 저장한다.
+9. Marker 값과 first/middle/last point를 front panel에서 spot-check한다.
+
+## ASCII와 binary를 분리해 구현한다
+
+- ASCII는 사람이 확인하기 쉽지만 느리고 문자열 parsing 오버헤드가 크다.
+- `REAL,32`는 빠르고 compact하지만 definite-length block header와 byte order를 정확히 처리해야 한다.
+- `FORM:BORD SWAP` 또는 `NORM`의 의미를 host endian과 라이브러리 option에 맞춰 확인한다.
+- Binary query에서 text termination을 payload에 임의 적용하지 않는다.
+- Block payload bytes와 declared length, 4-byte scalar count를 검증한다.
+
+## Error queue는 no-error까지 제한된 drain을 한다
+
+~~~python
+def drain_errors(vna, maximum=32):
+    records = []
+    for _ in range(maximum):
+        response = vna.query("SYST:ERR?").strip()
+        records.append(response)
+        if response.startswith("+0,") or response.startswith("0,"):
+            nonzero = [record for record in records if not record.startswith(("+0,", "0,"))]
+            if nonzero:
+                raise RuntimeError(f"configuration failed: {nonzero}")
+            return records
+    raise RuntimeError("error queue did not reach no-error within bound")
+~~~
+
+`*CLS`는 status를 정리하지만 원하는 channel/measurement/calibration을 구성하지 않는다. 기존 오류를 log하기 전에 무조건 `*CLS`로 지우면 원인 증거가 사라진다. Drain 끝에서 `+0`을 보았더라도 앞서 nonzero record가 있었다면 configure 실패로 RF ON을 차단한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Complex pair, queue와 acquisition consistency를 수식으로 닫자">
+
+<FormulaDisclosure title="SDATA complex packing" formula="S[k] = data[2k] + j·data[2k+1],   k=0…N−1">
+Frequency array `f[k]`와 동일한 index로 묶는다. Point count가 다르면 잘라 맞추지 말고 transaction을 invalid로 처리한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Magnitude와 phase 변환" formula="Mag_dB=20log₁₀√(Re²+Im²),   φ=atan2(Im,Re)">
+Phase unwrap은 measurement 목적에 맞춰 별도 수행한다. SDATA를 dB로 변환한 뒤 complex information을 복구할 수는 없다.
+</FormulaDisclosure>
+
+## RDATA, SDATA, FDATA 선택 원칙
+
+- **RDATA**: receiver/raw correction 단계 분석이 필요할 때만 해당 command의 정확한 semantics를 문서에서 확인한다.
+- **SDATA**: corrected complex S-parameter를 후처리·저장할 때 기본 선택이다.
+- **FDATA**: front-panel display와 같은 formatted marker/trace 값을 재현할 때 사용한다.
+
+Data access spelling과 반환 구조는 E5080B firmware A.20.25.03 online help를 source of truth로 둔다. PNA나 E5081A 예제의 명령을 이름이 비슷하다는 이유로 섞지 않는다.
+
+## 한 transaction의 최소 log
+
+`timestamp · VISA resource alias · *IDN? · *OPT? · firmware · channel state · measurement definition · correction/CalSet ID · trigger source · *OPC? latency · data format/endian · point count · error queue · cleanup result`
+
+## Cause/Effect를 자기 말로 닫기
+
+“`INIT1:IMM`이 channel sweep를 시작했기 때문에 host write 성공만으로 SDATA를 읽지 않고 `*OPC?`로 완료를 동기화했다. 그 뒤 frequency N개와 SDATA 2N개를 확인해 complex pair로 묶었고, correction state·measurement ID·error queue와 함께 저장했다.”
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. Channel, measurement, display trace와 SDATA는 각각 무엇을 소유하는가?
+2. `*OPC?`, output queue와 error queue가 서로 대신할 수 없는 이유는 무엇인가?
+3. REAL,32 block을 complex S-parameter로 복원하기 전에 어떤 길이·endian 검증이 필요한가?

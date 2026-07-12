@@ -30,7 +30,14 @@ const routes = [
   { name: 'spectrum-iq-mobile', path: '/learn/spectrum-iq/' },
   { name: 'nr-resource-grid-mobile', path: '/learn/ofdm-lte-nr/' },
   { name: 'vna-smith-mobile', path: '/learn/vna-smith/' },
-  { name: 'pa-load-pull-mobile', path: '/learn/pa-pull/' }
+  { name: 'pa-load-pull-mobile', path: '/learn/pa-pull/' },
+  { name: 'instrument-mxg-mobile', path: '/instruments/sg-mxg/' },
+  { name: 'mxg-scpi-mobile', path: '/instruments/sg-mxg/scpi-pyvisa/' },
+  { name: 'instrument-mxa-mobile', path: '/instruments/sa-mxa/' },
+  { name: 'mxa-sweep-mobile', path: '/instruments/sa-mxa/sweep-rbw-detector/' },
+  { name: 'ena-calibration-mobile', path: '/instruments/vna-ena/calibration-reference-plane/' },
+  { name: 'power-sensor-burst-mobile', path: '/instruments/power-sensor/average-peak-burst/' },
+  { name: 'psu-cv-cc-mobile', path: '/instruments/power-supply/cv-cc-protection/' }
 ];
 
 function run(command, args, options = {}) {

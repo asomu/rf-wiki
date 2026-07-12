@@ -1,0 +1,61 @@
+---
+import { getInstrument, type InstrumentChapterId, type InstrumentId } from '../../data/instruments';
+
+export interface Props {
+  instrumentId: InstrumentId;
+  currentChapter?: InstrumentChapterId;
+}
+
+const { instrumentId, currentChapter } = Astro.props;
+const instrument = getInstrument(instrumentId);
+if (!instrument) throw new Error(`Unknown instrument: ${instrumentId}`);
+const current = instrument.chapters.find((chapter) => chapter.id === currentChapter);
+---
+
+<aside class="learning-map instrument-learning-map" aria-label={`${instrument.displayName} 학습 지도`}>
+  <details class="learning-map__disclosure" open>
+    <summary>
+      <span>장비 스터디</span>
+      <strong>{current?.shortTitle ?? instrument.displayName}</strong>
+    </summary>
+
+    <div class="learning-map__body">
+      <div class="learning-map__heading">
+        <p>{instrument.displayName}</p>
+        <span>{instrument.chapters.length} chapters</span>
+      </div>
+      <p class="instrument-learning-map__scope">{instrument.rangeLabel} · {instrument.firmwareScope}</p>
+      <nav aria-label={`${instrument.displayName} 학습 챕터`}>
+        <ol>
+          {instrument.chapters.map((chapter) => {
+            const isCurrent = chapter.id === currentChapter;
+            return (
+              <li class:list={{ 'is-current': isCurrent }}>
+                <a href={`/instruments/${instrument.route}/${chapter.id}/`} aria-current={isCurrent ? 'page' : undefined}>
+                  <span class="module-index">{String(chapter.order).padStart(2, '0')}</span>
+                  <span class="learning-map__label">
+                    <strong>{chapter.shortTitle}</strong>
+                    {isCurrent && <small>{chapter.question}</small>}
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+      <a class="learning-map__glossary" href={`/instruments/${instrument.route}/`}>{instrument.code} 허브로 돌아가기 →</a>
+      <a class="learning-map__glossary" href="/instruments/">전체 장비 순서 보기 →</a>
+    </div>
+  </details>
+</aside>
+
+<script is:inline>
+  (() => {
+    const disclosure = document.currentScript?.previousElementSibling?.querySelector('.learning-map__disclosure');
+    if (!(disclosure instanceof HTMLDetailsElement)) return;
+    const compact = window.matchMedia('(max-width: 1180px)');
+    const sync = () => compact.matches ? disclosure.removeAttribute('open') : disclosure.setAttribute('open', '');
+    sync();
+    compact.addEventListener('change', sync);
+  })();
+</script>

@@ -7,6 +7,7 @@ export interface Props {
 
 const { currentPath = '/' } = Astro.props;
 const isLearning = currentPath === '/' || currentPath.startsWith('/learn/');
+const isInstruments = currentPath.startsWith('/instruments/');
 ---
 
 <header class="site-header">
@@ -20,11 +21,12 @@ const isLearning = currentPath === '/' || currentPath.startsWith('/learn/');
 
     <p class="release-context">
       <span class="release-context__marker" aria-hidden="true"></span>
-      3GPP Release 17 · 교육용 모델
+      교육용 계산 모델
     </p>
 
     <nav class="primary-nav" aria-label="주요 탐색">
-      <a href="/" aria-current={isLearning ? 'page' : undefined}>학습 지도</a>
+      <a href="/" aria-current={isLearning ? 'page' : undefined}>RF 개념</a>
+      <a href="/instruments/" aria-current={isInstruments ? 'page' : undefined}>장비 스터디</a>
       <a href="/glossary/" aria-current={currentPath.startsWith('/glossary') ? 'page' : undefined}>용어 사전</a>
     </nav>
 

@@ -18,7 +18,9 @@ Do not change a token, interaction grammar, physical color meaning, or anti-slop
 - RF math lives in pure TypeScript under `src/lib/rf/`; UI components must not duplicate formulas.
 - Every simulator follows `Control → RF model → Linked Views → Cause/Effect Ledger → prediction/explanation`.
 - Shared domain types live in `src/types/` and carry units in names or branded wrappers. Never pass an unlabeled bare number across a public RF API when Hz/dBm/Ω/degree ambiguity is possible.
-- Content and simulations use built-in deterministic scenarios only. No backend, login, live AI, telemetry, file import or SCPI in v1.
+- Content and web simulations use built-in deterministic scenarios only. Educational SCPI parsing/state simulation is allowed under `src/lib/instruments/`; real instrument access stays in local examples under `examples/`. No backend, browser-to-instrument bridge, login, live AI, telemetry or file import.
+- Every local equipment example is dry-run first. Transport execution and hazardous source/output enable are separate permissions, identity/module/option checks precede configuration, and cleanup begins with the safest available OFF/abort command in `finally`. A software OFF is never described as a substitute for attenuation, fuse, remote inhibit, interlock or DUT-specific bias sequencing.
+- Instrument baselines are pinned in `src/data/instruments.ts`. Do not mix commands across N5182B/N5186A, N9020B/other X-Series analyzer models or measurement applications, E5080B/E5081A/PNA, U2061XA/other U-Series sensors, or N6705C/module families without an explicit applicability note and official Keysight source.
 
 ## Component organization
 
@@ -27,7 +29,9 @@ Do not change a token, interaction grammar, physical color meaning, or anti-slop
 - Topic simulators: `src/components/simulators/`
 - Responsive SVG views: `src/components/plots/`
 - Shared calculation models: `src/lib/rf/`
+- Instrument command/state models: `src/lib/instruments/`
 - Lesson content: `src/content/lessons/`
+- Instrument study content: `src/content/instruments/`
 
 Use PascalCase for components and camelCase for functions. Export public TypeScript types explicitly. Reuse a shared component before creating a topic-specific clone.
 

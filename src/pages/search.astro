@@ -4,6 +4,7 @@ import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
 import SearchField from '../components/astro/SearchField.astro';
 import { curriculum } from '../data/curriculum';
 import { glossary, glossarySearchText } from '../data/glossary';
+import { instruments } from '../data/instruments';
 
 const fallbackEntries = [
   ...curriculum.map((module) => ({
@@ -14,6 +15,24 @@ const fallbackEntries = [
     searchText: `${module.shortTitle} ${module.title} ${module.question} ${module.summary} ${module.topics.join(' ')}`,
     featured: true
   })),
+  ...instruments.flatMap((instrument) => [
+    {
+      kind: '장비 스터디',
+      title: `Keysight ${instrument.displayName}`,
+      description: instrument.hubDescription,
+      href: `/instruments/${instrument.route}/`,
+      searchText: `${instrument.code} ${instrument.category} Keysight ${instrument.family} ${instrument.model} ${instrument.displayName} ${instrument.rangeLabel} SCPI PyVISA PA bench ${instrument.optionNotes.join(' ')}`,
+      featured: true
+    },
+    ...instrument.chapters.map((chapter) => ({
+      kind: `${instrument.code} 챕터`,
+      title: chapter.title,
+      description: chapter.question,
+      href: `/instruments/${instrument.route}/${chapter.id}/`,
+      searchText: `${chapter.shortTitle} ${chapter.title} ${chapter.question} ${instrument.family} ${instrument.model} SCPI PyVISA PA`,
+      featured: false
+    })),
+  ]),
   ...glossary.map((entry) => ({
     kind: '용어',
     title: entry.term,
@@ -40,7 +59,7 @@ const fallbackEntries = [
       <div class="search-query-panel">
         <SearchField id="page-search" label="RF Wiki 전체 검색" placeholder="예: RBW, S21, 100 MHz RB" />
         <p id="search-status" class="search-status" role="status" aria-live="polite">
-          검색어가 없으면 여섯 학습 축의 시작점을 보여줍니다.
+          검색어가 없으면 여섯 RF 개념 축과 장비 스터디 시작점을 보여줍니다.
         </p>
       </div>
 
@@ -98,7 +117,7 @@ const fallbackEntries = [
         empty.hidden = count > 0;
         status.textContent = normalized
           ? `${note} “${query}” 결과 ${count}개`
-          : '검색어가 없으면 여섯 학습 축의 시작점을 보여줍니다.';
+          : '검색어가 없으면 여섯 RF 개념 축과 장비 스터디 시작점을 보여줍니다.';
       };
 
       const renderPagefind = (query, results) => {
@@ -106,6 +125,7 @@ const fallbackEntries = [
         list.className = 'search-results';
         results.forEach((data) => {
           const item = document.createElement('li');
+          item.dataset.searchEntry = '';
           const article = document.createElement('article');
           const kind = document.createElement('p');
           const heading = document.createElement('h2');

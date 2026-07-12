@@ -1,0 +1,95 @@
+---
+title: "설정한 voltage가 그대로 나오지 않을 때 supply는 무엇을 지키고 있을까?"
+description: "Load line과 N6752A 100 W envelope가 CV·CC 경계를 넘을 때 실제 V/I와 protection latch가 어떻게 달라지는지 해석한다."
+instrumentId: "keysight-n6705c"
+chapter: "cv-cc-protection"
+order: 2
+estimatedMinutes: 65
+prerequisites: ["safe-bias"]
+outcomes:
+  - "저항 load line과 current limit의 교점으로 CV·CC 전환을 예측한다."
+  - "CC regulation과 OCP trip을 같은 상태로 오해하지 않는다."
+  - "OVP, OCP delay와 status/readback을 함께 기록한다."
+concepts: ["constant voltage", "constant current", "load line", "OCP delay", "protection latch"]
+equipmentContext:
+  source: "N6705C slot 1 N6752A, output disabled에서 설정"
+  dut: "저항성 교육 load 또는 낮은 RF drive의 PA module"
+  analyzer: "N6705C voltage/current/status readback"
+references:
+  - title: "N6700 Modular Power System Programmer's Reference"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-03617/programming-guides/9018-03617.pdf"
+    kind: "vendor"
+  - title: "N6700 Modular Power System Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04533/technical-specifications/9018-04533.pdf"
+    kind: "vendor"
+labId: "psu-cv-cc"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+`28 V / 1 A`를 설정하는 것은 28 W를 강제로 DUT에 밀어 넣는다는 뜻이 아니다. Supply는 28 V를 유지하려 하지만 load가 1 A보다 더 요구하면 전압을 낮춰 current limit을 지킨다.
+
+<LessonLayer level="intuition" title="CV와 CC는 두 개의 서로 다른 약속이다">
+
+<Definition term="Constant Voltage" symbol="CV">
+Load가 요구하는 전류가 current limit과 100 W envelope 안에 있을 때 voltage setpoint를 유지하는 regulation 상태다.
+</Definition>
+
+<Definition term="Constant Current" symbol="CC">
+Load가 더 많은 전류를 요구할 때 current limit을 유지하도록 출력 전압이 내려가는 상태다. CC 진입은 protection trip과 다르며 output은 계속 켜져 있을 수 있다.
+</Definition>
+
+<InstrumentLab labId="psu-cv-cc" />
+
+## 같은 설정에서 load만 바뀌어도 mode가 바뀐다
+
+저항 `R`에 대해 CV에서 필요한 전류는 `Vset/R`이다. 이 값이 current limit보다 작으면 CV, 크면 실제 전압은 대략 `Ilimit × R`까지 내려가 CC가 된다. 높은 voltage와 current 조합에서는 100 W envelope가 더 먼저 경계를 만든다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Regulation mode와 protection을 다른 증거로 기록하자">
+
+| 관찰 | 의미 | 다음 확인 |
+|---|---|---|
+| CV, 전류 정상 | Setpoint 유지 중 | DUT 전압·thermal 안정화 |
+| CC, output ON | Current limit이 전압보다 우선 | Short, inrush, oscillation, 예상 load |
+| OCP trip, output OFF | 설정 delay 이상 CC가 지속 | Fault 제거 후 protection clear 정책 |
+| OVP trip | Sense point가 OVP 조건에 도달 | Sense polarity, load disconnect, overshoot |
+| Power envelope 제한 | 요청 V/I 조합이 100 W 밖 | 더 낮은 V/I 또는 다른 module |
+
+<MeasurementNote title="OCP를 켜면 CC가 곧 shutdown일 수 있다" kind="warning">
+OCP enabled와 delay가 설정되면 current limit에 머문 시간이 delay를 넘을 때 output이 disable된다. PA pulse inrush가 정상인지 fault인지 구분해 delay를 정하고, trip을 자동으로 무한 clear하지 않는다.
+</MeasurementNote>
+
+## 자동화에서 최소한 남길 값
+
+- Programmed voltage/current, OVP/OCP와 OCP delay
+- Measured voltage/current와 operation status
+- Protection status와 first error
+- Output state와 timestamp
+- DUT bias/RF sequence 단계
+
+`STAT:OPER:COND?` 같은 status register는 bit mask다. 예제의 CV/CC 숫자를 다른 module에 그대로 일반화하지 말고 programmer reference의 bit definition과 installed module scope를 확인한다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Load line·current limit·power limit 교점을 계산하자">
+
+<FormulaDisclosure title="저항 load의 CV 요구량" formula="I_demand = V_set / R_load,   P_demand = V_set² / R_load">
+28 V와 10 Ω이면 2.8 A, 78.4 W이므로 3 A limit에서는 CV가 가능하다. 같은 28 V와 5 Ω이면 5.6 A, 156.8 W를 요구하므로 100 W envelope 밖이다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="Current limit에서의 실제점" formula="V_actual ≈ I_limit · R_load,   P_actual ≈ I_limit² · R_load">
+28 V, 1 A limit, 10 Ω load라면 CC에서 약 10 V, 1 A, 10 W다. 실제 장비에는 regulation dynamics, lead drop, transient와 measurement uncertainty가 더해진다.
+</FormulaDisclosure>
+
+CC는 “전압 오차”가 아니라 supply가 더 중요한 제한을 지키고 있다는 표시다. 다만 PA bench에서 예상하지 않은 CC는 정상으로 넘기지 말고 즉시 RF OFF, bias safe state와 원인 분석으로 연결한다.
+
+</LessonLayer>

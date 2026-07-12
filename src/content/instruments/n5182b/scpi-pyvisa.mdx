@@ -1,0 +1,311 @@
+---
+title: "명령을 보냈다는 사실과 장비가 준비됐다는 사실은 왜 다를까?"
+description: "N5182B를 Python·PyVISA로 제어할 때 connection, SCPI state, operation complete, query-back, error queue와 cleanup을 재현 가능한 session으로 설계한다."
+instrumentId: "keysight-n5182b"
+chapter: "scpi-pyvisa"
+order: 4
+estimatedMinutes: 75
+prerequisites:
+  - "safe-cw"
+  - "arb-playback"
+outcomes:
+  - "VISA transport, PyVISA session과 SCPI command tree의 역할을 구분할 수 있다."
+  - "Write 뒤 query-back, *OPC?와 SYST:ERR?를 사용해 장비 상태를 검증하는 Python sequence를 작성할 수 있다."
+  - "Timeout, partial setup, 사용자 중단과 binary-transfer 실패에서도 RF Off cleanup과 진단 log를 남길 수 있다."
+concepts:
+  - "SCPI"
+  - "VISA resource"
+  - "PyVISA session"
+  - "operation complete"
+  - "query-back"
+  - "error queue"
+  - "idempotent cleanup"
+  - "binary block transfer"
+equipmentContext:
+  source: "LAN·USB·GPIB 중 검증된 VISA resource로 연결한 Keysight N5182B"
+  dut: "처음에는 50 Ω termination/through path, 프로그램 검증 뒤 낮은 drive의 PA"
+  analyzer: "Power sensor 또는 signal analyzer를 별도 session으로 사용해 output을 독립 검증"
+references:
+  - title: "X-Series Signal Generators SCPI Command Reference, N5180-90057"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/ch/de/assets/9018-03690/programming-guides/9018-03690.pdf"
+    kind: "vendor"
+  - title: "X-Series Signal Generators Programming Guide, N5180-90074"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/ch/de/assets/9018-03987/programming-guides/9018-03987.pdf"
+    kind: "vendor"
+  - title: "X-Series Signal Generators User's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/be/en/assets/9018-03689/user-manuals/9018-03689.pdf"
+    kind: "vendor"
+labId: "mxg-scpi-pyvisa"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+자동화 코드가 `write("OUTP ON")`에서 예외를 내지 않았다는 사실은 RF가 원하는 상태라는 증거가 아니다. 명령은 transport buffer에 들어갔을 뿐일 수 있고, 장비가 range를 coerce했거나 option이 없어 error queue에 기록했거나 이전 operation을 아직 수행 중일 수 있다.
+
+<LessonLayer level="intuition" title="SCPI 프로그램을 명령 목록이 아니라 상태를 증명하는 대화로 보자">
+
+## 세 층을 분리하면 오류 위치가 보인다
+
+1. **VISA transport** — LAN, USB 또는 GPIB로 byte를 전달한다.
+2. **PyVISA session** — resource open/close, timeout, termination과 raw transfer를 관리한다.
+3. **SCPI state** — frequency, power, waveform, trigger, modulation과 RF output을 장비 내부에서 바꾼다.
+
+Connection timeout은 transport 문제일 가능성이 크고, `Undefined header`는 SCPI spelling/model 문제이며, query가 `-20.0`을 반환했지만 sensor가 다르게 읽으면 measurement plane 문제다. 세 층을 한 개의 “통신 오류”로 묶지 않는다.
+
+<Definition term="Standard Commands for Programmable Instruments" symbol="SCPI">
+계층형 command와 query로 계측기 상태를 설정하고 읽는 언어 규약이다. 공통 command는 `*IDN?`, `*OPC?`처럼 별표로 시작하고, subsystem command는 `SOUR:FREQ`처럼 colon-separated tree를 사용한다.
+</Definition>
+
+<Definition term="VISA resource">
+제조사 driver 또는 VISA layer가 장비 endpoint를 식별하는 문자열이다. Resource string은 transport를 선택하지만 장비 model, option이나 SCPI compatibility를 보장하지 않는다.
+</Definition>
+
+<InstrumentLab labId="mxg-scpi-pyvisa" />
+
+웹의 transaction을 실제 장비 코드로 옮길 때는 [N5182B Python·PyVISA 실행 예제](/instruments/sg-mxg/python-examples/)를 사용한다. 기본은 dry-run이고, 실제 통신과 RF 출력 권한을 분리해 둔 package다.
+
+## Write, query, operation complete는 서로 다른 증거다
+
+- `write` 성공 — host가 command를 session에 전달했다.
+- `query` response — 장비가 현재 state 또는 measurement를 반환했다.
+- `*OPC?` response `1` — 앞서 시작한 overlapped operation이 완료됐다고 장비가 응답했다.
+- `SYST:ERR?`의 no-error response — 해당 시점 error queue에서 더 읽을 오류가 없다.
+- 외부 sensor/analyzer 결과 — RF connector 이후 실제 신호가 의도한 물리량인지 검증한다.
+
+한 단계가 다음 단계를 자동으로 보장하지 않는다. 안정적인 프로그램은 필요한 수준의 증거를 시험 위험도에 맞춰 쌓는다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="PyVISA session을 안전한 configure→verify→enable→cleanup 흐름으로 만들자">
+
+## 1. Resource를 발견하는 코드와 production resource를 분리한다
+
+개발 중 `list_resources()`는 연결 후보를 찾는 데 유용하지만, production 시험은 승인된 resource와 기대 identity를 configuration으로 받는 편이 안전하다.
+
+~~~python
+import pyvisa
+
+rm = pyvisa.ResourceManager()
+print(rm.list_resources())
+~~~
+
+검색 순서가 바뀌었다고 첫 번째 장비를 자동 선택하지 않는다. Resource string, serial number와 test-station role을 mapping한다.
+
+## 2. Session open 직후 identity와 통신 조건을 고정한다
+
+~~~python
+from __future__ import annotations
+
+import pyvisa
+from pyvisa.resources import MessageBasedResource
+
+
+def open_mxg(resource_name: str) -> tuple[pyvisa.ResourceManager, MessageBasedResource]:
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(resource_name)
+    inst.timeout = 10_000
+    inst.read_termination = "\n"
+    inst.write_termination = "\n"
+
+    identity = inst.query("*IDN?").strip()
+    if "N5182B" not in identity:
+        inst.close()
+        rm.close()
+        raise RuntimeError(f"Expected N5182B, received {identity!r}")
+    return rm, inst
+~~~
+
+Termination은 text command/query에 적용한다. Binary payload는 `write_raw`를 사용하므로 text encoding과 자동 newline이 payload 안에 들어가지 않게 한다.
+
+## 3. Error queue helper를 먼저 만든다
+
+~~~python
+import re
+
+
+ERROR_QUEUE_CAPACITY = 30
+ERROR_DRAIN_MAX_QUERIES = ERROR_QUEUE_CAPACITY + 1
+
+
+def drain_errors(inst: MessageBasedResource) -> list[str]:
+    errors: list[str] = []
+    for _ in range(ERROR_DRAIN_MAX_QUERIES):
+        response = inst.query("SYST:ERR?").strip()
+        match = re.match(r"^\s*([+-]?\d+)", response)
+        if not match:
+            raise RuntimeError(f"Malformed SYST:ERR? response: {response!r}")
+        if int(match.group(1)) == 0:
+            return errors
+        errors.append(response)
+    raise RuntimeError("MXG error queue did not terminate with +0 within 31 queries")
+~~~
+
+No-error response의 정확한 formatting에 공백이 있을 수 있으므로 문자열 prefix 대신 numeric code를 parsing하고 실제 response를 log한다. Queue capacity 30에 종결 `+0` 확인 1회를 더한 31회가 상한이다. `+0`을 확인하지 못하면 오류가 없다고 가정하지 않고 session을 실패로 처리한다.
+
+`*CLS`는 status/event register를 정리하는 공통 command다. 이전 error 원인을 숨기지 않도록 session 시작 시 기존 error queue를 먼저 log한 뒤 명시적인 policy로 정리한다.
+
+## 4. Safe configure는 RF Off를 첫 command와 cleanup의 마지막 보루로 둔다
+
+~~~python
+def configure_cw(inst: MessageBasedResource, frequency_hz: float, power_dbm: float) -> None:
+    inst.write("OUTP OFF")
+    inst.write("OUTP:MOD OFF")
+    inst.write("*CLS")
+    inst.write(f"SOUR:FREQ:CW {frequency_hz:.0f} HZ")
+    inst.write(f"SOUR:POW:LEV:IMM:AMPL {power_dbm:.3f} DBM")
+    assert inst.query("*OPC?").strip() == "1"
+
+    actual_frequency_hz = float(inst.query("SOUR:FREQ:CW?"))
+    actual_power_dbm = float(inst.query("SOUR:POW:LEV:IMM:AMPL?"))
+    rf_on = int(float(inst.query("OUTP?")))
+
+    if abs(actual_frequency_hz - frequency_hz) > 1.0:
+        raise RuntimeError(f"Frequency query-back mismatch: {actual_frequency_hz}")
+    if abs(actual_power_dbm - power_dbm) > 0.01:
+        raise RuntimeError(f"Power query-back mismatch: {actual_power_dbm}")
+    if rf_on != 0:
+        raise RuntimeError("RF output unexpectedly enabled during configuration")
+
+    errors = drain_errors(inst)
+    if errors:
+        raise RuntimeError(f"MXG configuration errors: {errors}")
+~~~
+
+Query-back tolerance는 장비 RF accuracy가 아니라 command resolution/coercion을 검사하는 software tolerance다. 실제 RF power tolerance는 sensor와 uncertainty budget으로 별도 판정한다.
+
+## 5. RF enable에는 외부 precondition을 넣는다
+
+~~~python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class EnablePermit:
+    dut_connected: bool
+    analyzer_protected: bool
+    bias_stable: bool
+    operator_acknowledged: bool
+
+
+def enable_rf(inst: MessageBasedResource, permit: EnablePermit) -> None:
+    if not all((
+        permit.dut_connected,
+        permit.analyzer_protected,
+        permit.bias_stable,
+        permit.operator_acknowledged,
+    )):
+        raise RuntimeError("RF enable permit is incomplete")
+
+    inst.write("OUTP ON")
+    assert inst.query("*OPC?").strip() == "1"
+    if int(float(inst.query("OUTP?"))) != 1:
+        raise RuntimeError("MXG did not report RF output enabled")
+~~~
+
+실제 production에서는 사람 승인 여부가 필요한 시험과 완전 자동 station을 구분한다. 중요한 것은 RF On을 단순 configure 함수의 부수 효과로 숨기지 않는 것이다.
+
+## 6. Binary waveform은 payload와 command header를 bytes로 만든다
+
+~~~python
+def definite_length_block(payload: bytes) -> bytes:
+    count = str(len(payload)).encode("ascii")
+    return b"#" + str(len(count)).encode("ascii") + count + payload
+
+
+def upload_waveform(
+    inst: MessageBasedResource,
+    name: str,
+    interleaved_iq: bytes,
+) -> None:
+    prefix = f'MMEM:DATA "WFM1:{name}",'.encode("ascii")
+    inst.write_raw(prefix + definite_length_block(interleaved_iq))
+    assert inst.query("*OPC?").strip() == "1"
+    errors = drain_errors(inst)
+    if errors:
+        raise RuntimeError(f"Waveform upload errors: {errors}")
+~~~
+
+Waveform name은 허용 문자와 길이를 application boundary에서 검증한다. 사용자 문자열을 command에 그대로 삽입하지 않는다. Payload checksum, complex sample count, sample rate와 expected byte count를 upload 전후 log에 남긴다.
+
+## 7. Cleanup은 모든 exit path에서 실행한다
+
+~~~python
+def safe_output_off(inst: MessageBasedResource) -> list[str]:
+    cleanup_errors: list[str] = []
+    for command in ("OUTP OFF", "OUTP:MOD OFF", "SOUR:RAD:ARB OFF"):
+        try:
+            inst.write(command)
+        except Exception as error:  # 실제 logger에 command와 transport 상태를 남긴다.
+            cleanup_errors.append(f"{command}: {error}")
+    return cleanup_errors
+
+
+rm = None
+mxg = None
+try:
+    rm, mxg = open_mxg("TCPIP0::192.0.2.10::inst0::INSTR")
+    configure_cw(mxg, frequency_hz=3.5e9, power_dbm=-30.0)
+    # 외부 permit과 측정 sequence가 이어진다.
+finally:
+    if mxg is not None:
+        failures = safe_output_off(mxg)
+        mxg.close()
+        if failures:
+            print("Cleanup failures:", failures)
+    if rm is not None:
+        rm.close()
+~~~
+
+예제 resource의 `192.0.2.10`은 문서용 주소다. 실제 station은 configuration에서 resource를 받는다.
+
+<MeasurementNote title="Timeout을 늘리는 것과 동기화를 설계하는 것은 다르다" kind="condition">
+긴 waveform upload나 file operation에는 충분한 timeout이 필요하지만, 무조건 큰 timeout 하나로 모든 command를 감싸면 어느 operation이 지연됐는지 알기 어렵다. 의미 있는 단계마다 `*OPC?`, elapsed time과 error queue를 기록하고 operation별 timeout budget을 둔다.
+</MeasurementNote>
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="SCPI 상태와 측정 상태의 경계를 명시하자">
+
+<FormulaDisclosure title="세 종류의 검증" formula="verified = transport_ok ∧ state_ok ∧ physical_output_ok">
+Transport 성공은 byte 전달, state 성공은 query-back·operation complete·error queue, physical output 성공은 sensor/analyzer 측정으로 검증한다. 시험 위험도에 따라 세 조건 모두가 필요할 수 있다.
+</FormulaDisclosure>
+
+## `*RST`, `*CLS`, preset을 같은 뜻으로 쓰지 않는다
+
+- `*RST`는 공통 reset command지만 모든 file, network, calibration 또는 user correction을 지운다는 뜻이 아니다.
+- `*CLS`는 status/event register를 정리하며 원하는 RF configuration을 만들지 않는다.
+- Front-panel preset과 SCPI reset의 세부 state는 model/programming guide를 확인한다.
+- Production sequence는 reset 결과를 추측하지 말고 시험에 필요한 critical setting을 모두 명시하고 query-back한다.
+
+## Program log에 남길 최소 데이터
+
+| 범주 | 기록값 |
+|---|---|
+| Identity | Timestamp, VISA resource, `*IDN?`, `*OPT?`, firmware 식별값 |
+| Command | Step ID, command name, sanitized arguments, response, elapsed time |
+| Waveform | Name, checksum, sample count/rate, scaling, marker map |
+| RF state | Frequency, power, modulation, ARB, trigger, RF output query-back |
+| Measurement | DUT plane, cable correction, sensor/analyzer setting, uncertainty |
+| Failure | Exception type, error queue, cleanup command별 성공/실패 |
+
+Binary payload 자체를 모든 run log에 복제할 필요는 없다. Immutable artifact와 checksum을 연결하면 된다. Password, network credential 또는 사용자 경로의 민감한 정보는 log에서 제거한다.
+
+## 명령 compatibility의 조건
+
+이 장의 command spelling은 N5182B가 포함된 X-Series Signal Generators SCPI Command Reference `N5180-90057`을 기준으로 한다. 동일한 `SOUR:FREQ` 명령이라도 지원 argument, range와 option-dependent subsystem은 model/firmware에 따라 다를 수 있다. 프로그램은 identity와 option을 검사한 뒤 capability를 결정해야 한다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. `write`가 성공한 뒤에도 `*OPC?`, query-back과 error queue가 필요한 이유는 무엇인가?
+2. Binary waveform 전송에 text termination을 그대로 적용하면 어떤 문제가 생길 수 있는가?
+3. Timeout 또는 사용자 중단 때 RF Off가 실패한 사실까지 어떻게 기록할 것인가?

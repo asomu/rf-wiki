@@ -16,7 +16,7 @@ web
 
 RF Wiki는 계측 장비와 RF 신호를 `직관 → 실무 조작·해석 → 수식·규격` 순서로 학습하는 개인용 인터랙티브 지식 도구다. 설정을 바꾸기 전에 결과를 예측하고, 실제 계산 모델을 조작한 뒤, 원인을 자기 말로 설명해야 한 단원이 완료된다.
 
-v1의 완성 범위는 다음 여섯 학습 축이다.
+RF 개념 트랙의 완성 범위는 다음 여섯 학습 축이다.
 
 - RF 신호, 주파수, 복소수, dB, 전력, 50 Ω
 - Spectrum Analyzer, VSA, IQ capture와 FFT
@@ -25,7 +25,9 @@ v1의 완성 범위는 다음 여섯 학습 축이다.
 - incident/reflected/delivered power, coupling, insertion, isolation, directivity와 다중 포트 소자
 - PA 비선형성, stability, source-pull과 load-pull
 
-내장 검증 시나리오만 제공하며 실측 파일 import, SCPI 연결, 로그인, 서버, 라이브 AI 채팅은 v1에 포함하지 않는다. 모든 시뮬레이터는 교육용 모델이며 실제 장비 정확도나 compliance 판정을 대신하지 않는다.
+별도의 계측장비 스터디 트랙은 `SG → SA → NA(VNA) → Power Sensor → Power Supply` 순서를 따른다. 현재 활성 기준 장비는 Keysight `N5182B-506 + 656`, `N9020B-526 + B1X + MPB + P26`, `E5080B-2K0`, `U2061XA`, `N6705C + N6752A-761`이다. 각 장비는 기본 동작과 내부 신호·전력 경로, SCPI·PyVISA, PA bench capstone을 독립된 namespaced 진도로 다룬다.
+
+웹에서는 내장 검증 시나리오와 결정론적 SCPI state model만 실행한다. 실제 장비 제어는 사용자의 로컬 Python·PyVISA 예제로 분리하고 source/output enable은 장비별 별도 실행 권한을 요구한다. 브라우저 직접 장비 연결, 실측 파일 import, 로그인, 서버, telemetry와 라이브 AI 채팅은 포함하지 않는다. 모든 시뮬레이터는 교육용 모델이며 실제 장비 정확도나 compliance 판정을 대신하지 않는다.
 
 성공 기준은 사용자가 낯선 trace를 볼 때 “어느 stage의 어떤 설정이 왜 이 모양을 만들었는가”를 역으로 설명할 수 있고, 다음 설정 변화의 방향을 먼저 예측할 수 있는 것이다.
 

@@ -1,0 +1,222 @@
+---
+title: "RF를 켜기 전에 어떤 상태를 먼저 고정해야 할까?"
+description: "Keysight N5182B MXG에서 RF Off를 출발점으로 CW frequency·power·modulation 상태를 설정하고 DUT plane의 실제 전력을 검증한다."
+instrumentId: "keysight-n5182b"
+chapter: "safe-cw"
+order: 1
+estimatedMinutes: 45
+prerequisites:
+  - "foundations"
+outcomes:
+  - "Frequency, amplitude setpoint, modulation state와 RF output state가 서로 독립임을 설명할 수 있다."
+  - "PA와 signal generator를 보호하는 RF Off 기반 연결·설정·종료 순서를 실행할 수 있다."
+  - "MXG display의 dBm과 DUT input plane의 delivered power 차이를 cable loss와 mismatch로 해석할 수 있다."
+concepts:
+  - "continuous wave"
+  - "RF output state"
+  - "automatic level control"
+  - "phase noise"
+  - "harmonic and non-harmonic spur"
+  - "reference clock"
+  - "unlevel"
+  - "source match"
+  - "DUT input reference plane"
+equipmentContext:
+  source: "Keysight N5182B MXG X-Series RF Vector Signal Generator, RF output는 Off에서 시작"
+  dut: "50 Ω termination 또는 충분히 감쇠된 connectorized PA input"
+  analyzer: "Calibrated power sensor 또는 Keysight X-Series signal analyzer"
+references:
+  - title: "X-Series Signal Generators User's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/be/en/assets/9018-03689/user-manuals/9018-03689.pdf"
+    kind: "vendor"
+  - title: "MXG X-Series Signal Generator N5181B Analog & N5182B Vector Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-03380/data-sheets/5991-0038.pdf"
+    kind: "vendor"
+  - title: "Tips for Preventing Damage to Signal Generators"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-01850/technical-overviews/5989-8790.pdf.html"
+    kind: "application-note"
+labId: "mxg-safe-cw"
+status: "ready"
+---
+
+import LessonLayer from '../../../components/astro/LessonLayer.astro';
+import InstrumentLab from '../../../components/astro/InstrumentLab.astro';
+import Definition from '../../../components/astro/Definition.astro';
+import FormulaDisclosure from '../../../components/astro/FormulaDisclosure.astro';
+import MeasurementNote from '../../../components/astro/MeasurementNote.astro';
+
+N5182B의 화면에 `2.000 GHz, -20 dBm`이 보인다고 해서 RF connector에서 이미 그 신호가 나오는 것은 아니다. **설정값**, **변조 경로**, **RF output switch**, **실제 DUT plane 전력**을 서로 다른 상태로 읽어야 안전하게 장비를 다룰 수 있다.
+
+<LessonLayer level="intuition" title="설정된 신호와 실제로 출력되는 신호를 분리해서 보자">
+
+## 네 개의 문을 차례로 연다고 생각하자
+
+CW를 만들 때도 MXG 내부에서는 frequency synthesizer가 carrier를 정하고, level control과 attenuator가 출력 크기를 맞추고, 마지막 RF output 상태가 connector로 나가는 길을 연다.
+
+1. **Frequency setpoint** — carrier가 놓일 위치다.
+2. **Power setpoint** — 정합된 50 Ω 부하에 전달하도록 장비가 목표로 삼는 level이다.
+3. **Modulation state** — baseband 또는 analog modulation을 carrier에 적용할지 정한다.
+4. **RF output state** — 설정된 신호를 실제 RF Output connector로 보낼지 정한다.
+
+순수 CW에서는 modulation을 Off로 두고 frequency와 power를 먼저 확인한다. 가장 마지막에 RF를 켜고, 시험이 끝나거나 예외가 발생하면 가장 먼저 RF를 끈다.
+
+<Definition term="Continuous Wave, CW" symbol="CW">
+시간에 따라 의도적으로 amplitude나 phase를 변조하지 않은 한 개의 sinusoidal carrier다. 이상적인 spectrum에서는 한 주파수 성분이지만 실제 generator에는 phase noise, harmonic, non-harmonic spur와 amplitude uncertainty가 남는다.
+</Definition>
+
+<Definition term="Automatic Level Control" symbol="ALC">
+출력 경로의 level을 감지해 사용자가 설정한 amplitude에 맞도록 제어하는 loop다. ALC가 있다는 사실이 cable 이후 DUT plane의 전력까지 자동 보정한다는 뜻은 아니다.
+</Definition>
+
+<InstrumentLab labId="mxg-safe-cw" />
+
+## RF Off는 값이 없는 상태가 아니라 안전하게 준비된 상태다
+
+RF Off에서도 frequency, amplitude와 modulation 설정은 장비 state에 남아 있다. 따라서 RF Off 상태에서 다음 시험점을 준비하고 query로 검증한 뒤, 연결과 bias가 안전할 때만 RF On으로 전환할 수 있다.
+
+반대로 power를 매우 낮게 설정했더라도 RF On 상태로 cable을 바꾸는 습관은 좋지 않다. 잘못된 주파수, amplitude correction, list sweep 또는 저장된 instrument state가 적용되어 있을 수 있기 때문이다.
+
+## Displayed dBm과 DUT가 받은 dBm은 같은 위치가 아니다
+
+MXG amplitude setpoint는 generator RF connector의 calibrated reference plane을 기준으로 한다. 그 뒤에 cable, adapter, attenuator, coupler가 있으면 DUT input에는 각 소자의 insertion loss와 mismatch가 반영된다.
+
+`DUT input 예상값 = MXG setpoint − cable loss − attenuator loss − coupler main-line loss + 적용한 correction`
+
+이 식은 시작점일 뿐이다. source와 DUT가 완전한 50 Ω이 아니면 mismatch uncertainty가 추가된다. PA 입력 power를 결정할 때 display 숫자만 복사하지 말고 DUT plane에서 power sensor 또는 calibrated receiver로 확인한다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="RF Off에서 시작해 CW를 설정하고 실제 출력을 검증하자">
+
+## 연결 전 30초 점검
+
+- MXG RF Output, cable과 DUT connector의 주파수·power rating을 확인한다.
+- PA output 또는 다른 source의 RF가 MXG output으로 역입력될 경로가 없는지 확인한다.
+- DC가 RF Output으로 돌아올 수 있으면 적절한 DC block을 검토한다.
+- 높은 PA gain이 예상되면 DUT 뒤 analyzer 보호 attenuator까지 먼저 계산한다.
+- cable과 adapter는 매달아 두지 않고 지지하며 connector를 규정 torque로 체결한다.
+
+<MeasurementNote title="Signal generator output도 보호가 필요한 포트다" kind="warning">
+PA의 출력, external source의 RF 또는 DC가 MXG RF Output connector로 들어가면 장비가 손상될 수 있다. Coupler, isolator, attenuator와 DC block의 방향·rating을 검증하고, 연결 변경 전에는 source와 DUT를 안전 상태로 둔다.
+</MeasurementNote>
+
+## Front panel의 안전한 CW 순서
+
+1. `RF On/Off`를 **Off**로 둔다.
+2. Modulation이 **Off**인지 확인한다.
+3. Frequency를 목표값으로 설정한다.
+4. Amplitude는 PA의 최소 안전 drive보다 낮게 시작한다.
+5. External frequency reference와 amplitude correction 사용 여부를 확인한다.
+6. 50 Ω termination 또는 측정 chain을 연결한다.
+7. Power sensor/SA의 input protection과 reference level을 설정한다.
+8. RF를 On하고 주파수·전력을 읽는다.
+9. 필요한 만큼 작은 step으로 power를 올린다.
+10. 시험 종료 또는 오류 시 RF Off 후 DUT bias를 안전하게 내린다.
+
+## 같은 순서를 SCPI로 표현하기
+
+~~~text
+OUTP OFF
+*IDN?
+*OPT?
+SYST:ERR?
+*CLS
+OUTP OFF
+OUTP:MOD OFF
+SOUR:RAD:ARB:STAT OFF
+SOUR:FREQ:CW 2 GHZ
+SOUR:POW:LEV:IMM:AMPL -30 DBM
+*OPC?
+SYST:ERR?
+SOUR:FREQ:CW?
+SOUR:POW:LEV:IMM:AMPL?
+OUTP?
+SYST:ERR?
+~~~
+
+마지막 `OUTP ON`은 자동으로 붙이지 않는다. 프로그램이 query-back 결과, DUT 준비 상태와 analyzer 보호 조건을 확인한 뒤 별도의 승인 단계에서 실행해야 한다.
+
+위 세 개의 `SYST:ERR?`는 각각 한 번만 읽는 명령이 아니라 **FIFO 반복 drain 경계**다. N5182B X-Series error queue의 30개 record를 모두 읽을 수 있게 최대 31회만 query하고, 마지막 response의 numeric code가 `+0`임을 확인해야 종료한다. 31회 안에 `+0`을 못 보거나 response를 parsing할 수 없으면 session을 실패로 처리한다. `*CLS` 전 drain은 기존 오류를 log하기 위한 것이고, configure 및 query-back 뒤 drain은 방금 보낸 명령의 실패를 추적하기 위한 것이다.
+
+RF가 On인 동안에는 frequency·power·modulation·waveform select·sample clock·runtime scaling·trigger·ARB state를 바로 바꾸지 않는다. 안전한 자동화 순서에서는 `OUTP OFF` 확인 후 stimulus를 재설정·query-back하고, 외부 조건을 다시 확인한 뒤 RF를 켠다.
+
+SCPI의 대문자는 명령의 필수 short form을 보여 주고 소문자는 읽기 편한 long form 부분이다. 실제 전송에서는 `SOUR:FREQ 2 GHZ`처럼 허용된 short form을 쓸 수 있지만, 이 Wiki에서는 의미가 드러나는 형태를 우선한다.
+
+## “한 줄의 CW”에도 네 종류의 품질 정보가 붙는다
+
+SA에서 carrier 하나를 보더라도 다음을 서로 다른 원인으로 읽는다.
+
+| 화면에서 보이는 것 | 뜻 | 먼저 분리할 조건 |
+|---|---|---|
+| Carrier 주변의 연속 skirt | Source oscillator의 phase noise와 analyzer의 residual phase noise가 합쳐진다 | Offset frequency, RBW, analyzer noise floor |
+| `2fc`, `3fc`의 line | Harmonic distortion | MXG source harmonic, DUT harmonic, analyzer input compression |
+| Carrier 정수배가 아닌 좁은 line | Non-harmonic spur 또는 clock/reference coupling | Source-only through 측정, reference/clock topology |
+| Setpoint와 실제 level 불일치 | Path loss·mismatch·ALC range·측정 uncertainty | DUT plane calibration과 장비의 unleveled indication |
+
+PA harmonic이나 close-in noise를 측정할 때는 DUT를 빼고 같은 source·analyzer 설정으로 **source-only baseline**을 먼저 저장한다. Generator residual보다 낮은 DUT 성능을 측정했다고 결론 내릴 수는 없다.
+
+## Reference clock과 ALC 상태를 “켜짐”으로만 기록하지 않는다
+
+- **Internal reference**는 단독 bench의 기본 시간축이다.
+- **External 10 MHz reference**는 SG·SA·VSA의 frequency/phase 관계를 공유할 때 쓴다. External을 선택했다면 cable 연결뿐 아니라 lock indication까지 확인한다.
+- Reference가 unlock되거나 잘못된 level·frequency가 들어오면 carrier offset, phase drift와 trigger 재현성이 달라질 수 있다.
+- **ALC**는 MXG 내부 감지점의 평균 level을 setpoint에 맞춘다. DUT plane loss, 고 PAPR 순간 peak 또는 PA output을 측정하는 기능이 아니다.
+- **Unlevel**은 요청한 조건에서 level loop가 목표를 유지하지 못했다는 경고다. 높은 power, 주파수 경계, correction, load mismatch를 확인하고 그 점을 유효한 stimulus로 저장하지 않는다.
+- Internal attenuator range가 바뀌면 level settling과 작은 discontinuity가 생길 수 있다. 정밀 sweep에서는 range change 위치와 dwell을 기록하고 sensor로 확인한다.
+
+## Marker 숫자가 다를 때 바로 generator를 보정하지 말자
+
+예를 들어 MXG를 `-20.00 dBm`으로 설정했는데 DUT plane power sensor가 `-20.65 dBm`을 읽었다고 하자.
+
+| 확인 순서 | 질문 |
+|---|---|
+| Reference plane | Sensor calibration plane이 DUT input connector인가? |
+| Path loss | Cable·adapter·coupler loss를 같은 주파수에서 측정했는가? |
+| Correction | MXG user flatness/correction을 중복 적용하지 않았는가? |
+| Mismatch | Source·sensor/DUT match가 uncertainty budget에 있는가? |
+| Sensor condition | Zero/calibration, averaging, frequency setting이 맞는가? |
+| MXG condition | Warm-up과 amplitude specification 조건을 만족했는가? |
+
+원인을 분리하기 전에는 `+0.65 dB` correction을 바로 저장하지 않는다. 잘못된 plane을 기준으로 correction을 만들면 다른 cable이나 주파수에서 오히려 오차가 커진다.
+
+## 실무 팁
+
+- 처음 신호를 찾을 때는 넓은 SA span과 여유 있는 reference level을 사용한다.
+- RF On 상태를 프로그램 UI와 장비 front panel 양쪽에서 식별 가능하게 만든다.
+- Power sweep는 absolute setpoint 목록을 기록하고 상대 step만 누적하지 않는다.
+- 장비가 local로 전환되거나 사람이 knob를 움직일 수 있다면 각 측정점에서 핵심 값을 query-back한다.
+- 실패 처리에는 항상 `OUTP OFF`가 있어야 하며, cleanup 자체가 실패한 경우를 log에 남긴다.
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="dBm setpoint에서 DUT plane 전력까지의 조건을 수식으로 닫자">
+
+<FormulaDisclosure title="dBm과 50 Ω voltage" formula="P(W) = 10^((P_dBm−30)/10),   V_rms = √(P·50 Ω)">
+`-20 dBm`은 `10 µW`다. 정합된 50 Ω 부하에서는 약 `22.36 mV rms`다. Open 또는 Hi-Z load에서는 같은 voltage 관계를 그대로 적용할 수 없으며, generator의 amplitude convention과 load condition을 다시 확인해야 한다.
+</FormulaDisclosure>
+
+<FormulaDisclosure title="단순 path budget" formula="P_DUT(dBm) = P_MXG(dBm) − L_path(dB) + C(dB)">
+`L_path`는 선택한 주파수에서 DUT plane 전까지의 insertion loss, `C`는 의도적으로 적용한 correction이다. 이 식의 한 숫자에는 source match, load match, connector repeatability와 각 장비 amplitude uncertainty가 아직 합쳐져 있지 않다.
+</FormulaDisclosure>
+
+## Cause/Effect를 한 문장으로 말해 보자
+
+“MXG power setpoint를 `-30 → -20 dBm`으로 올렸기 때문에 source level-control stage의 목표가 10 dB 증가했고, 정합된 경로라면 DUT plane power도 약 10 dB 증가한다. 다만 실제 값은 path loss와 mismatch를 포함해 sensor로 검증해야 하며, PA compression과 analyzer overload 위험이 함께 커진다.”
+
+## 이 장의 장비 문서 기준
+
+- 대상 장비는 `N5182B`, RF 범위는 `9 kHz–6 GHz`다.
+- 실제 허용 power, reverse-power 내성, warm-up과 specification 조건은 설치 option과 해당 data sheet를 따른다.
+- SCPI 명령 spelling은 Keysight `N5180-90057` command reference를 기준으로 하고, 프로그램은 `*IDN?` 결과가 기대한 model인지 먼저 확인한다.
+- 이 학습 모델은 실제 장비의 calibration, damage protection 또는 PA 시험 interlock을 대신하지 않는다.
+
+</LessonLayer>
+
+## 완료 전 자기 설명
+
+1. Frequency·power setpoint와 RF output state는 각각 무엇을 바꾸는가?
+2. 연결 변경 전 RF Off가 필요한 이유를 장비와 DUT 양쪽 관점에서 설명할 수 있는가?
+3. MXG display와 DUT plane power가 다를 때 어떤 순서로 원인을 분리할 것인가?

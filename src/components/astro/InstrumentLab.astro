@@ -1,0 +1,34 @@
+---
+import MxgInstrumentLab, { type MxgScenarioId } from '../simulators/MxgInstrumentLab';
+import MxaInstrumentLab, { type MxaScenarioId } from '../simulators/MxaInstrumentLab';
+import EnaInstrumentLab, { type EnaScenarioId } from '../simulators/EnaInstrumentLab';
+import PowerSensorInstrumentLab, { type PowerSensorScenarioId } from '../simulators/PowerSensorInstrumentLab';
+import PsuInstrumentLab, { type PsuScenarioId } from '../simulators/PsuInstrumentLab';
+import type { InstrumentLabId } from '../../data/instruments';
+
+export interface Props {
+  labId: InstrumentLabId;
+}
+
+const { labId } = Astro.props;
+const family = labId.startsWith('mxg-')
+  ? 'MXG'
+  : labId.startsWith('mxa-')
+    ? 'MXA'
+    : labId.startsWith('ena-')
+      ? 'ENA'
+      : labId.startsWith('sensor-')
+        ? 'Power sensor'
+        : labId.startsWith('psu-')
+          ? 'N6705C'
+          : null;
+if (!family) throw new Error(`Unknown instrument lab family: ${labId}`);
+---
+
+<section class="lesson-lab-block instrument-lab-block" id="interactive-lab" aria-label={`${family} 인터랙티브 실험`}>
+  {labId.startsWith('mxg-') && <MxgInstrumentLab scenario={labId as MxgScenarioId} client:idle />}
+  {labId.startsWith('mxa-') && <MxaInstrumentLab scenario={labId as MxaScenarioId} client:idle />}
+  {labId.startsWith('ena-') && <EnaInstrumentLab scenario={labId as EnaScenarioId} client:idle />}
+  {labId.startsWith('sensor-') && <PowerSensorInstrumentLab scenario={labId as PowerSensorScenarioId} client:idle />}
+  {labId.startsWith('psu-') && <PsuInstrumentLab scenario={labId as PsuScenarioId} client:idle />}
+</section>
