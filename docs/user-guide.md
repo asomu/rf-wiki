@@ -234,6 +234,23 @@ Python 예제 페이지에서는 개별 파일보다 `rf-wiki-mxg-pyvisa.zip`을
 
 실제 통신은 `--execute`, output enable은 추가 `--output-on`이 필요합니다. 통신 단절 시 software OFF가 보장되지 않으므로 remote inhibit/interlock와 fuse는 별도입니다.
 
+## 6.5 3GPP·PAMiD 트랙 사용하기
+
+상단 `3GPP·PAMiD`에서 `/cellular/` 학습 지도를 엽니다. 이 트랙은 완성 module nominal DVT 관점의 별도 진도로, RF 개념 6축이나 계측장비 완료율과 합산하지 않습니다.
+
+권장 순서는 다음과 같습니다.
+
+1. `공통 기초`에서 modulation, waveform, multiple access와 duplex를 분류하고 UE uplink 기준면을 확인합니다.
+2. `PAMiD 구조·제어`에서 GSM PA+ASM, FDD PAMiD, TDD TxM의 활성 경로와 generic MIPI·APT/ET 상태를 비교합니다.
+3. `GSM`에서 200 kHz carrier, 8 timeslot, normal burst, GMSK/8PSK와 PA ramp를 연결합니다.
+4. `LTE`에서 PUSCH의 DFT-s-OFDM, RB location, modulation, total/RB power와 PAMiD 측정을 연결합니다.
+5. `NR`에서 numerology, Point A·CRB·BWP·PRB, PUSCH와 TDD TxM switching을 연결합니다.
+6. `증상별 진단`에서 Pout, current, EVM, ACLR, harmonic, Tx noise 같은 fail을 source부터 analyzer까지 분리합니다.
+
+각 페이지는 질문 하나만 다룹니다. `직관 → 조작·해석 → 수식·규격`을 읽고, 마지막에 결과를 예측한 뒤 원인을 자기 말로 설명해야 완료됩니다. 표준 근거 표에서는 문서와 Release/version, clause, 적용 조건, normative/conformance/계산값 구분을 함께 확인하세요.
+
+Cross-RAT Atlas, GSM Time Structure Explorer, LTE/NR Resource Explorer와 Module Path Diagram은 교육용 구조 시각화입니다. 특히 표시되는 IQ는 coding·scrambling·reference sequence 전체를 구현한 compliance waveform이 아니며 certification 판정에 사용할 수 없습니다. MIPI 상태도 generic 역할 예시이며 실제 제조사 USID, register 주소나 bit field가 아닙니다.
+
 ## 7. 검색과 용어 사전 사용하기
 
 ### 전체 검색
@@ -281,6 +298,7 @@ SYST:ERR?
 - 포트가 달라도 서로 다른 origin이므로 진도가 공유되지 않습니다.
 - 홈의 진행 숫자는 완료한 simulator 수가 아니라 완료한 학습 축 `0 / 6`입니다.
 - 다섯 장비 허브는 각각 `instrument:sg:*`, `instrument:sa:*`, `instrument:vna:*`, `instrument:sensor:*`, `instrument:psu:*` namespaced lab ID로 5개 chapter 진도를 별도로 표시합니다.
+- Cellular 허브는 `cellular:foundations:*`, `cellular:pamid:*`, `cellular:gsm:*`, `cellular:lte:*`, `cellular:nr:*`, `cellular:diagnostics:*`로 57개 질문의 진도를 별도로 표시합니다.
 - 순서를 건너뛸 수 있지만 `이어서 학습`은 가장 앞의 미완료 축을 가리킵니다.
 
 전체 진도를 지우는 별도 화면 버튼은 없습니다. 브라우저 개발자 도구의 Console에서 다음 명령을 실행하면 현재 주소의 진도를 초기화할 수 있습니다.

@@ -1,0 +1,27 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+import CellularLessonLayout from '../../../layouts/CellularLessonLayout.astro';
+import CellularLessonBody from '../../../components/astro/CellularLessonBody.astro';
+
+export async function getStaticPaths() {
+  const lessons = await getCollection('cellularLesson', ({ data }) => data.status === 'ready');
+  return lessons.map((lesson) => ({
+    params: { section: lesson.data.section, slug: lesson.data.slug },
+    props: {
+      lesson,
+      sectionLessons: lessons.filter(({ data }) => data.section === lesson.data.section),
+    },
+  }));
+}
+
+interface Props {
+  lesson: CollectionEntry<'cellularLesson'>;
+  sectionLessons: readonly CollectionEntry<'cellularLesson'>[];
+}
+
+const { lesson, sectionLessons } = Astro.props;
+---
+
+<CellularLessonLayout lesson={lesson} sectionLessons={sectionLessons}>
+  <CellularLessonBody lesson={lesson} />
+</CellularLessonLayout>

@@ -37,7 +37,10 @@ const routes = [
   { name: 'mxa-sweep-mobile', path: '/instruments/sa-mxa/sweep-rbw-detector/' },
   { name: 'ena-calibration-mobile', path: '/instruments/vna-ena/calibration-reference-plane/' },
   { name: 'power-sensor-burst-mobile', path: '/instruments/power-sensor/average-peak-burst/' },
-  { name: 'psu-cv-cc-mobile', path: '/instruments/power-supply/cv-cc-protection/' }
+  { name: 'psu-cv-cc-mobile', path: '/instruments/power-supply/cv-cc-protection/' },
+  { name: 'cellular-hub-mobile', path: '/cellular/' },
+  { name: 'cellular-nr-allocation-mobile', path: '/cellular/nr/100mhz-rb100-location0/' },
+  { name: 'cellular-evm-diagnostic-mobile', path: '/cellular/diagnostics/evm-fail/' }
 ];
 
 function run(command, args, options = {}) {

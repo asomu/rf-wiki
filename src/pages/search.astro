@@ -1,10 +1,14 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
 import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
 import SearchField from '../components/astro/SearchField.astro';
 import { curriculum } from '../data/curriculum';
 import { glossary, glossarySearchText } from '../data/glossary';
 import { instruments } from '../data/instruments';
+import { cellularLessonHref, cellularSections } from '../data/cellular';
+
+const cellularLessons = await getCollection('cellularLesson', ({ data }) => data.status === 'ready');
 
 const fallbackEntries = [
   ...curriculum.map((module) => ({
@@ -33,6 +37,26 @@ const fallbackEntries = [
       featured: false
     })),
   ]),
+  ...cellularSections.flatMap((section) => [
+    {
+      kind: '3GPP·PAMiD 섹션',
+      title: section.title,
+      description: section.description,
+      href: `/cellular/${section.id}/`,
+      searchText: `${section.title} ${section.shortTitle} ${section.question} ${section.description} ${section.context}`,
+      featured: true
+    },
+    ...cellularLessons
+      .filter(({ data }) => data.section === section.id)
+      .map(({ data }) => ({
+        kind: `Cellular · ${section.title}`,
+        title: data.title,
+        description: data.description,
+        href: cellularLessonHref(data.section, data.slug),
+        searchText: `${data.shortTitle} ${data.title} ${data.question} ${data.description} ${data.concepts.join(' ')}`,
+        featured: false
+      }))
+  ]),
   ...glossary.map((entry) => ({
     kind: '용어',
     title: entry.term,
@@ -59,7 +83,7 @@ const fallbackEntries = [
       <div class="search-query-panel">
         <SearchField id="page-search" label="RF Wiki 전체 검색" placeholder="예: RBW, S21, 100 MHz RB" />
         <p id="search-status" class="search-status" role="status" aria-live="polite">
-          검색어가 없으면 여섯 RF 개념 축과 장비 스터디 시작점을 보여줍니다.
+          검색어가 없으면 RF 개념, 3GPP·PAMiD와 장비 스터디 시작점을 보여줍니다.
         </p>
       </div>
 
@@ -117,7 +141,7 @@ const fallbackEntries = [
         empty.hidden = count > 0;
         status.textContent = normalized
           ? `${note} “${query}” 결과 ${count}개`
-          : '검색어가 없으면 여섯 RF 개념 축과 장비 스터디 시작점을 보여줍니다.';
+          : '검색어가 없으면 RF 개념, 3GPP·PAMiD와 장비 스터디 시작점을 보여줍니다.';
       };
 
       const renderPagefind = (query, results) => {

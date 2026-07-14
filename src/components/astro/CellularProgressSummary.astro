@@ -1,0 +1,63 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { cellularLessonHref, cellularSections } from '../../data/cellular';
+
+export interface Props {
+  lessons: readonly CollectionEntry<'cellularLesson'>[];
+  label?: string;
+}
+const { lessons, label = 'Cellular 학습 진도' } = Astro.props;
+const sectionOrder = new Map(cellularSections.map((section, index) => [section.id, index]));
+const entries = [...lessons]
+  .sort((a, b) => (
+    (sectionOrder.get(a.data.section) ?? Number.MAX_SAFE_INTEGER) -
+    (sectionOrder.get(b.data.section) ?? Number.MAX_SAFE_INTEGER) ||
+    a.data.order - b.data.order
+  ))
+  .map(({ data }) => ({
+    id: data.progressId,
+    title: data.shortTitle,
+    question: data.question,
+    href: cellularLessonHref(data.section, data.slug),
+  }));
+const first = entries[0];
+---
+
+<section class="cellular-progress" data-cellular-progress data-progress-entries={JSON.stringify(entries)} aria-labelledby="cellular-progress-title">
+  <div>
+    <p class="data-label">{label}</p>
+    <h2 id="cellular-progress-title" data-progress-title>{first?.title ?? '학습 준비'}</h2>
+    <p data-progress-question>{first?.question ?? '완료할 페이지가 없습니다.'}</p>
+  </div>
+  <div class="cellular-progress__meter">
+    <p><strong data-progress-count>0</strong> / {entries.length}</p>
+    <div class="progress-track" role="progressbar" aria-label={`${label} 0/${entries.length}`} aria-valuemin="0" aria-valuemax={entries.length} aria-valuenow="0" data-progress-bar><span style="--progress: 0%" data-progress-fill></span></div>
+    {first && <a class="button-primary" href={first.href} data-progress-action>첫 질문 시작</a>}
+  </div>
+</section>
+
+<script>
+  import { isLabComplete, readLearningProgress } from '../../lib/progress';
+
+  interface CellularProgressEntry { id: string; title: string; question: string; href: string; }
+  const updateCellularProgress = (root: HTMLElement) => {
+    const entries = JSON.parse(root.dataset.progressEntries ?? '[]') as CellularProgressEntry[];
+    const progress = readLearningProgress(window.localStorage);
+    const completed = entries.filter((entry) => isLabComplete(progress, entry.id));
+    const next = entries.find((entry) => !isLabComplete(progress, entry.id)) ?? entries.at(-1);
+    root.querySelector<HTMLElement>('[data-progress-count]')!.textContent = String(completed.length);
+    const bar = root.querySelector<HTMLElement>('[data-progress-bar]');
+    const fill = root.querySelector<HTMLElement>('[data-progress-fill]');
+    bar?.setAttribute('aria-valuenow', String(completed.length));
+    bar?.setAttribute('aria-label', `${completed.length}/${entries.length} 완료`);
+    fill?.style.setProperty('--progress', `${entries.length === 0 ? 0 : completed.length / entries.length * 100}%`);
+    if (next) {
+      root.querySelector<HTMLElement>('[data-progress-title]')!.textContent = next.title;
+      root.querySelector<HTMLElement>('[data-progress-question]')!.textContent = completed.length === entries.length ? '이 섹션의 모든 질문을 설명으로 닫았습니다.' : next.question;
+      const action = root.querySelector<HTMLAnchorElement>('[data-progress-action]');
+      if (action) { action.href = next.href; action.textContent = completed.length === entries.length ? '마지막 페이지 다시 보기' : '다음 질문'; }
+    }
+  };
+  document.querySelectorAll<HTMLElement>('[data-cellular-progress]').forEach(updateCellularProgress);
+  window.addEventListener('rf-wiki:progress-changed', () => document.querySelectorAll<HTMLElement>('[data-cellular-progress]').forEach(updateCellularProgress));
+</script>

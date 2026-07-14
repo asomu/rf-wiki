@@ -1,0 +1,67 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import LessonLayer from './LessonLayer.astro';
+import CellularVisual from './CellularVisual.astro';
+import CellularLessonCheck from '../cellular/CellularLessonCheck';
+import { resolveCellularSpecReferences } from '../../data/cellular-specs';
+
+export interface Props {
+  lesson: CollectionEntry<'cellularLesson'>;
+}
+
+const { lesson } = Astro.props;
+const { data } = lesson;
+const references = resolveCellularSpecReferences(data.referenceIds);
+---
+
+<LessonLayer level="intuition" title={data.intuition.title}>
+  <p>{data.intuition.lead}</p>
+  <ul>{data.intuition.points.map((point) => <li>{point}</li>)}</ul>
+  {data.visual && <CellularVisual visual={data.visual} {...(data.visualPreset ? { preset: data.visualPreset } : {})} title={data.shortTitle} />}
+</LessonLayer>
+
+<LessonLayer level="bench" title={data.bench.title}>
+  <p>{data.bench.lead}</p>
+  <ol>{data.bench.points.map((point) => <li>{point}</li>)}</ol>
+</LessonLayer>
+
+<LessonLayer level="theory" title={data.theory.title}>
+  <p>{data.theory.lead}</p>
+  {data.theory.formula && <p class="cellular-formula"><code>{data.theory.formula}</code></p>}
+  <ul>{data.theory.points.map((point) => <li>{point}</li>)}</ul>
+
+  <section class="cellular-spec-trace" aria-labelledby="cellular-spec-trace-title">
+    <header><p class="data-label">Clause trace</p><h3 id="cellular-spec-trace-title">숫자와 구조의 적용 범위</h3></header>
+    <div class="cellular-table-scroll" tabindex="0" role="region" aria-label="규격 출처 표">
+      <table>
+        <thead><tr><th>근거</th><th>Version · clause</th><th>적용 범위</th><th>종류</th></tr></thead>
+        <tbody>
+          {references.map((reference) => (
+            <tr>
+              <td><a href={reference.url}>{reference.specification}</a><br /><small>{reference.title}</small></td>
+              <td>{reference.version}<br />§ {reference.clause}</td>
+              <td>{reference.applicability}</td>
+              <td>{reference.kind}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</LessonLayer>
+
+{data.crossLinks.length > 0 && (
+  <aside class="cellular-cross-links" aria-labelledby="cellular-cross-links-title">
+    <h2 id="cellular-cross-links-title">다음 분리 측정에 필요한 연결 페이지</h2>
+    <ul>{data.crossLinks.map((link) => <li><a href={link.href}>{link.label}</a><span>{link.note}</span></li>)}</ul>
+  </aside>
+)}
+
+<CellularLessonCheck
+  client:idle
+  labId={data.progressId}
+  question={data.check.question}
+  options={data.check.options}
+  correctIndex={data.check.correctIndex}
+  explanation={data.check.explanation}
+/>

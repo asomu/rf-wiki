@@ -7,6 +7,8 @@ export type GlossaryCategory =
   | 'network'
   | 'power'
   | 'pa'
+  | 'cellular'
+  | 'pamid'
   | 'instrument-control';
 
 export interface GlossaryTerm {
@@ -19,7 +21,13 @@ export interface GlossaryTerm {
     | 'keysight-n9020b'
     | 'keysight-e5080b'
     | 'keysight-u2061xa'
-    | 'keysight-n6705c';
+    | 'keysight-n6705c'
+    | 'cellular-foundations'
+    | 'cellular-pamid'
+    | 'cellular-gsm'
+    | 'cellular-lte'
+    | 'cellular-nr'
+    | 'cellular-diagnostics';
   definition: string;
   caution?: string;
   href: string;
@@ -33,6 +41,8 @@ export const glossaryCategoryLabels: Record<GlossaryCategory, string> = {
   network: 'VNA·network',
   power: 'Power flow·coupling',
   pa: 'PA·pull',
+  cellular: '3GPP·GSM·LTE·NR',
+  pamid: 'PAMiD·module DVT',
   'instrument-control': '계측장비·SCPI 제어'
 };
 
@@ -769,6 +779,131 @@ export const glossary: readonly GlossaryTerm[] = [
     caution: 'VISA alias는 주소를 편하게 부르는 이름이며 실제 통신 interface와 timeout 설정을 대체하지 않습니다.',
     href: '/instruments/sg-mxg/scpi-pyvisa/',
     aliases: ['PyVISA', 'Connection Expert', 'HiSLIP']
+  },
+  {
+    term: 'ARFCN',
+    label: 'Absolute Radio-Frequency Channel Number',
+    category: 'cellular',
+    moduleId: 'cellular-gsm',
+    definition: 'GSM band 안에서 uplink/downlink RF carrier를 band별 공식으로 식별하는 channel number입니다.',
+    caution: '번호 자체는 주파수가 아니며 band offset, duplex spacing과 유효 번호 범위가 필요합니다.',
+    href: '/cellular/gsm/band-arfcn-carrier/',
+    aliases: ['GSM channel number', '200 kHz raster']
+  },
+  {
+    term: 'GMSK',
+    label: 'Gaussian Minimum Shift Keying',
+    category: 'cellular',
+    moduleId: 'cellular-gsm',
+    definition: 'Gaussian pulse shaping과 continuous phase를 사용하는 GSM 기본 변조 방식으로 이상적인 burst flat-top에서 envelope variation이 작습니다.',
+    caution: 'Constant-envelope 설명은 burst 시작·끝의 power ramp가 없다는 뜻이 아닙니다.',
+    href: '/cellular/gsm/gmsk/'
+  },
+  {
+    term: 'ORFS',
+    label: 'Output RF Spectrum',
+    category: 'cellular',
+    moduleId: 'cellular-gsm',
+    definition: 'GSM transmitter의 carrier 주변 emission을 modulation 및 switching 기여와 관련된 offset에서 평가하는 RF spectrum 측정입니다.',
+    caution: '측정 filter, offset, burst gate와 due-to-modulation/switching 조건을 함께 확인합니다.',
+    href: '/cellular/gsm/gsm-module-measurement/',
+    aliases: ['output RF spectrum due to modulation', 'switching ORFS']
+  },
+  {
+    term: 'PUSCH',
+    label: 'Physical Uplink Shared Channel',
+    category: 'cellular',
+    moduleId: 'cellular-lte',
+    definition: 'LTE와 NR uplink에서 UE user data를 주로 운반하는 physical shared channel입니다.',
+    caution: 'LTE와 NR의 mapping, reference signal, waveform option과 BWP coordinate는 동일하지 않습니다.',
+    href: '/cellular/lte/pusch-to-rf/'
+  },
+  {
+    term: 'DFT-s-OFDM',
+    label: 'DFT-spread OFDM',
+    category: 'cellular',
+    moduleId: 'cellular-lte',
+    definition: 'Data symbols를 DFT precoding한 뒤 contiguous subcarrier에 map하고 IFFT하는 single-carrier-like uplink waveform입니다.',
+    caution: '낮은 PAPR은 통계적 경향이며 sequence, allocation, modulation과 filtering 조건에 따라 달라집니다.',
+    href: '/cellular/lte/uplink-dft-s-ofdm/',
+    aliases: ['SC-FDMA', 'transform precoding']
+  },
+  {
+    term: 'CRB',
+    label: 'Common Resource Block',
+    category: 'cellular',
+    moduleId: 'cellular-nr',
+    definition: 'NR common resource grid에서 Point A를 기준으로 번호가 붙는 resource block 좌표입니다.',
+    caution: '특정 BWP 안에서 번호가 붙는 PRB와 기준을 섞지 않습니다.',
+    href: '/cellular/nr/point-a-crb-bwp-prb/'
+  },
+  {
+    term: 'PRB',
+    label: 'Physical Resource Block',
+    category: 'cellular',
+    moduleId: 'cellular-nr',
+    definition: 'LTE/NR physical resource grid의 12개 연속 subcarrier 묶음이며 NR에서는 특정 BWP-relative 번호 문맥을 확인해야 합니다.',
+    caution: 'NR PRB location 0은 BWP의 첫 RB이지 반드시 carrier low edge나 DC가 아닙니다.',
+    href: '/cellular/nr/100mhz-rb100-location0/'
+  },
+  {
+    term: 'MPR',
+    label: 'Maximum Power Reduction',
+    category: 'cellular',
+    moduleId: 'cellular-nr',
+    definition: 'Band, bandwidth, allocation, waveform과 modulation 조건에 따라 UE가 power-class maximum에서 줄일 수 있도록 허용된 power 감소량입니다.',
+    caution: 'Waveform PAPR 숫자와 같지 않으며 UE-level requirement를 PAMiD 단독 target으로 복사하지 않습니다.',
+    href: '/cellular/nr/nr-mpr/',
+    aliases: ['A-MPR', 'maximum output power reduction']
+  },
+  {
+    term: 'PAMiD',
+    label: 'Power Amplifier Module including Duplexer',
+    category: 'pamid',
+    moduleId: 'cellular-pamid',
+    definition: 'PA stage와 matching, filter/duplexer, coupler 및 switch 기능을 통합해 RF TX path를 구성하는 front-end module 분류입니다.',
+    caution: 'Vendor별 실제 block, port, gain mode와 register map은 다르므로 generic topology를 실제 회로도로 사용하지 않습니다.',
+    href: '/cellular/pamid/pamid-block-anatomy/'
+  },
+  {
+    term: 'MIPI RFFE',
+    label: 'MIPI RF Front-End Control Interface',
+    category: 'pamid',
+    moduleId: 'cellular-pamid',
+    definition: 'PA, LNA, tuner, filter와 switch 같은 RF front-end device의 상태를 address, write와 trigger 개념으로 제어하는 interface입니다.',
+    caution: '이 사이트는 공개 role/trigger 개념만 사용하며 실제 vendor register 주소나 bit field를 제공하지 않습니다.',
+    href: '/cellular/pamid/generic-mipi-rffe/',
+    aliases: ['RFFE', 'USID', 'shadow register']
+  },
+  {
+    term: 'Envelope tracking',
+    label: 'Envelope-tracking PA supply',
+    category: 'pamid',
+    moduleId: 'cellular-pamid',
+    definition: 'RF envelope 변화에 맞춰 PA supply voltage를 빠르게 움직여 필요한 headroom을 유지하며 efficiency를 개선하는 방식입니다.',
+    caution: 'Supply amplitude뿐 아니라 delay, bandwidth, offset과 gain이 EVM·ACLR에 영향을 줍니다.',
+    href: '/cellular/pamid/apt-et/',
+    aliases: ['ET', 'supply trajectory']
+  },
+  {
+    term: 'DPD',
+    label: 'Digital Predistortion',
+    category: 'pamid',
+    moduleId: 'cellular-pamid',
+    definition: 'PA의 AM-AM, AM-PM과 memory effect를 상쇄하도록 source IQ에 pre-inverse distortion을 적용하는 선형화 방식입니다.',
+    caution: 'DPD on 결과는 source waveform도 바뀐 합성 결과이며 PA 단독 물리 성능과 같지 않습니다.',
+    href: '/cellular/pamid/dpd-cfr/',
+    aliases: ['memory polynomial', 'pre-inverse']
+  },
+  {
+    term: 'CFR',
+    label: 'Crest Factor Reduction',
+    category: 'pamid',
+    moduleId: 'cellular-pamid',
+    definition: 'Waveform의 드문 큰 peak를 clipping과 filtering으로 줄여 PA headroom 요구를 낮추는 처리입니다.',
+    caution: 'Peak 감소와 함께 in-band EVM 및 out-of-band regrowth tradeoff를 확인합니다.',
+    href: '/cellular/pamid/dpd-cfr/',
+    aliases: ['crest factor reduction', 'peak clipping']
   }
 ] as const;
 

@@ -7,6 +7,8 @@
 - 기존 RF 개념 6축과 진도 key `rf-wiki:v1:progress`는 유지된다.
 - 별도 `계측장비 스터디` 트랙이 `/instruments/`에 있다.
 - 다섯 Keysight 기준 장비의 허브와 장비별 5개 챕터, 총 25개 챕터가 학습 가능 상태다.
+- 별도 `3GPP·PAMiD` 트랙이 `/cellular/`에 있으며 Release 17 기준 질문형 페이지 57개가 모두 `ready` 상태다.
+- Cellular 진도는 `cellular:*` namespace로 저장되어 RF 6축과 장비 25개 chapter 진도와 합산되지 않는다.
 
 | 트랙 | 고정 기준 | Firmware context | 허브 | 진도 namespace |
 |---|---|---|---|---|
@@ -36,6 +38,12 @@
 | 공용 Python 다운로드 route | `src/pages/instruments/[instrument]/python-examples/` |
 | 결정론적 ZIP 생성 | `src/lib/downloads/mxg-pyvisa-package.mjs`, `src/lib/downloads/instrument-pyvisa-package.mjs` |
 | OpenAI Sites build | `scripts/build-sites.mjs`, `worker/index.js`, `.openai/hosting.json` |
+| Cellular schema·57개 질문 | `src/content.config.ts`의 `cellularLesson`, `src/content/cellular-lessons.json` |
+| Cellular section·source registry | `src/data/cellular.ts`, `src/data/cellular-specs.ts` |
+| GSM timing·PAMiD·진단 모델 | `src/lib/cellular/` |
+| Cellular route·layout | `src/pages/cellular/`, `src/layouts/CellularLessonLayout.astro` |
+| Cellular 시각화 | `src/components/cellular/`, `src/components/astro/CellularVisual.astro` |
+| Cellular public types | `src/types/cellular.ts` |
 
 N9020B·E5080B·U2061XA·N6705C는 `INSTRUMENT_PYVISA_PACKAGES` registry와 공용 dynamic route를 사용한다. N5182B는 먼저 만들어진 전용 builder·route를 유지하지만, `build:sites`에서는 다섯 package를 같은 checksum·manifest·추출 후 dry-run·fake-transport 절차로 검증한다.
 
@@ -51,6 +59,8 @@ N9020B·E5080B·U2061XA·N6705C는 `INSTRUMENT_PYVISA_PACKAGES` registry와 공�
 8. PSU는 N6752A 50 V/10 A/100 W envelope, OCP, setpoint query-back과 명시적 output permit을 모두 통과해야 한다. Remote inhibit, fuse와 DUT bias sequencing은 software cleanup과 별도다.
 9. 통신 단절 시 software OFF는 보장되지 않는다. Hardware attenuation/interlock·remote inhibit와 DUT별 bias policy를 항상 별도 조건으로 남긴다.
 10. SG·SA·VNA·sensor·PSU의 역할을 섞지 않는다. SA가 spectrum power·IQ·ACLR을 취득할 수 있어도 RF Pin/Pout·DC power·PAE를 혼자 만든다고 표현하지 않고 실제 측정 장비와 계산의 주인을 명시한다.
+11. Cellular IQ/resource view는 교육용이며 compliance waveform이 아니다. GSM/LTE/NR의 전체 coding·scrambling·reference sequence transmitter와 certification 판정을 구현했다고 표현하지 않는다.
+12. Generic MIPI 상태에 실제 제조사 register 의미를 부여하지 않는다. GSM PA+ASM, FDD PAMiD와 TDD TxM의 path·duplex 조건을 서로 섞지 않는다.
 
 ## 디자인·학습 계약
 
@@ -75,27 +85,20 @@ npm run build:sites
 
 `npm test`에는 design/content contract, visual-baseline integrity, Astro typecheck, TypeScript unit, 다섯 Python fake-transport suite, hosting tests와 production build가 포함된다. `npm run test:e2e`는 production build를 만든 뒤 정적 preview에서 실행하므로 오래된 Astro dev server를 재사용하지 않는다. `build:sites`는 배포 산출물뿐 아니라 다섯 장비 ZIP의 checksum·manifest를 검사하고 추출된 package의 dry-run과 tests도 실행한다.
 
-### 2026-07-12 검증 체크포인트
+### 2026-07-15 검증 체크포인트
 
-- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter
-- TypeScript/React unit: 33 files, 228 tests 통과
+- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·57개 ready question
+- TypeScript/React unit: 37 files, 268 tests 통과
 - Python fake transport·example: 총 95 tests 통과
   - MXG 39, ENA 21, U2061XA 19, N6705C 16
-- Production build: 38 pages, Pagefind 37 pages·12,374 words index 통과
-- Lighthouse matrix: 대표 12개 경로로 확장됨. MXA hub·sweep가 기존 10개 경로에 추가됐다.
+- Production build: 109 pages, Pagefind 108 pages·16,792 words index 통과
+- Browser E2E: 494개 통과. 57개 Cellular route, 1440/1024/720/390px overflow, axe, keyboard·진도, 66개 visual baseline을 포함한다.
+- Lighthouse: 기존 RF·장비와 Cellular 허브·NR allocation·EVM 진단을 합친 15개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0033 이하를 실측했다.
 - Sites package pipeline: 다섯 장비 archive의 checksum·manifest·추출 후 dry-run·test를 검증하도록 구성됐다.
 
-### 아직 닫히지 않은 브라우저 QA
+### 다음 변경에서 다시 열어야 하는 QA
 
-현재 `npm run check:visual-baselines`는 새 MXA·ENA·power sensor·PSU 대표 화면의 baseline이 없어서 실패한다. 각 장비의 허브와 대표 lab 2종 × 390/1024/1440px이며 MXA 추가분까지 총 24개다. 이 세션에서는 로컬 preview port 권한과 브라우저 사용량 제한 때문에 새 screenshot 생성, 전체 Playwright·axe, Lighthouse 12-route 실측을 완료하지 못했다. 이전 MXG 포함 결과를 새 화면에 그대로 전이해 통과했다고 기록하면 안 된다.
-
-다음 세션은 아래 순서로 QA를 닫는다.
-
-1. `npx playwright test tests/e2e/visual.spec.ts --update-snapshots --reporter=line`로 새 baseline을 생성한다.
-2. 새 18개 screenshot을 390/1024/1440px에서 직접 보고 sidebar·console·code의 document 가로 overflow와 plot label을 확인한다.
-3. `npm run check:visual-baselines`, `npm run test:e2e`를 실행해 keyboard·axe·interaction·visual regression을 함께 닫는다.
-4. `npm run audit:lighthouse`로 12개 경로의 Performance 90+, Accessibility 95+, CLS 0.1 이하를 확인한다.
-5. 마지막으로 `npm test`와 `npm run build:sites`를 다시 실행한다.
+Cellular lesson, 시각화, global navigation 또는 token을 바꾸면 해당 화면만 확인하고 끝내지 않는다. `npm test → npm run test:e2e → npm run audit:lighthouse → npm run build:sites` 순서로 전체 회귀를 다시 닫고, 의도된 시각 변경일 때만 visual baseline을 갱신한다. 신규 표준 수치는 `src/data/cellular-specs.ts`의 exact version·clause·applicability·source kind를 먼저 추가한다.
 
 ## 다음 장비를 추가하는 순서
 

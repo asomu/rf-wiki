@@ -422,3 +422,48 @@ test('instrument progress is namespaced per device and does not change the six-a
   await expect(page.locator('[data-home-progress] [data-progress-count]')).toHaveText('1');
   await expect(page.locator('[data-home-progress] [data-progress-title]')).toContainText('SA의 trace');
 });
+
+test('cellular completion keeps RF and instrument progress intact', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('rf-wiki:v1:progress', JSON.stringify({
+      frequency: { completed: true, completedAt: '2026-07-15T00:00:00.000Z' },
+      'instrument:sg:mxg-safe-cw': { completed: true, completedAt: '2026-07-15T00:01:00.000Z' },
+    }));
+  });
+
+  await page.goto('/cellular/');
+  await expect(page.locator('[data-cellular-progress] [data-progress-title]')).toHaveText('신호 분류 네 층');
+  await expect(page.locator('[data-cellular-progress] [data-progress-action]')).toHaveAttribute(
+    'href',
+    '/cellular/foundations/modulation-waveform-multiple-access-duplex/',
+  );
+
+  await page.goto('/cellular/gsm/tdma-frame-timeslots/');
+  const check = page.locator('[data-lab-id="cellular:gsm:tdma-frame-timeslots"]');
+  await check.getByRole('radio', { name: 'Frame 안의 burst 시간 위치' }).check();
+  await check.getByRole('button', { name: '예측 확인' }).click();
+  await expect(check.getByRole('status').first()).toContainText('맞습니다.');
+
+  await check.getByLabel('내 원인 설명').fill(
+    'timeslot을 바꿨기 때문에 PA stage의 burst 시간이 이동해서 power 화면 위치가 바뀌지만 trigger 오차 한계가 있다.',
+  );
+  await check.getByRole('button', { name: '이 페이지 완료' }).click();
+  await expect(check.getByRole('status', { name: '' }).last()).toContainText('cellular 진도');
+
+  const progress = await page.evaluate(() => JSON.parse(localStorage.getItem('rf-wiki:v1:progress') ?? '{}'));
+  expect(progress.frequency?.completed).toBe(true);
+  expect(progress['instrument:sg:mxg-safe-cw']?.completed).toBe(true);
+  expect(progress['cellular:gsm:tdma-frame-timeslots']?.completed).toBe(true);
+});
+
+test('mobile primary navigation keeps one current track label and reveals four destinations', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/cellular/nr/100mhz-rb100-location0/');
+
+  const mobileNav = page.locator('.mobile-primary-nav');
+  await expect(mobileNav.getByText('3GPP·PAMiD', { exact: true }).first()).toBeVisible();
+  await mobileNav.getByText('탐색', { exact: true }).click();
+  await expect(mobileNav.getByRole('navigation', { name: '모바일 주요 탐색' })).toBeVisible();
+  await expect(mobileNav.getByRole('link')).toHaveCount(4);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});

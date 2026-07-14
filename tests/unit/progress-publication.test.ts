@@ -116,6 +116,29 @@ describe('learning progress', () => {
       completedCount: 3,
     });
   });
+
+  it('keeps cellular page completions independent from RF and instrument progress', () => {
+    const progress = parseLearningProgress(JSON.stringify({
+      frequency: { completed: true },
+      'instrument:sg:mxg-safe-cw': { completed: true },
+      'cellular:gsm:tdma-frame-timeslots': { completed: true },
+      'cellular:nr:100mhz-rb100-location0': { completed: true },
+    }));
+
+    expect(summarizeModuleProgress(curriculum, progress)).toMatchObject({
+      completedModuleIds: ['foundations'],
+      completedCount: 1,
+    });
+    expect(summarizeModuleProgress([
+      { id: 'gsm-slot', completionLabIds: ['cellular:gsm:tdma-frame-timeslots'] },
+      { id: 'nr-rb', completionLabIds: ['cellular:nr:100mhz-rb100-location0'] },
+      { id: 'pamid-path', completionLabIds: ['cellular:pamid:three-dut-topologies'] },
+    ], progress)).toMatchObject({
+      completedModuleIds: ['gsm-slot', 'nr-rb'],
+      completedCount: 2,
+      nextModuleId: 'pamid-path',
+    });
+  });
 });
 
 describe('lesson publication', () => {

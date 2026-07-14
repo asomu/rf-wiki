@@ -49,6 +49,26 @@ const visualScenarios: readonly VisualScenario[] = [
     readySelector: '.glossary-page .glossary-list',
   },
   {
+    name: 'cellular-hub',
+    path: '/cellular/',
+    readySelector: '.cellular-atlas',
+  },
+  {
+    name: 'cellular-gsm-timeslot',
+    path: '/cellular/gsm/tdma-frame-timeslots/',
+    readySelector: '.gsm-frame',
+  },
+  {
+    name: 'cellular-nr-allocation',
+    path: '/cellular/nr/100mhz-rb100-location0/',
+    readySelector: '.resource-strip',
+  },
+  {
+    name: 'cellular-evm-diagnostic',
+    path: '/cellular/diagnostics/evm-fail/',
+    readySelector: '.diagnostic-fingerprint',
+  },
+  {
     name: 'instrument-mxg',
     path: '/instruments/sg-mxg/',
     readySelector: '.mxg-chapters',

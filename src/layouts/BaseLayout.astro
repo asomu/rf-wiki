@@ -3,6 +3,7 @@ import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/instrument.css';
 import '../styles/instruments.css';
+import '../styles/cellular.css';
 import fontStylesheetUrl from '../styles/fonts.css?url';
 import SiteFooter from '../components/astro/SiteFooter.astro';
 import SiteHeader from '../components/astro/SiteHeader.astro';
@@ -25,6 +26,7 @@ const {
 
 const documentTitle = title === 'RF Wiki' ? title : `${title} · RF Wiki`;
 const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefined;
+const socialImageUrl = new URL('/og.png', Astro.site ?? Astro.url.origin);
 ---
 
 <!doctype html>
@@ -33,6 +35,17 @@ const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site) : unde
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RF Wiki" />
+    <meta property="og:title" content={documentTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={socialImageUrl} />
+    <meta property="og:image:width" content="1672" />
+    <meta property="og:image:height" content="941" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={documentTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImageUrl} />
     {noIndex && <meta name="robots" content="noindex" />}
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     <link rel="icon" href="data:," />

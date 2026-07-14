@@ -14,6 +14,7 @@ RF Wiki는 RF 엔지니어가 장비 설정, 물리 신호, 계산 모델과 화
 - Power flow, coupling, insertion, isolation과 directivity
 - PA 비선형성, stability, source/load-pull
 - 계측장비 스터디: Keysight N5182B MXG, N9020B MXA, E5080B ENA, U2061XA power sensor, N6705C + N6752A power system의 장비별 5개 챕터, 총 25개 챕터에서 기본 동작·SCPI·PyVISA와 PA bench workflow 제공
+- 3GPP·PAMiD: Release 17 기준 공통 기초, PAMiD anatomy/control, GSM/GPRS/EDGE, LTE PUSCH, NR FR1 PUSCH와 증상별 진단을 57개 질문형 페이지로 제공
 
 웹은 내장된 결정론적 RF·SCPI 시나리오만 실행합니다. 서버, 로그인, telemetry, 실측 파일 import, 브라우저 직접 장비 제어와 라이브 AI는 범위가 아닙니다. 실제 장비 제어는 `examples/` 아래 장비별 로컬 Python package로 분리되어 있으며 기본 실행은 모두 dry-run입니다.
 
@@ -41,17 +42,16 @@ npm run audit:lighthouse
 npm run test:all
 ~~~
 
-`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 홈, Spectrum/IQ, NR, VNA, PA pull, MXG 허브·SCPI, MXA 허브·sweep, ENA calibration, power-sensor burst, PSU CV/CC 총 12개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
+`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 기존 RF·장비 대표 화면과 Cellular 허브·NR allocation·EVM 진단을 합친 15개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
 
-### 2026-07-12 구현 체크포인트
+### 2026-07-15 구현 체크포인트
 
-- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter
-- TypeScript/React unit: 33 files, 219 tests 통과
+- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·57개 ready question
+- TypeScript/React unit: 37 files, 268 tests 통과
 - Python safety suite: MXG 39 + ENA 21 + U2061XA 19 + N6705C 16, 총 95 tests 통과
-- Production build: 38 pages, Pagefind 37 pages·12,374 words index 통과
-- Lighthouse route matrix: 12개 경로로 구성됨
-
-새 MXA·ENA·power sensor·PSU 화면의 390/1024/1440px visual baseline은 아직 생성되지 않았습니다. 따라서 `npm run check:visual-baselines`와 이를 포함하는 `npm test`는 baseline 생성 전까지 실패하는 것이 현재의 정확한 상태이며, 전체 Playwright·axe와 Lighthouse 12-route 실측도 남아 있습니다. 구체적인 재개 순서는 [세션 인수인계](docs/SESSION_HANDOFF.md)를 따릅니다.
+- Production build: 109 pages, Pagefind 108 pages·16,792 words index 통과
+- Browser E2E: 494 tests 통과. 57개 Cellular route, 4개 viewport overflow, axe, keyboard·진도와 66개 visual baseline 포함
+- Lighthouse: 15개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0033 이하
 
 ### OpenAI Sites 배포 빌드
 
@@ -67,11 +67,13 @@ npm run build:sites
 - `src/pages/` — Astro 정적 route
 - `src/content/lessons/` — MDX lesson과 frontmatter
 - `src/content/instruments/` — 장비별 MDX chapter
+- `src/content/cellular-lessons.json` — 57개 Cellular 질문형 lesson registry
 - `src/components/astro/` — 정적 학습·문서 컴포넌트
 - `src/components/simulators/` — React simulator island
 - `src/components/plots/` — 반응형 SVG view
 - `src/lib/rf/` — UI와 분리된 순수 TypeScript RF 계산
 - `src/lib/instruments/` — 장비별 계산, command catalog와 결정론적 SCPI state
+- `src/lib/cellular/` — GSM timing, PAMiD topology와 diagnostic 모델
 - `src/lib/downloads/` — 배포 가능한 장비별 PyVISA ZIP·checksum 생성과 검증
 - `examples/*_pyvisa/` — 실제 장비용 dry-run-first Python·PyVISA 예제
 - `src/styles/tokens.css` — 디자인 token의 코드 기준

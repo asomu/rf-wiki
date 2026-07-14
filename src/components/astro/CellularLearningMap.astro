@@ -1,0 +1,80 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCollection } from 'astro:content';
+import { cellularLessonHref, cellularSections } from '../../data/cellular';
+import type { CellularSectionId } from '../../types';
+
+export interface Props {
+  currentSection?: CellularSectionId;
+  currentSlug?: string;
+}
+
+const { currentSection, currentSlug } = Astro.props;
+const lessons = (await getCollection('cellularLesson', ({ data }) => data.status === 'ready'))
+  .sort((a, b) => a.data.order - b.data.order) as CollectionEntry<'cellularLesson'>[];
+const currentSectionDefinition = cellularSections.find(({ id }) => id === currentSection);
+const currentLesson = lessons.find(({ data }) => data.section === currentSection && data.slug === currentSlug);
+---
+
+<aside class="learning-map cellular-learning-map" aria-label="3GPP·PAMiD 학습 지도">
+  <details class="learning-map__disclosure" open>
+    <summary>
+      <span>3GPP·PAMiD</span>
+      <strong>{currentLesson?.data.shortTitle ?? currentSectionDefinition?.shortTitle ?? '전체 지도'}</strong>
+    </summary>
+
+    <div class="learning-map__body">
+      <div class="learning-map__heading">
+        <p>Module DVT track</p>
+        <span>57 pages</span>
+      </div>
+      <nav aria-label="Cellular 학습 섹션">
+        <ol class="cellular-learning-map__sections">
+          {cellularSections.map((section) => {
+            const isCurrentSection = section.id === currentSection;
+            const sectionLessons = lessons.filter(({ data }) => data.section === section.id);
+            return (
+              <li class:list={{ 'is-current-section': isCurrentSection }}>
+                <a href={`/cellular/${section.id}/`} aria-current={isCurrentSection && !currentSlug ? 'page' : undefined}>
+                  <span class="module-index">{section.index}</span>
+                  <span class="learning-map__label">
+                    <strong>{section.title}</strong>
+                    <small>{section.count}개 질문</small>
+                  </span>
+                </a>
+                {isCurrentSection && (
+                  <ol class="cellular-learning-map__lessons">
+                    {sectionLessons.map(({ data }) => {
+                      const isCurrentLesson = data.slug === currentSlug;
+                      return (
+                        <li class:list={{ 'is-current': isCurrentLesson }}>
+                          <a href={cellularLessonHref(section.id, data.slug)} aria-current={isCurrentLesson ? 'page' : undefined}>
+                            <span class="module-index">{String(data.order).padStart(2, '0')}</span>
+                            <span class="learning-map__label"><strong>{data.shortTitle}</strong></span>
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+      <a class="learning-map__glossary" href="/cellular/">Cellular 전체 지도로 →</a>
+      <a class="learning-map__glossary" href="/glossary/">막힌 용어 먼저 찾기 →</a>
+    </div>
+  </details>
+</aside>
+
+<script is:inline>
+  (() => {
+    const disclosure = document.currentScript?.previousElementSibling?.querySelector('.learning-map__disclosure');
+    if (!(disclosure instanceof HTMLDetailsElement)) return;
+    const compact = window.matchMedia('(max-width: 1180px)');
+    const sync = () => compact.matches ? disclosure.removeAttribute('open') : disclosure.setAttribute('open', '');
+    sync();
+    compact.addEventListener('change', sync);
+  })();
+</script>

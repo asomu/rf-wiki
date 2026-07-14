@@ -73,6 +73,11 @@ await Promise.all([
   requireFile(resolve(client, 'instruments/sg-mxg/python-examples/driver.py'), 'downloadable MXG Python driver'),
   requireFile(resolve(client, 'instruments/sg-mxg/python-examples', MXG_PYVISA_ARCHIVE_NAME), 'complete MXG Python ZIP'),
   requireFile(resolve(client, 'instruments/sg-mxg/python-examples', MXG_PYVISA_CHECKSUM_NAME), 'MXG Python ZIP checksum'),
+  requireFile(resolve(client, 'cellular/index.html'), '3GPP/PAMiD learning map'),
+  requireFile(resolve(client, 'cellular/gsm/tdma-frame-timeslots/index.html'), 'GSM timeslot lesson'),
+  requireFile(resolve(client, 'cellular/lte/bandwidth-rb-location/index.html'), 'LTE resource lesson'),
+  requireFile(resolve(client, 'cellular/nr/100mhz-rb100-location0/index.html'), 'NR allocation lesson'),
+  requireFile(resolve(client, 'cellular/diagnostics/evm-fail/index.html'), 'PAMiD EVM diagnostic lesson'),
   requireFile(resolve(client, 'pagefind/pagefind.js'), 'Pagefind runtime'),
   requireFile(resolve(server, 'index.js'), 'server/index.js'),
   requireFile(resolve(metadata, 'hosting.json'), '.openai/hosting.json')

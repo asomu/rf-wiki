@@ -1,0 +1,59 @@
+---
+import { getDiagnosticSignature } from '../../lib/cellular';
+
+export interface Props { preset?: string; }
+const { preset = 'power-gain' } = Astro.props;
+const signature = getDiagnosticSignature(preset);
+const shapes: Record<string, { label: string; normal: string; abnormal: string; axis: string }> = {
+  'power-gain': { label: 'Gain vs Pin', normal: 'M56 158 C180 130 300 96 444 58', abnormal: 'M56 158 C180 132 300 112 444 116', axis: 'Pin →' },
+  'current-pae': { label: 'Current vs Pout', normal: 'M56 158 C180 146 300 118 444 80', abnormal: 'M56 142 C180 118 300 82 444 44', axis: 'Pout →' },
+  evm: { label: 'EVM vs Pout', normal: 'M56 154 C220 150 330 134 444 94', abnormal: 'M56 144 C220 124 330 86 444 42', axis: 'Pout →' },
+  'aclr-sem': { label: 'Adjacent spectrum', normal: 'M56 146 L150 140 L214 76 L286 76 L350 140 L444 146', abnormal: 'M56 126 L150 112 L214 76 L286 76 L350 110 L444 124', axis: 'frequency →' },
+  harmonic: { label: 'Fundamental / 2f / 3f', normal: 'M56 154 L120 154 L120 52 L124 154 L260 154 L260 132 L264 154 L398 154 L398 146 L402 154', abnormal: 'M56 154 L120 154 L120 52 L124 154 L260 154 L260 92 L264 154 L398 154 L398 118 L402 154', axis: 'frequency →' },
+  spurious: { label: 'Wide-span spur', normal: 'M56 148 L444 148', abnormal: 'M56 148 L210 148 L214 70 L218 148 L330 148 L334 104 L338 148 L444 148', axis: 'frequency →' },
+  'tx-noise-desense': { label: 'RX-band noise PSD', normal: 'M56 146 C180 144 300 146 444 144', abnormal: 'M56 116 C180 110 300 114 444 108', axis: 'RX frequency →' },
+  'ripple-edge': { label: 'Gain vs frequency', normal: 'M56 104 C160 100 340 102 444 100', abnormal: 'M56 130 C130 76 202 130 276 78 C348 130 404 102 444 144', axis: 'frequency →' },
+  'switching-transient': { label: 'Power vs time', normal: 'M56 150 L148 150 Q164 150 176 96 L364 96 Q380 96 392 150 L444 150', abnormal: 'M56 150 L176 150 Q204 150 216 72 L250 116 L286 88 L364 98 Q396 104 410 150 L444 150', axis: 'time →' },
+  'mode-state-calibration': { label: 'Known state signature', normal: 'M56 146 L154 118 L250 92 L348 68 L444 48', abnormal: 'M56 146 L154 132 L250 124 L348 116 L444 108', axis: 'state step →' },
+};
+const fallbackShape = shapes['power-gain']!;
+const shape = shapes[preset] ?? fallbackShape;
+---
+
+<section class="cellular-visual diagnostic-fingerprint" aria-labelledby="diagnostic-fingerprint-title">
+  <header class="cellular-visual__header">
+    <div><p>Diagnostic Fingerprint</p><h3 id="diagnostic-fingerprint-title">{signature.symptom}</h3></div>
+    <p class="cellular-model-note">정적 evidence matrix · fault simulator 아님</p>
+  </header>
+
+  <svg viewBox="0 0 500 210" role="img" aria-label={`${shape.label}의 정상과 비정상 개념 비교`}>
+    <title>{shape.label}: normal and abnormal diagnostic patterns</title>
+    <line class="plot-grid" x1="56" y1="32" x2="56" y2="168" />
+    <line class="plot-grid" x1="56" y1="168" x2="460" y2="168" />
+    <line class="plot-grid" x1="56" y1="100" x2="460" y2="100" />
+    <path class="plot-forward" d={shape.normal} />
+    <path class="plot-reverse" d={shape.abnormal} />
+    <text class="plot-label" x="58" y="24">{shape.label}</text>
+    <text class="plot-label" x="382" y="198">{shape.axis}</text>
+    <line class="plot-forward" x1="292" y1="22" x2="320" y2="22" /><text class="plot-label" x="326" y="26">normal</text>
+    <line class="plot-reverse" x1="382" y1="22" x2="410" y2="22" /><text class="plot-label" x="416" y="26">observed</text>
+  </svg>
+
+  <div class="cellular-diagnostic-views">
+    {signature.observedViews.map((view) => <span>{view}</span>)}
+  </div>
+
+  <div class="cellular-table-scroll" tabindex="0" role="region" aria-label="진단 원인과 분리 측정 표">
+    <table>
+      <thead><tr><th>우선</th><th>가능 stage</th><th>가설</th><th>가장 빠른 분리 측정</th></tr></thead>
+      <tbody>{signature.likelyStages.map((cause, index) => <tr><td>P{cause.priority}</td><td>{cause.stage}</td><td>{cause.hypothesis}</td><td>{signature.discriminatingMeasurements[index]?.action ?? signature.discriminatingMeasurements[0]?.action}</td></tr>)}</tbody>
+    </table>
+  </div>
+
+  <dl class="cellular-ledger">
+    <div><dt>즉시 확인</dt><dd>{signature.controlChecks.join(' · ')}</dd></div>
+    <div><dt>관찰 view</dt><dd>{signature.observedViews.join(' · ')}</dd></div>
+    <div><dt>분리 증거</dt><dd>{signature.discriminatingMeasurements[0]?.expectedEvidence}</dd></div>
+    <div><dt>흔한 오진</dt><dd>{signature.falsePositives.join(' · ')}</dd></div>
+  </dl>
+</section>

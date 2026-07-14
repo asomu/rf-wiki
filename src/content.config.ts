@@ -1,5 +1,5 @@
 import { defineCollection } from 'astro:content';
-import { glob } from 'astro/loaders';
+import { file, glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 
 const referenceSchema = z.object({
@@ -113,4 +113,47 @@ const instrumentLesson = defineCollection({
   })
 });
 
-export const collections = { lesson, instrumentLesson };
+const lessonLayerSchema = z.object({
+  title: z.string(),
+  lead: z.string(),
+  points: z.array(z.string()).min(2),
+});
+
+const cellularLesson = defineCollection({
+  loader: file('./src/content/cellular-lessons.json'),
+  schema: z.object({
+    slug: z.string().regex(/^[a-z0-9-]+$/),
+    section: z.enum(['foundations', 'pamid', 'gsm', 'lte', 'nr', 'diagnostics']),
+    order: z.number().int().positive(),
+    title: z.string(),
+    shortTitle: z.string(),
+    question: z.string(),
+    description: z.string(),
+    estimatedMinutes: z.number().int().positive(),
+    outcomes: z.array(z.string()).min(2),
+    concepts: z.array(z.string()).min(2),
+    intuition: lessonLayerSchema,
+    bench: lessonLayerSchema,
+    theory: lessonLayerSchema.extend({
+      formula: z.string().optional(),
+    }),
+    visual: z.enum(['atlas', 'gsm-time', 'resource-lte', 'resource-nr', 'module-path', 'diagnostic']).optional(),
+    visualPreset: z.string().optional(),
+    check: z.object({
+      question: z.string(),
+      options: z.array(z.string()).length(3),
+      correctIndex: z.number().int().min(0).max(2),
+      explanation: z.string(),
+    }),
+    referenceIds: z.array(z.string()).min(1),
+    crossLinks: z.array(z.object({
+      label: z.string(),
+      href: z.string().startsWith('/'),
+      note: z.string(),
+    })).default([]),
+    progressId: z.string().regex(/^cellular:[a-z0-9-]+:[a-z0-9-]+$/),
+    status: z.enum(['ready', 'draft']),
+  }),
+});
+
+export const collections = { lesson, instrumentLesson, cellularLesson };

@@ -1,0 +1,82 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from './BaseLayout.astro';
+import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
+import CellularLearningMap from '../components/astro/CellularLearningMap.astro';
+import { cellularLessonHref, getCellularSection } from '../data/cellular';
+
+export interface Props {
+  lesson: CollectionEntry<'cellularLesson'>;
+  sectionLessons: readonly CollectionEntry<'cellularLesson'>[];
+}
+
+const { lesson, sectionLessons } = Astro.props;
+const { data } = lesson;
+const section = getCellularSection(data.section);
+const ordered = [...sectionLessons].sort((a, b) => a.data.order - b.data.order);
+const lessonIndex = ordered.findIndex(({ data: candidate }) => candidate.slug === data.slug);
+const previousLesson = lessonIndex > 0 ? ordered[lessonIndex - 1] : undefined;
+const nextLesson = lessonIndex >= 0 ? ordered[lessonIndex + 1] : undefined;
+const layerItems = [
+  { id: 'intuition', label: '직관', question: '무엇이 움직이나?' },
+  { id: 'bench', label: '조작·진단', question: '어디서 나뉘나?' },
+  { id: 'theory', label: '수식·규격', question: '무엇이 근거인가?' },
+] as const;
+---
+
+<BaseLayout title={data.title} description={data.description} currentPath={Astro.url.pathname} bodyClass="lesson-page cellular-lesson-page">
+  <main class="lesson-shell">
+    <CellularLearningMap currentSection={data.section} currentSlug={data.slug} />
+
+    <div class="lesson-intro" data-pagefind-body>
+      <Breadcrumbs items={[
+        { label: '3GPP·PAMiD', href: '/cellular/' },
+        { label: section.title, href: `/cellular/${section.id}/` },
+        { label: data.shortTitle },
+      ]} />
+      <header class="lesson-heading">
+        <p class="context-line">
+          <span>3GPP Release 17</span>
+          <span>{section.context}</span>
+          <span>{data.estimatedMinutes}분</span>
+          <span>교육용 구조 모델</span>
+        </p>
+        <h1>{data.title}</h1>
+        <p>{data.description}</p>
+      </header>
+    </div>
+
+    <nav class="layer-rail" aria-label="학습 깊이">
+      <ol>
+        {layerItems.map((item, index) => (
+          <li>
+            <a href={`#${item.id}`} aria-current={index === 0 ? 'step' : undefined}>
+              <span class="layer-index">{index + 1}</span>
+              <span><strong>{item.label}</strong><small>{item.question}</small></span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <article class="lesson-article" data-pagefind-body>
+      <div class="lesson-content"><slot /></div>
+      <nav class="cellular-chapter-nav" aria-label={`${section.title} 페이지 이동`}>
+        {previousLesson ? (
+          <a href={cellularLessonHref(data.section, previousLesson.data.slug)}>
+            <small>이전 질문</small><strong>← {previousLesson.data.shortTitle}</strong>
+          </a>
+        ) : <a href={`/cellular/${section.id}/`}><small>섹션 지도</small><strong>← {section.title}</strong></a>}
+        {nextLesson ? (
+          <a class="cellular-chapter-nav__next" href={cellularLessonHref(data.section, nextLesson.data.slug)}>
+            <small>다음 질문 · {nextLesson.data.order}/{ordered.length}</small><strong>{nextLesson.data.shortTitle} →</strong>
+          </a>
+        ) : (
+          <a class="cellular-chapter-nav__next" href="/cellular/diagnostics/">
+            <small>다음 적용</small><strong>증상별 진단으로 →</strong>
+          </a>
+        )}
+      </nav>
+    </article>
+  </main>
+</BaseLayout>

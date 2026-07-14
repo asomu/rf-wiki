@@ -1,0 +1,51 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../components/astro/Breadcrumbs.astro';
+import CellularLearningMap from '../../../components/astro/CellularLearningMap.astro';
+import CellularProgressSummary from '../../../components/astro/CellularProgressSummary.astro';
+import { cellularLessonHref, cellularSections, getCellularSection } from '../../../data/cellular';
+import type { CellularSectionId } from '../../../types';
+
+export async function getStaticPaths() {
+  const lessons = await getCollection('cellularLesson', ({ data }) => data.status === 'ready');
+  return cellularSections.map((section) => ({
+    params: { section: section.id },
+    props: { sectionId: section.id, lessons: lessons.filter(({ data }) => data.section === section.id) },
+  }));
+}
+
+interface Props { sectionId: CellularSectionId; lessons: readonly CollectionEntry<'cellularLesson'>[]; }
+const { sectionId, lessons } = Astro.props;
+const section = getCellularSection(sectionId);
+const ordered = [...lessons].sort((a, b) => a.data.order - b.data.order);
+---
+
+<BaseLayout title={section.title} description={section.description} currentPath={Astro.url.pathname} bodyClass="cellular-section-page">
+  <main class="lesson-shell cellular-section-shell" data-pagefind-body>
+    <CellularLearningMap currentSection={section.id} />
+    <div class="cellular-section-shell__content">
+      <Breadcrumbs items={[{ label: '3GPP·PAMiD', href: '/cellular/' }, { label: section.title }]} />
+      <header class="page-heading">
+        <p class="context-line"><span>Section {section.index}</span><span>{section.context}</span><span>{section.count}개 질문</span></p>
+        <h1>{section.question}</h1>
+        <p>{section.description}</p>
+      </header>
+
+      <CellularProgressSummary lessons={ordered} label={`${section.title} 진도`} />
+
+      <section class="cellular-question-list" aria-labelledby="cellular-question-list-title">
+        <header><p class="data-label">Question sequence</p><h2 id="cellular-question-list-title">한 페이지에 하나의 판단만 연습합니다.</h2></header>
+        <ol>
+          {ordered.map(({ data }) => (
+            <li data-progress-id={data.progressId}>
+              <span>{String(data.order).padStart(2, '0')}</span>
+              <div><h3><a href={cellularLessonHref(data.section, data.slug)}>{data.title}</a></h3><p>{data.description}</p><small>{data.estimatedMinutes}분 · {data.concepts.join(' · ')}</small></div>
+              <a aria-label={`${data.shortTitle} 시작`} href={cellularLessonHref(data.section, data.slug)}>열기 →</a>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
+  </main>
+</BaseLayout>

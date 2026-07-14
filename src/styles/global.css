@@ -236,6 +236,10 @@ a:visited:not(.button-primary):not(.wordmark) {
   gap: var(--space-1);
 }
 
+.mobile-primary-nav {
+  display: none;
+}
+
 .primary-nav a {
   display: inline-flex;
   min-height: var(--target-min);
@@ -1877,12 +1881,71 @@ a:visited:not(.button-primary):not(.wordmark) {
   }
 
   .primary-nav {
-    justify-content: flex-end;
-    gap: 0;
+    display: none;
   }
 
-  .primary-nav a {
-    padding-inline: var(--space-2);
+  .mobile-primary-nav {
+    position: relative;
+    display: block;
+    justify-self: end;
+    min-width: min(100%, var(--layout-learning-map));
+  }
+
+  .mobile-primary-nav summary {
+    display: flex;
+    min-height: var(--target-min);
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-inline: var(--space-3);
+    border-bottom: var(--stroke-hairline) solid var(--color-rule-strong);
+    color: var(--color-ink);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-semibold);
+    list-style: none;
+  }
+
+  .mobile-primary-nav summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-primary-nav summary span:last-child {
+    color: var(--color-active-text);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-data);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .mobile-primary-nav[open] summary span:last-child {
+    color: var(--color-muted);
+  }
+
+  .mobile-primary-nav nav {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    display: grid;
+    width: min(78vw, var(--layout-learning-map));
+    padding: var(--space-2);
+    border: var(--stroke-hairline) solid var(--color-rule-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .mobile-primary-nav nav a {
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-muted);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+  }
+
+  .mobile-primary-nav nav a:hover,
+  .mobile-primary-nav nav a[aria-current='page'] {
+    color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-active) 7%, var(--color-surface));
   }
 
   .page-shell,

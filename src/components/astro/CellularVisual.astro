@@ -1,0 +1,23 @@
+---
+import CrossRatAtlas from '../cellular/CrossRatAtlas';
+import GsmTimeExplorer from '../cellular/GsmTimeExplorer';
+import CellularResourceExplorer from '../cellular/CellularResourceExplorer';
+import ModulePathDiagram from '../cellular/ModulePathDiagram';
+import DiagnosticFingerprint from './DiagnosticFingerprint.astro';
+
+export interface Props {
+  visual: 'atlas' | 'gsm-time' | 'resource-lte' | 'resource-nr' | 'module-path' | 'diagnostic';
+  preset?: string;
+  title?: string;
+}
+const { visual, preset = '' } = Astro.props;
+---
+
+<div class="lesson-lab-block cellular-visual-block">
+  {visual === 'atlas' && <CrossRatAtlas client:visible />}
+  {visual === 'gsm-time' && <GsmTimeExplorer client:visible preset={preset} />}
+  {visual === 'resource-lte' && <CellularResourceExplorer client:visible initialRat="LTE" preset={preset} />}
+  {visual === 'resource-nr' && <CellularResourceExplorer client:visible initialRat="NR" preset={preset} />}
+  {visual === 'module-path' && <ModulePathDiagram client:visible preset={preset} />}
+  {visual === 'diagnostic' && <DiagnosticFingerprint preset={preset} />}
+</div>

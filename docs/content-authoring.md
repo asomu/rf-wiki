@@ -399,3 +399,33 @@ npm run new:instrument-lesson -- \
 3. namespaced progress ID, search fallback와 glossary
 4. dry-run-first PyVISA adapter, fake transport test, 사용자 가이드와 deterministic ZIP
 5. Sites required-route 검사, responsive overflow, keyboard/axe와 visual regression
+
+## 15. Cellular 질문 페이지 작성
+
+3GPP·PAMiD 콘텐츠는 MDX가 아니라 `cellularLesson` collection이 읽는 `src/content/cellular-lessons.json`의 구조화된 항목으로 작성합니다. section과 canonical 개수는 다음과 같습니다.
+
+| section | 질문 수 | 공개 route |
+|---|---:|---|
+| `foundations` | 6 | `/cellular/foundations/` |
+| `pamid` | 10 | `/cellular/pamid/` |
+| `gsm` | 9 | `/cellular/gsm/` |
+| `lte` | 11 | `/cellular/lte/` |
+| `nr` | 11 | `/cellular/nr/` |
+| `diagnostics` | 10 | `/cellular/diagnostics/` |
+
+한 항목에는 unique `id/slug/progressId`, section 내 연속 `order`, 질문형 title, `intuition/bench/theory` 세 layer, 하나의 prediction check, `referenceIds`와 cross-link가 필요합니다. 진도 ID는 `cellular:<section>:<slug>` 형식입니다. `visual`은 기존 `CellularVisual.astro`가 지원하는 atlas, GSM time, LTE/NR resource, module path, diagnostic fingerprint만 우선 재사용합니다.
+
+표준 출처는 `src/data/cellular-specs.ts`에 먼저 등록합니다. 각 registry 항목은 spec 번호, Release와 exact minor version, clause/table, RAT·direction·band·bandwidth·modulation 적용 범위, `normative | conformance | calculated | industry-guidance` 구분을 가져야 합니다. 3GPP/ETSI 숫자와 Keysight PA application note의 실무 설명을 같은 종류의 requirement로 섞지 않습니다.
+
+정확한 계산은 `src/lib/cellular/` 또는 기존 `src/lib/rf/`에 둡니다. UI 안에서 GSM frame/timeslot, LTE/NR RB table, IFFT, PAPR 공식을 다시 구현하지 않습니다. Cellular IQ에는 항상 educational visualization 한계를 표시하고 channel coding, scrambling, reference sequence 전체 transmitter나 compliance 판정을 암시하지 않습니다.
+
+PAMiD 설명은 세 topology를 분리합니다: `gsm-pa-asm`, `fdd-pamid`, `tdd-txm`. Generic MIPI 페이지에는 공개된 역할과 trigger/state 개념만 쓰며 proprietary USID/register/bit field를 만들거나 추정하지 않습니다. Diagnostic 항목에는 observation, 우선순위가 있는 likely stage, control check, 가장 빠른 discriminating measurement, false positive와 관련 단원이 모두 필요합니다.
+
+작성 후 다음 검사로 57개 canonical 구조와 출처 연결을 확인합니다.
+
+~~~bash
+npm run check:content
+npx vitest run tests/unit/cellular.test.ts tests/components/CellularVisuals.test.tsx
+npm run typecheck
+npm run build:site
+~~~

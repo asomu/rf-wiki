@@ -245,6 +245,17 @@ RF 개념 여섯 축과 계측장비 트랙의 진도는 합치지 않는다. �
 - DC power: delivered voltage/current는 teal, setpoint·limit·trigger는 oxide, CC/OVP/OCP trip과 unsafe output은 red, terminal/sense 비교값은 blue다.
 - 상태를 색만으로 구분하지 않는다. `TRACE`, `MARKER`, `OVERLOAD`, `IQ`, `CV`, `CC`, `TRIP`, `RAW`, `CORR`, `AVG`, `PEAK` 직접 라벨, line style과 marker shape를 함께 쓴다.
 
+### 3GPP·PAMiD Study
+
+Cellular 트랙도 permanent lab rail 없이 `compact 학습 지도 → 하나의 질문 → 직관 → 실무 → 수식·규격 → 예측·설명`의 단일 읽기 흐름을 사용한다. 전체 57개 질문을 sidebar에 한꺼번에 펼치지 않고 현재 section의 질문만 보인다. 진도는 `cellular:*` namespace로 RF 개념·계측장비와 시각적으로도 분리한다.
+
+- Cross-RAT atlas는 GSM `carrier → frame → timeslot → burst`, LTE `carrier → subframe/slot → RB → RE`, NR `carrier → BWP → slot/symbol → PRB/RE`를 같은 문법으로 비교한다.
+- GSM timeline은 실제 시간 비율을 유지하고 burst field, envelope/current, IQ/phase와 ORFS 관찰 지점을 직접 라벨한다.
+- LTE/NR resource view는 allocation, active subcarrier, constellation, spectrum과 PAPR를 같은 state에서 계산한다. 범례 대신 바뀐 grid/RB 바로 옆에 현재 값을 쓴다.
+- Module path는 TX/RX와 FDD/TDD를 색만으로 구분하지 않고 block 이름, path line, state text를 함께 쓴다.
+- Diagnostic fingerprint는 정상/관찰 trace와 `증거 → 후보 stage → 분리 측정 → 흔한 오진` 표를 함께 제공한다. fault simulator처럼 보이게 장식하지 않는다.
+- 표준 clause 표는 본문을 대신하는 reference dump가 아니라 해당 숫자의 적용 범위와 규범값/계산값 구분을 확인하는 마지막 layer다.
+
 ### Prediction Challenge
 
 Interactive lab 안에서 조작 전에 방향 또는 형태를 예측하게 한다. 정답을 즉시 공개하지 않고 control 조작 후 관찰 근거를 선택하거나 짧게 설명하도록 한다. 실패 상태는 “틀림”이 아니라 놓친 stage와 다시 움직일 marker를 가리킨다. lab과 별개인 prose challenge로 같은 예측을 반복하지 않는다.

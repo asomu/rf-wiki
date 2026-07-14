@@ -8,6 +8,17 @@ export interface Props {
 const { currentPath = '/' } = Astro.props;
 const isLearning = currentPath === '/' || currentPath.startsWith('/learn/');
 const isInstruments = currentPath.startsWith('/instruments/');
+const isCellular = currentPath.startsWith('/cellular/');
+const isGlossary = currentPath.startsWith('/glossary');
+const currentNavLabel = isCellular
+  ? '3GPP·PAMiD'
+  : isInstruments
+    ? '장비 스터디'
+    : isGlossary
+      ? '용어 사전'
+      : isLearning
+        ? 'RF 개념'
+        : '사이트 탐색';
 ---
 
 <header class="site-header">
@@ -26,9 +37,20 @@ const isInstruments = currentPath.startsWith('/instruments/');
 
     <nav class="primary-nav" aria-label="주요 탐색">
       <a href="/" aria-current={isLearning ? 'page' : undefined}>RF 개념</a>
+      <a href="/cellular/" aria-current={isCellular ? 'page' : undefined}>3GPP·PAMiD</a>
       <a href="/instruments/" aria-current={isInstruments ? 'page' : undefined}>장비 스터디</a>
-      <a href="/glossary/" aria-current={currentPath.startsWith('/glossary') ? 'page' : undefined}>용어 사전</a>
+      <a href="/glossary/" aria-current={isGlossary ? 'page' : undefined}>용어 사전</a>
     </nav>
+
+    <details class="mobile-primary-nav">
+      <summary><span>{currentNavLabel}</span><span aria-hidden="true">탐색</span></summary>
+      <nav aria-label="모바일 주요 탐색">
+        <a href="/" aria-current={isLearning ? 'page' : undefined}>RF 개념</a>
+        <a href="/cellular/" aria-current={isCellular ? 'page' : undefined}>3GPP·PAMiD</a>
+        <a href="/instruments/" aria-current={isInstruments ? 'page' : undefined}>장비 스터디</a>
+        <a href="/glossary/" aria-current={isGlossary ? 'page' : undefined}>용어 사전</a>
+      </nav>
+    </details>
 
     <div class="header-search">
       <SearchField id="header-search" compact />

@@ -1,8 +1,22 @@
 import { expect, test } from '@playwright/test';
-import { appRoutes, smokeViewports } from './routes';
+import { appRoutes, cellularRoutes, smokeViewports } from './routes';
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
+});
+
+test.describe('all 57 cellular lesson routes', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+  for (const route of cellularRoutes) {
+    test(`${route.path} is generated and readable`, async ({ page }) => {
+      const response = await page.goto(route.path);
+      expect(response?.ok()).toBe(true);
+      await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        await page.evaluate(() => document.documentElement.clientWidth + 1),
+      );
+    });
+  }
 });
 
 test.describe('static route and responsive smoke', () => {

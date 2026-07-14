@@ -1,0 +1,59 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/astro/Breadcrumbs.astro';
+import CellularProgressSummary from '../../components/astro/CellularProgressSummary.astro';
+import CrossRatAtlas from '../../components/cellular/CrossRatAtlas';
+import { cellularLessonHref, cellularSections, cellularLessonCount } from '../../data/cellular';
+
+const lessons = await getCollection('cellularLesson', ({ data }) => data.status === 'ready');
+---
+
+<BaseLayout title="3GPP·PAMiD 학습 지도" description="GSM·LTE·NR uplink waveform에서 PAMiD state와 DVT 진단까지 연결하는 57개 질문" currentPath="/cellular/">
+  <main class="page-shell cellular-hub" data-pagefind-body>
+    <Breadcrumbs items={[{ label: 'RF Wiki', href: '/' }, { label: '3GPP·PAMiD' }]} />
+    <header class="page-heading cellular-hub__heading">
+      <p class="context-line"><span>3GPP Release 17</span><span>UE uplink·PUSCH</span><span>Module nominal DVT</span><span>{cellularLessonCount}개 질문</span></p>
+      <h1>파형 구조에서 PAMiD fail stage까지 한 경로로 읽습니다.</h1>
+      <p>GSM·LTE·NR의 시간·주파수·변조 구조를 보고 어떤 module state가 필요한지, 측정 이상이 source부터 analyzer 중 어디서 시작됐는지 역추적합니다.</p>
+    </header>
+
+    <CellularProgressSummary lessons={lessons} label="3GPP·PAMiD 전체 진도" />
+
+    <section aria-labelledby="cellular-atlas-heading">
+      <h2 class="visually-hidden" id="cellular-atlas-heading">세 무선 규격 구조 비교</h2>
+      <CrossRatAtlas client:visible />
+    </section>
+
+    <section class="cellular-section-index" aria-labelledby="cellular-section-index-title">
+      <header><p class="data-label">6 sections · 57 questions</p><h2 id="cellular-section-index-title">먼저 구조를 그리고, 마지막에 증상에서 거꾸로 올라갑니다.</h2></header>
+      <ol>
+        {cellularSections.map((section) => {
+          const sectionLessons = lessons.filter(({ data }) => data.section === section.id).sort((a, b) => a.data.order - b.data.order);
+          const first = sectionLessons[0];
+          return (
+            <li>
+              <span class="cellular-section-index__number">{section.index}</span>
+              <div>
+                <p>{section.context}</p>
+                <h3><a href={`/cellular/${section.id}/`}>{section.title}</a></h3>
+                <strong>{section.question}</strong>
+                <p>{section.description}</p>
+              </div>
+              <div class="cellular-section-index__action">
+                <span>{section.count}개</span>
+                {first && <a href={cellularLessonHref(section.id, first.data.slug)}>첫 질문 →</a>}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+
+    <aside class="cellular-scope-note">
+      <p class="data-label">Scope boundary</p>
+      <h2>교육용 구조·계산 모델이며 certification 판정을 대신하지 않습니다.</h2>
+      <p>Single-carrier UE uplink와 nominal RF DVT를 다룹니다. WCDMA, CA/EN-DC, UL MIMO, FR2/OTA, propagation, PVT/VSWR/reliability, 실제 PAMiD register map과 신규 SCPI 자동화는 포함하지 않습니다.</p>
+    </aside>
+  </main>
+</BaseLayout>

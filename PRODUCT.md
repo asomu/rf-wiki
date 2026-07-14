@@ -27,7 +27,11 @@ RF 개념 트랙의 완성 범위는 다음 여섯 학습 축이다.
 
 별도의 계측장비 스터디 트랙은 `SG → SA → NA(VNA) → Power Sensor → Power Supply` 순서를 따른다. 현재 활성 기준 장비는 Keysight `N5182B-506 + 656`, `N9020B-526 + B1X + MPB + P26`, `E5080B-2K0`, `U2061XA`, `N6705C + N6752A-761`이다. 각 장비는 기본 동작과 내부 신호·전력 경로, SCPI·PyVISA, PA bench capstone을 독립된 namespaced 진도로 다룬다.
 
-웹에서는 내장 검증 시나리오와 결정론적 SCPI state model만 실행한다. 실제 장비 제어는 사용자의 로컬 Python·PyVISA 예제로 분리하고 source/output enable은 장비별 별도 실행 권한을 요구한다. 브라우저 직접 장비 연결, 실측 파일 import, 로그인, 서버, telemetry와 라이브 AI 채팅은 포함하지 않는다. 모든 시뮬레이터는 교육용 모델이며 실제 장비 정확도나 compliance 판정을 대신하지 않는다.
+`3GPP·PAMiD` 트랙은 GSM/GPRS/EDGE, LTE single-carrier와 NR FR1 single-carrier의 UE uplink를 완성 module nominal DVT 관점에서 연결한다. 공통 기초 6개, PAMiD 구조·제어 10개, GSM 9개, LTE 11개, NR 11개, 증상별 진단 10개의 짧은 질문형 페이지로 구성한다. 사용자는 time/frequency 구조와 modulation을 외우는 데서 끝나지 않고, 해당 waveform이 GSM PA+ASM, FDD PAMiD 또는 TDD TxM의 어느 경로와 상태를 통과하며 측정 fail을 어느 stage에서 분리해야 하는지 설명한다.
+
+Cellular 본문 기준은 3GPP Release 17이다. 표준 숫자는 exact minor version과 clause/table, RAT·direction·band·bandwidth·modulation 조건, UE minimum/conformance/계산값 구분을 함께 기록한다. Generic MIPI RFFE, APT/ET, DPD와 CFR은 공개된 역할과 실무 원리를 설명하되 제조사 register map이나 compliance transmitter를 흉내 내지 않는다. WCDMA, CA/EN-DC 상세, UL MIMO, FR2/OTA, propagation·fading, production test와 실제 DVT report는 현재 범위 밖이다.
+
+웹에서는 내장 검증 시나리오와 결정론적 SCPI state model만 실행한다. Cellular IQ와 resource grid도 구조 학습용 결정론적 시각화이며 coding·scrambling·reference sequence를 포함한 compliance waveform이 아니다. 실제 장비 제어는 사용자의 로컬 Python·PyVISA 예제로 분리하고 source/output enable은 장비별 별도 실행 권한을 요구한다. 브라우저 직접 장비 연결, 실측 파일 import, 로그인, 서버, telemetry와 라이브 AI 채팅은 포함하지 않는다. 모든 시뮬레이터는 교육용 모델이며 실제 장비 정확도나 compliance 판정을 대신하지 않는다.
 
 성공 기준은 사용자가 낯선 trace를 볼 때 “어느 stage의 어떤 설정이 왜 이 모양을 만들었는가”를 역으로 설명할 수 있고, 다음 설정 변화의 방향을 먼저 예측할 수 있는 것이다.
 

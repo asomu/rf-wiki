@@ -30,8 +30,10 @@ Do not change a token, interaction grammar, physical color meaning, or anti-slop
 - Responsive SVG views: `src/components/plots/`
 - Shared calculation models: `src/lib/rf/`
 - Instrument command/state models: `src/lib/instruments/`
+- Cellular calculation/data models: `src/lib/cellular/`
 - Lesson content: `src/content/lessons/`
 - Instrument study content: `src/content/instruments/`
+- Cellular lesson registry: `src/content/cellular-lessons.json`
 
 Use PascalCase for components and camelCase for functions. Export public TypeScript types explicitly. Reuse a shared component before creating a topic-specific clone.
 
@@ -61,6 +63,10 @@ For Figma writes, load `figma-use`, work sequentially, return every created/muta
 
 - Each lesson has intuition, practical operation/interpretation, and equation/standard layers.
 - LTE and NR normative statements use 3GPP Release 17 references. Equipment behavior uses official vendor documentation where standards do not define it.
+- GSM normative statements use Release 17 TS 45-series sources. Cellular numbers must resolve through `src/data/cellular-specs.ts` and identify the exact version, clause/table, applicability and whether the value is normative, conformance-oriented or calculated.
+- Do not present the educational IQ views as compliance waveforms. Do not implement full channel coding, scrambling, reference sequence generation, propagation/fading or certification judgement inside the cellular visualizations.
+- PAMiD control examples remain generic. Never publish or infer proprietary USID/register/bit-field values, and never present a virtual register as an MIPI or vendor-defined address.
+- Keep GSM PA+ASM, LTE/NR FDD PAMiD and NR TDD TxM paths distinct. A claim about FDD duplexer behavior must not silently migrate into a TDD switch path.
 - Distinguish convention-dependent quantities and state the convention: FFT normalization, dB reference, S-parameter direction, coupler port naming, available/accepted/delivered power and gain definitions.
 - Every plot includes title, axes, units, current settings, marker, direct labels, a text summary and a data-table alternative.
 - Never rely on color alone. Use dash/marker/shape/text too.

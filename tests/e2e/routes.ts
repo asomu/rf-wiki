@@ -1,4 +1,6 @@
 import { instruments, instrumentChapterHref, instrumentProgressId } from '../../src/data/instruments';
+import cellularLessons from '../../src/content/cellular-lessons.json' with { type: 'json' };
+import { cellularSections } from '../../src/data/cellular';
 
 export interface AppRoute {
   readonly path: string;
@@ -22,11 +24,33 @@ const instrumentRoutes: readonly AppRoute[] = instruments.flatMap((instrument) =
   })),
 ]);
 
+export const cellularRoutes: readonly AppRoute[] = cellularLessons.map((lesson) => ({
+  path: `/cellular/${lesson.section}/${lesson.slug}/`,
+  heading: exactHeading(lesson.title),
+}));
+
+const representativeCellularRoutes: readonly AppRoute[] = [
+  { path: '/cellular/', heading: /파형 구조에서 PAMiD fail stage/ },
+  ...cellularSections.map((section) => ({ path: `/cellular/${section.id}/`, heading: exactHeading(section.question) })),
+  ...[
+    'foundations-modulation-waveform-multiple-access-duplex',
+    'pamid-three-dut-topologies',
+    'gsm-tdma-frame-timeslots',
+    'lte-bandwidth-rb-location',
+    'nr-100mhz-rb100-location0',
+    'diagnostics-evm-fail',
+  ].map((id) => {
+    const lesson = cellularLessons.find((candidate) => candidate.id === id)!;
+    return { path: `/cellular/${lesson.section}/${lesson.slug}/`, heading: exactHeading(lesson.title) };
+  }),
+];
+
 export const appRoutes: readonly AppRoute[] = [
   { path: '/', heading: /설정값 하나가 trace를 바꾸는 경로/ },
   { path: '/search/', heading: /장비 화면에서 본 단어/ },
   { path: '/glossary/', heading: /공식보다 먼저, 화면에서 어떤 뜻인지/ },
   { path: '/instruments/', heading: /장비 한 대를 신호 경로와 프로그램 상태/ },
+  ...representativeCellularRoutes,
   ...instrumentRoutes,
   { path: '/instruments/sg-mxg/python-examples/', heading: /먼저 명령을 출력하고, 두 번 허용/ },
   { path: '/instruments/sa-mxa/python-examples/', heading: /먼저 dry-run transcript를 확인/ },

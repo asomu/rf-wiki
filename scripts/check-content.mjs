@@ -104,6 +104,7 @@ for (const file of files) {
 }
 
 let instrumentReadyCount = 0;
+let cellularReadyCount = 0;
 if (!configuredRoot) {
   const instrumentContracts = [
     {
@@ -250,6 +251,68 @@ if (!configuredRoot) {
       if (!foundChapters.has(chapter)) errors.push(`Missing ${contract.label} instrument chapter: ${chapter}.`);
     }
   }
+
+  const cellularCounts = new Map([
+    ['foundations', 6],
+    ['pamid', 10],
+    ['gsm', 9],
+    ['lte', 11],
+    ['nr', 11],
+    ['diagnostics', 10],
+  ]);
+  let cellularLessons = [];
+  try {
+    cellularLessons = JSON.parse(await readFile(new URL('../src/content/cellular-lessons.json', import.meta.url), 'utf8'));
+  } catch (error) {
+    errors.push(`Cellular lesson registry is missing or invalid JSON: ${error.message}`);
+  }
+  const specRegistrySource = await readFile(new URL('../src/data/cellular-specs.ts', import.meta.url), 'utf8');
+  const knownReferenceIds = new Set(
+    [...specRegistrySource.matchAll(/^\s{2}'([^']+)':\s*\{/gm)].map((match) => match[1]),
+  );
+  const foundCellularIds = new Set();
+  const foundProgressIds = new Set();
+  for (const [section, expectedCount] of cellularCounts) {
+    const sectionLessons = cellularLessons.filter((lesson) => lesson.section === section);
+    if (sectionLessons.length !== expectedCount) {
+      errors.push(`Expected ${expectedCount} cellular ${section} lessons, found ${sectionLessons.length}.`);
+    }
+    const orders = sectionLessons.map((lesson) => lesson.order).sort((a, b) => a - b);
+    if (orders.some((order, index) => order !== index + 1)) {
+      errors.push(`Cellular ${section} lessons must use contiguous order 1…${expectedCount}; found ${orders.join(', ')}.`);
+    }
+  }
+  for (const lesson of cellularLessons) {
+    const label = `cellular/${lesson.section}/${lesson.slug}`;
+    if (foundCellularIds.has(lesson.id)) errors.push(`${label} duplicates id ${lesson.id}.`);
+    foundCellularIds.add(lesson.id);
+    if (foundProgressIds.has(lesson.progressId)) errors.push(`${label} duplicates progressId ${lesson.progressId}.`);
+    foundProgressIds.add(lesson.progressId);
+    if (lesson.status !== 'ready') errors.push(`${label} must be ready; found ${String(lesson.status)}.`);
+    else cellularReadyCount += 1;
+    if (lesson.progressId !== `cellular:${lesson.section}:${lesson.slug}`) {
+      errors.push(`${label} progressId must be cellular:${lesson.section}:${lesson.slug}.`);
+    }
+    for (const layer of ['intuition', 'bench', 'theory']) {
+      if (!lesson[layer]?.title || !lesson[layer]?.lead || !Array.isArray(lesson[layer]?.points) || lesson[layer].points.length < 2) {
+        errors.push(`${label} must provide title, lead and at least two points for ${layer}.`);
+      }
+    }
+    if (!lesson.check?.question || !Array.isArray(lesson.check?.options) || lesson.check.options.length !== 3
+        || !Number.isSafeInteger(lesson.check?.correctIndex) || lesson.check.correctIndex < 0 || lesson.check.correctIndex > 2
+        || !lesson.check?.explanation) {
+      errors.push(`${label} must provide a three-option prediction check with explanation.`);
+    }
+    if (!Array.isArray(lesson.referenceIds) || lesson.referenceIds.length === 0) {
+      errors.push(`${label} is missing clause-trace references.`);
+    } else {
+      for (const referenceId of lesson.referenceIds) {
+        if (!knownReferenceIds.has(referenceId)) errors.push(`${label} uses unknown reference id ${referenceId}.`);
+      }
+    }
+    if (/\bTODO\b/i.test(JSON.stringify(lesson))) errors.push(`${label} is ready but still contains TODO content.`);
+  }
+  if (cellularLessons.length !== 57) errors.push(`Expected exactly 57 cellular lessons, found ${cellularLessons.length}.`);
 }
 
 if (readyCount < minimumReady) {
@@ -262,4 +325,5 @@ if (errors.length > 0) {
 console.log(`Content contract OK: ${readyCount} ready lessons, ${draftCount} hidden drafts.`);
 if (!configuredRoot) {
   console.log(`Instrument content contract OK: ${instrumentReadyCount} ready chapters across 5 Keysight instruments.`);
+  console.log(`Cellular content contract OK: ${cellularReadyCount} ready pages across 6 sections.`);
 }
