@@ -128,11 +128,11 @@
 
 ### Phase 6 — 커밋·GPT Sites 배포·공개본 확인
 
-- [ ] 전체 변경과 검증 증거를 커밋한다.
-- [ ] Sites production build를 패키징하고 기존 프로젝트에 새 version으로 배포한다.
-- [ ] 공개 URL에서 홈, RF lesson, 계측기, GSM PvT, LTE, NR, diagnostics, 검색을 확인한다.
-- [ ] 이 문서의 모든 체크가 완료되었는지 최종 대조한다.
-- [ ] 사용자에게 완료 범위, 검증 결과, 공개 URL을 인계한다.
+- [x] 전체 변경과 검증 증거를 커밋한다.
+- [x] Sites production build를 패키징하고 기존 프로젝트에 새 version으로 배포한다.
+- [x] 공개 URL에서 홈, RF lesson, 계측기, GSM PvT, LTE, NR, diagnostics, 검색을 확인한다.
+- [x] 이 문서의 모든 체크가 완료되었는지 최종 대조한다.
+- [x] 사용자에게 완료 범위, 검증 결과, 공개 URL을 인계한다.
 
 ## 변경 기록
 
@@ -144,3 +144,4 @@
 | 2026-07-17 | Phase 3 | 기존 GSM 9번째 페이지에 PvT Workbench 통합 완료 |
 | 2026-07-17 | Phase 4 | 홈 3트랙, PvT 검색·glossary, 독립 진도·문서 연결 완료 |
 | 2026-07-17 | Phase 5 | 510 E2E·72 visual·16 Lighthouse 포함 전체 품질 게이트 완료 |
+| 2026-07-17 | Phase 6 | 커밋 `4b7e00b`, Sites version 4 배포, 공개 8개 대표 경로와 PvT 예측→FAIL 진단 흐름 검증 완료 |
