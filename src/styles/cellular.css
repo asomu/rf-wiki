@@ -1270,6 +1270,11 @@
   font-size: var(--font-size-data);
 }
 
+.cellular-section-index li div > p:not(:first-child) {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
 .cellular-section-index__action {
   display: flex;
   flex-direction: column;

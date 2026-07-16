@@ -63,6 +63,13 @@
 
 .instrument-roadmap-section { margin-block: var(--space-16); }
 
+.instrument-roadmap-section .section-heading > p {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  white-space: normal;
+}
+
 .instrument-roadmap {
   margin: var(--space-8) 0 0;
   padding: 0;
@@ -104,6 +111,7 @@
 .instrument-roadmap__title h3 { font-size: var(--font-size-title); }
 .instrument-roadmap__title p,
 .instrument-roadmap__body > p { color: var(--color-muted); font-size: var(--font-size-label); }
+.instrument-roadmap__body > p { font-size: var(--font-size-body); line-height: var(--line-height-body); }
 .instrument-roadmap__title strong { color: var(--color-muted); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
 .instrument-roadmap__body > p { max-width: var(--layout-prose); margin-top: var(--space-3); }
 .instrument-roadmap__body > a { display: inline-flex; min-height: var(--target-min); align-items: center; margin-top: var(--space-2); }
@@ -212,6 +220,7 @@
 .mxg-profile dt { color: var(--color-muted); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
 .instrument-boundary dd,
 .mxg-profile dd { font-size: var(--font-size-label); }
+.instrument-boundary dd { font-size: var(--font-size-body); line-height: var(--line-height-body); }
 
 .instrument-progress { align-items: center; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); }
 .instrument-progress__meter { display: grid; grid-template-columns: auto minmax(120px, 1fr) auto; align-items: center; gap: var(--space-4); }
