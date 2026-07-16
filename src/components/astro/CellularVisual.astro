@@ -14,7 +14,7 @@ export interface Props {
 const { visual, preset = '' } = Astro.props;
 ---
 
-<div class="lesson-lab-block cellular-visual-block">
+<div class="lesson-lab-block cellular-visual-block" id="interactive-lab">
   {visual === 'atlas' && <CrossRatAtlas client:visible />}
   {visual === 'gsm-time' && <GsmTimeExplorer client:visible preset={preset} />}
   {visual === 'gsm-pvt' && <GsmPvtLab client:visible />}

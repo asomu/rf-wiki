@@ -696,6 +696,10 @@ a:visited:not(.button-primary):not(.wordmark) {
   scroll-margin-top: calc(var(--space-16) + var(--space-6));
 }
 
+[data-lab-id] {
+  scroll-margin-top: calc(var(--space-16) + var(--space-6));
+}
+
 .lesson-content > :first-child {
   margin-block-start: 0;
 }
@@ -1973,6 +1977,11 @@ a:visited:not(.button-primary):not(.wordmark) {
 }
 
 @media (max-width: 640px) {
+  .lesson-lab-block,
+  [data-lab-id] {
+    scroll-margin-top: calc(var(--space-16) + var(--space-16));
+  }
+
   .site-header__inner {
     grid-template-columns: auto 1fr;
     padding-inline: var(--space-4);
