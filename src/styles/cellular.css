@@ -121,6 +121,12 @@
   font-size: var(--font-size-label);
 }
 
+.cellular-cross-links a {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
+}
+
 .cellular-check {
   display: grid;
   grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.1fr);
@@ -1252,6 +1258,9 @@
 }
 
 .cellular-section-index h3 a {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
   color: var(--color-ink);
   text-decoration: none;
 }
