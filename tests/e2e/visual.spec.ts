@@ -5,6 +5,7 @@ interface VisualScenario {
   readonly path: string;
   readonly readySelector: string;
   readonly labId?: string;
+  readonly captureSelector?: string;
 }
 
 const visualScenarios: readonly VisualScenario[] = [
@@ -12,6 +13,12 @@ const visualScenarios: readonly VisualScenario[] = [
     name: 'home-bench',
     path: '/',
     readySelector: '.home-bench',
+  },
+  {
+    name: 'home-track-index',
+    path: '/',
+    readySelector: '.home-track-index',
+    captureSelector: '.home-track-index',
   },
   {
     name: 'spectrum-iq',
@@ -57,6 +64,13 @@ const visualScenarios: readonly VisualScenario[] = [
     name: 'cellular-gsm-timeslot',
     path: '/cellular/gsm/tdma-frame-timeslots/',
     readySelector: '.gsm-frame',
+  },
+  {
+    name: 'cellular-gsm-pvt',
+    path: '/cellular/gsm/gsm-module-measurement/',
+    readySelector: '[data-lab-id="cellular:gsm:pvt-lab"] .gsm-pvt__chart',
+    labId: 'cellular:gsm:pvt-lab',
+    captureSelector: '[data-lab-id="cellular:gsm:pvt-lab"] .gsm-pvt__linked',
   },
   {
     name: 'cellular-nr-allocation',
@@ -152,13 +166,13 @@ async function waitForScenario(page: Page, scenario: VisualScenario) {
   if (scenario.labId) {
     const lab = page.locator(`[data-lab-id="${scenario.labId}"]`).first();
     await expect(lab).toBeVisible({ timeout: 15_000 });
+    await lab.scrollIntoViewIfNeeded();
     const island = lab.locator('xpath=ancestor::astro-island[1]');
     await expect(island).not.toHaveAttribute('ssr', '', { timeout: 15_000 });
   }
 
   await waitForDesignFonts(page);
-  // Keep page scroll at zero so the first viewport verifies the lesson context
-  // before the inline lab, and avoids headless compositor artifacts after scroll.
+  // Stabilize the header at scroll zero before selecting a deeper capture target.
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
@@ -210,6 +224,9 @@ test.describe('representative responsive visual regression', () => {
           expect(response?.ok(), `${scenario.path} should return a successful document`).toBe(true);
           await waitForScenario(page, scenario);
           await stabilizeInitialViewportCapture(page);
+          if (scenario.captureSelector) {
+            await placeBelowStickyHeader(page, scenario.captureSelector);
+          }
           // page.screenshot avoids the transient compositor tiles observed
           // when toHaveScreenshot injects an animation stylesheet into nested
           // sticky panes. Reduced motion and deterministic state above remove
@@ -229,7 +246,7 @@ test.describe('interactive state visual regression', () => {
 
   test('IQ linked results after prediction and phase change', async ({ page }) => {
     await page.goto('/learn/spectrum-iq/');
-    await waitForScenario(page, visualScenarios[1]!);
+    await waitForScenario(page, visualScenarios.find(({ name }) => name === 'spectrum-iq')!);
     await page.getByRole('tab', { name: 'IQ capture' }).click();
     const lab = page.locator('[data-lab-id="iq"]');
     await lab.getByRole('radio', { name: 'spectrum magnitude 유지 · constellation 30° 회전' }).check();
@@ -242,7 +259,7 @@ test.describe('interactive state visual regression', () => {
 
   test('VNA two-port gain and stability results', async ({ page }) => {
     await page.goto('/learn/vna-smith/');
-    await waitForScenario(page, visualScenarios[3]!);
+    await waitForScenario(page, visualScenarios.find(({ name }) => name === 'vna-smith')!);
     await page.getByRole('tab', { name: /2-port/ }).click();
     const lab = page.locator('[data-lab-id="network"]');
     await lab.getByRole('radio', { name: '입출력 mismatch와 feedback 때문에 달라짐' }).check();

@@ -249,7 +249,9 @@ Python 예제 페이지에서는 개별 파일보다 `rf-wiki-mxg-pyvisa.zip`을
 
 각 페이지는 질문 하나만 다룹니다. `직관 → 조작·해석 → 수식·규격`을 읽고, 마지막에 결과를 예측한 뒤 원인을 자기 말로 설명해야 완료됩니다. 표준 근거 표에서는 문서와 Release/version, clause, 적용 조건, normative/conformance/계산값 구분을 함께 확인하세요.
 
-Cross-RAT Atlas, GSM Time Structure Explorer, LTE/NR Resource Explorer와 Module Path Diagram은 교육용 구조 시각화입니다. 특히 표시되는 IQ는 coding·scrambling·reference sequence 전체를 구현한 compliance waveform이 아니며 certification 판정에 사용할 수 없습니다. MIPI 상태도 generic 역할 예시이며 실제 제조사 USID, register 주소나 bit field가 아닙니다.
+Cross-RAT Atlas, GSM Time Structure Explorer, GSM Module PvT Workbench, LTE/NR Resource Explorer와 Module Path Diagram은 교육용 구조 시각화입니다. 특히 표시되는 IQ는 coding·scrambling·reference sequence 전체를 구현한 compliance waveform이 아니며 certification 판정에 사용할 수 없습니다. MIPI 상태도 generic 역할 예시이며 실제 제조사 USID, register 주소나 bit field가 아닙니다.
+
+`GSM module 측정` 페이지의 PvT Workbench에서는 6개 증상 시나리오와 7개 parameter를 사용합니다. 먼저 PASS 또는 첫 fail 영역을 예측한 뒤 trace를 공개하고, upper/lower corridor, 첫 violation, worst margin과 가능한 control stage를 연결합니다. 여기서 PvT는 Power versus Time이며 process·voltage·temperature corner를 뜻하는 환경 PVT와 다릅니다. 표시 corridor는 진단 순서를 학습하기 위한 상대 전력 모델이므로 공식 conformance mask나 시험 report로 사용하지 않습니다.
 
 ## 7. 검색과 용어 사전 사용하기
 
@@ -317,7 +319,7 @@ location.reload();
 - 왼쪽·오른쪽 방향키: SA/IQ 또는 VNA tab 전환
 - 첫 번째 `Tab`: `본문으로 건너뛰기` 링크 표시
 
-좁은 화면에서는 Signal Spine이 `Source → DUT → Acquisition → DSP/Math → Display` 순서로 위에서 아래로 표시됩니다. 실험도 `설정 → 예측 → 결과 → Cause/Effect Ledger → 설명` 순서로 이어지므로 좌우 스크롤할 필요가 없습니다. 움직임을 줄이는 OS 설정을 사용하면 신호 이동 애니메이션을 제거하고 상태 변화만 표시합니다.
+좁은 화면에서는 Signal Spine이 `Source → DUT → Acquisition → DSP/Math → Display` 순서로 위에서 아래로 표시됩니다. 대부분의 실험도 `설정 → 예측 → 결과 → Cause/Effect Ledger → 설명` 순서로 세로 배치됩니다. GSM PvT 차트는 가로 스크롤 없이 전체 burst를 축소해 보여주고, 같은 대표 sample과 margin을 바로 아래 표로도 확인할 수 있습니다. 움직임을 줄이는 OS 설정을 사용하면 신호 이동 애니메이션을 제거하고 상태 변화만 표시합니다.
 
 ## 10. 실행 문제 해결
 

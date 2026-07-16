@@ -31,6 +31,11 @@ export const cellularRoutes: readonly AppRoute[] = cellularLessons.map((lesson) 
 
 const representativeCellularRoutes: readonly AppRoute[] = [
   { path: '/cellular/', heading: /파형 구조에서 PAMiD fail stage/ },
+  {
+    path: '/cellular/gsm/gsm-module-measurement/',
+    heading: /GSM PA.*module/,
+    labId: 'cellular:gsm:pvt-lab',
+  },
   ...cellularSections.map((section) => ({ path: `/cellular/${section.id}/`, heading: exactHeading(section.question) })),
   ...[
     'foundations-modulation-waveform-multiple-access-duplex',

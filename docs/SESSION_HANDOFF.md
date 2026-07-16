@@ -8,6 +8,7 @@
 - 별도 `계측장비 스터디` 트랙이 `/instruments/`에 있다.
 - 다섯 Keysight 기준 장비의 허브와 장비별 5개 챕터, 총 25개 챕터가 학습 가능 상태다.
 - 별도 `3GPP·PAMiD` 트랙이 `/cellular/`에 있으며 Release 17 기준 질문형 페이지 57개가 모두 `ready` 상태다.
+- GSM 9번째 `GSM module 측정` 페이지에는 prediction-first Power-versus-Time Workbench가 통합되어 있다.
 - Cellular 진도는 `cellular:*` namespace로 저장되어 RF 6축과 장비 25개 chapter 진도와 합산되지 않는다.
 
 | 트랙 | 고정 기준 | Firmware context | 허브 | 진도 namespace |
@@ -40,7 +41,7 @@
 | OpenAI Sites build | `scripts/build-sites.mjs`, `worker/index.js`, `.openai/hosting.json` |
 | Cellular schema·57개 질문 | `src/content.config.ts`의 `cellularLesson`, `src/content/cellular-lessons.json` |
 | Cellular section·source registry | `src/data/cellular.ts`, `src/data/cellular-specs.ts` |
-| GSM timing·PAMiD·진단 모델 | `src/lib/cellular/` |
+| GSM timing·PvT·PAMiD·진단 모델 | `src/lib/cellular/` |
 | Cellular route·layout | `src/pages/cellular/`, `src/layouts/CellularLessonLayout.astro` |
 | Cellular 시각화 | `src/components/cellular/`, `src/components/astro/CellularVisual.astro` |
 | Cellular public types | `src/types/cellular.ts` |
@@ -85,15 +86,14 @@ npm run build:sites
 
 `npm test`에는 design/content contract, visual-baseline integrity, Astro typecheck, TypeScript unit, 다섯 Python fake-transport suite, hosting tests와 production build가 포함된다. `npm run test:e2e`는 production build를 만든 뒤 정적 preview에서 실행하므로 오래된 Astro dev server를 재사용하지 않는다. `build:sites`는 배포 산출물뿐 아니라 다섯 장비 ZIP의 checksum·manifest를 검사하고 추출된 package의 dry-run과 tests도 실행한다.
 
-### 2026-07-15 검증 체크포인트
+### 2026-07-17 검증 체크포인트
 
 - Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·57개 ready question
-- TypeScript/React unit: 37 files, 268 tests 통과
-- Python fake transport·example: 총 95 tests 통과
-  - MXG 39, ENA 21, U2061XA 19, N6705C 16
-- Production build: 109 pages, Pagefind 108 pages·16,792 words index 통과
-- Browser E2E: 494개 통과. 57개 Cellular route, 1440/1024/720/390px overflow, axe, keyboard·진도, 66개 visual baseline을 포함한다.
-- Lighthouse: 기존 RF·장비와 Cellular 허브·NR allocation·EVM 진단을 합친 15개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0033 이하를 실측했다.
+- TypeScript/React unit: 39 files, 279 tests 통과
+- Python fake transport·example: 5개 package, 총 114 tests 통과
+- Production build: 109 pages, Pagefind 108 pages·16,950 words index 통과
+- Browser E2E: 510개 통과. 57개 Cellular route, 1440/1024/200%/390px overflow, axe, keyboard·독립 진도, 72개 visual baseline을 포함한다.
+- Lighthouse: 기존 RF·장비와 Cellular 허브·GSM PvT·NR allocation·EVM 진단을 합친 16개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0038 이하를 실측했다.
 - Sites package pipeline: 다섯 장비 archive의 checksum·manifest·추출 후 dry-run·test를 검증하도록 구성됐다.
 
 ### 다음 변경에서 다시 열어야 하는 QA

@@ -39,6 +39,7 @@ const routes = [
   { name: 'power-sensor-burst-mobile', path: '/instruments/power-sensor/average-peak-burst/' },
   { name: 'psu-cv-cc-mobile', path: '/instruments/power-supply/cv-cc-protection/' },
   { name: 'cellular-hub-mobile', path: '/cellular/' },
+  { name: 'cellular-gsm-pvt-mobile', path: '/cellular/gsm/gsm-module-measurement/' },
   { name: 'cellular-nr-allocation-mobile', path: '/cellular/nr/100mhz-rb100-location0/' },
   { name: 'cellular-evm-diagnostic-mobile', path: '/cellular/diagnostics/evm-fail/' }
 ];

@@ -9,6 +9,7 @@ const root = process.cwd();
 const snapshotDirectory = path.join(root, 'tests', 'e2e', 'visual.spec.ts-snapshots');
 const responsiveScenarios = [
   'home-bench',
+  'home-track-index',
   'spectrum-iq',
   'nr-resource-grid',
   'vna-smith',
@@ -17,6 +18,7 @@ const responsiveScenarios = [
   'search-glossary',
   'cellular-hub',
   'cellular-gsm-timeslot',
+  'cellular-gsm-pvt',
   'cellular-nr-allocation',
   'cellular-evm-diagnostic',
   'instrument-mxg',

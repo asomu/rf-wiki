@@ -14,7 +14,7 @@ RF Wiki는 RF 엔지니어가 장비 설정, 물리 신호, 계산 모델과 화
 - Power flow, coupling, insertion, isolation과 directivity
 - PA 비선형성, stability, source/load-pull
 - 계측장비 스터디: Keysight N5182B MXG, N9020B MXA, E5080B ENA, U2061XA power sensor, N6705C + N6752A power system의 장비별 5개 챕터, 총 25개 챕터에서 기본 동작·SCPI·PyVISA와 PA bench workflow 제공
-- 3GPP·PAMiD: Release 17 기준 공통 기초, PAMiD anatomy/control, GSM/GPRS/EDGE, LTE PUSCH, NR FR1 PUSCH와 증상별 진단을 57개 질문형 페이지로 제공
+- 3GPP·PAMiD: Release 17 기준 공통 기초, PAMiD anatomy/control, GSM/GPRS/EDGE와 PvT 실습, LTE PUSCH, NR FR1 PUSCH와 증상별 진단을 57개 질문형 페이지로 제공
 
 웹은 내장된 결정론적 RF·SCPI 시나리오만 실행합니다. 서버, 로그인, telemetry, 실측 파일 import, 브라우저 직접 장비 제어와 라이브 AI는 범위가 아닙니다. 실제 장비 제어는 `examples/` 아래 장비별 로컬 Python package로 분리되어 있으며 기본 실행은 모두 dry-run입니다.
 
@@ -42,16 +42,16 @@ npm run audit:lighthouse
 npm run test:all
 ~~~
 
-`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 기존 RF·장비 대표 화면과 Cellular 허브·NR allocation·EVM 진단을 합친 15개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
+`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 기존 RF·장비 대표 화면과 Cellular 허브·GSM PvT·NR allocation·EVM 진단을 합친 16개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
 
-### 2026-07-15 구현 체크포인트
+### 2026-07-17 구현 체크포인트
 
 - Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·57개 ready question
-- TypeScript/React unit: 37 files, 268 tests 통과
-- Python safety suite: MXG 39 + ENA 21 + U2061XA 19 + N6705C 16, 총 95 tests 통과
-- Production build: 109 pages, Pagefind 108 pages·16,792 words index 통과
-- Browser E2E: 494 tests 통과. 57개 Cellular route, 4개 viewport overflow, axe, keyboard·진도와 66개 visual baseline 포함
-- Lighthouse: 15개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0033 이하
+- TypeScript/React unit: 39 files, 279 tests 통과
+- Python safety suite: 5개 package, 총 114 tests 통과
+- Production build: 109 pages, Pagefind 108 pages·16,950 words index 통과
+- Browser E2E: 510 tests 통과. 57개 Cellular route, 4개 viewport overflow, axe, keyboard·진도와 72개 visual baseline 포함
+- Lighthouse: 16개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0038 이하
 
 ### OpenAI Sites 배포 빌드
 
@@ -97,6 +97,9 @@ node scripts/new-lesson.mjs \
 생성 파일은 `src/content/lessons/rbw-and-noise-floor.mdx`이며, TODO를 제거하고 `status: ready`로 승격한 뒤 canonical URL `/learn/rbw-and-noise-floor/`에 공개됩니다. Draft는 route·검색·navigation에서 제외됩니다. 도구는 기존 파일을 덮어쓰지 않으며 `--dry-run`에서는 아무 파일도 만들지 않습니다.
 
 전체 조사·작성·검증 절차와 frontmatter/MDX helper 계약은 [Content authoring guide](docs/content-authoring.md)를 따릅니다.
+
+이전 대화에서 합의한 RF 기초·계측기·Cellular/PAMiD 전체 완성 범위와 단계별 검증 상태는 [RF Wiki 완성 마스터 계획](docs/MASTER_PLAN.md)에서 관리합니다.
+학습자 관점의 설명·시각 자료·교차 링크 판정은 [콘텐츠 감사](docs/CONTENT_AUDIT.md), 6축 시각 평가는 [UI Review](docs/UI-REVIEW.md)에 기록합니다.
 
 장비 chapter scaffold는 장비 ID를 명시합니다.
 

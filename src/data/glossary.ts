@@ -810,6 +810,16 @@ export const glossary: readonly GlossaryTerm[] = [
     aliases: ['output RF spectrum due to modulation', 'switching ORFS']
   },
   {
+    term: 'PvT (Power versus Time)',
+    label: 'GSM burst 시간 포락선',
+    category: 'cellular',
+    moduleId: 'cellular-gsm',
+    definition: 'GSM transmitter의 상대 전력을 시간축에서 보고 burst 전후 ramp, plateau와 off-region이 적용 corridor 안에 있는지 확인하는 측정 관점입니다.',
+    caution: 'Process·voltage·temperature corner를 뜻하는 환경 PVT와 구분합니다. 이 사이트의 corridor는 진단 학습용이며 공식 conformance mask를 대신하지 않습니다.',
+    href: '/cellular/gsm/gsm-module-measurement/',
+    aliases: ['PVT', 'power vs time', 'burst mask', 'GSM power time']
+  },
+  {
     term: 'PUSCH',
     label: 'Physical Uplink Shared Channel',
     category: 'cellular',

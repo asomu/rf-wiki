@@ -32,6 +32,29 @@ test('keyboard skip link and search preserve a visible focus path', async ({ pag
   await expect(page.locator('[data-search-entry]:visible').first()).toBeVisible();
 });
 
+test('home exposes all 88 learning items and PvT is discoverable from search and glossary', async ({ page }) => {
+  await page.goto('/');
+
+  const trackIndex = page.locator('.home-track-index');
+  await expect(trackIndex).toContainText('6 RF');
+  await expect(trackIndex).toContainText('25 장비');
+  await expect(trackIndex).toContainText('57 Cellular');
+  await expect(trackIndex.getByRole('link', { name: /RF 6축 전체 보기/ })).toHaveAttribute('href', '#curriculum');
+  await expect(trackIndex.getByRole('link', { name: /Cellular 57개 전체 보기/ })).toHaveAttribute('href', '/cellular/');
+  await expect(trackIndex.getByRole('link', { name: /장비 25개 전체 보기/ })).toHaveAttribute('href', '/instruments/');
+
+  await page.goto('/search/?q=PvT');
+  await expect(page.locator('#search-status')).toContainText(/PvT.*결과 [1-9]/, { timeout: 10_000 });
+  await expect(
+    page.locator('[data-search-entry]:visible').filter({ hasText: 'GSM PA+ASM module' }).first(),
+  ).toBeVisible();
+
+  await page.goto('/glossary/');
+  await page.getByRole('searchbox', { name: '용어·기호·설명에서 찾기' }).fill('PvT');
+  await expect(page.locator('#glossary-count')).toContainText('결과 1개');
+  await expect(page.locator('[data-glossary-entry]:visible')).toContainText('PvT (Power versus Time)');
+});
+
 test('SA RBW keyboard change updates the control, ledger, and linked plot', async ({ page }) => {
   await page.goto('/learn/spectrum-iq/');
   const lab = await waitForHydratedLab(page, '[data-lab-id="spectrum"]');
@@ -421,6 +444,41 @@ test('instrument progress is namespaced per device and does not change the six-a
   await page.goto('/');
   await expect(page.locator('[data-home-progress] [data-progress-count]')).toHaveText('1');
   await expect(page.locator('[data-home-progress] [data-progress-title]')).toContainText('SA의 trace');
+});
+
+test('GSM PvT keeps the next trace hidden until prediction and reports the first fail region', async ({ page }) => {
+  await page.goto('/cellular/gsm/gsm-module-measurement/');
+  const lab = page.locator('[data-lab-id="cellular:gsm:pvt-lab"]');
+  await lab.scrollIntoViewIfNeeded();
+  await expect(lab).toBeVisible({ timeout: 15_000 });
+
+  const run = lab.getByRole('button', { name: '예측 제출 후 trace 실행' });
+  await lab.getByRole('button', { name: /CASE 04 · Hot start/ }).click();
+  await expect(lab.getByText('TRACE ARMED')).toBeVisible();
+  await expect(run).toBeDisabled();
+
+  await lab.getByRole('button', { name: /PLATEAU.*Settling 포함/ }).click();
+  await run.click();
+
+  await expect(lab).toHaveAttribute('data-result', 'fail');
+  await expect(lab.locator('.gsm-pvt__feedback')).toContainText('예측이 맞았습니다');
+  await expect(lab.locator('.gsm-pvt__ledger')).toContainText('EARLY SETTLING · upper');
+  await expect(lab.getByRole('img')).toHaveAttribute('aria-label', /EARLY SETTLING 영역/);
+});
+
+test('mobile GSM PvT shows the full burst without a horizontal chart scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/cellular/gsm/gsm-module-measurement/');
+
+  const chartWrap = page.locator('[data-lab-id="cellular:gsm:pvt-lab"] .gsm-pvt__chart-wrap');
+  await expect(chartWrap).toBeVisible({ timeout: 15_000 });
+  const dimensions = await chartWrap.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+  await expect(chartWrap.locator('.gsm-pvt__trace')).toBeVisible();
+  await expect(chartWrap.locator('.gsm-pvt__burst-marker')).toHaveCount(2);
 });
 
 test('cellular completion keeps RF and instrument progress intact', async ({ page }) => {

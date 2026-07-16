@@ -2,8 +2,12 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SignalSpine from '../components/astro/SignalSpine.astro';
 import { curriculum, totalEstimatedMinutes, totalLessonCount } from '../data/curriculum';
+import { instruments } from '../data/instruments';
+import { cellularLessonCount } from '../data/cellular';
 
 const totalHours = Math.round(totalEstimatedMinutes / 60);
+const instrumentChapterCount = instruments.reduce((sum, instrument) => sum + instrument.chapters.length, 0);
+const totalLearningItems = totalLessonCount + instrumentChapterCount + cellularLessonCount;
 const firstModule = curriculum[0]!;
 const progressModules = curriculum.map((module) => ({
   id: module.id,
@@ -24,7 +28,7 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
     <header class="home-heading">
       <p class="context-line">
         <span>개인 bench</span>
-        <span>6개 학습 축</span>
+        <span>3개 트랙 · {totalLearningItems}개 학습 항목</span>
         <span>예측 → 조작 → 설명</span>
       </p>
       <h1>설정값 하나가 trace를 바꾸는 경로를 따라갑니다.</h1>
@@ -60,7 +64,7 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
         <SignalSpine label="모든 학습 축에서 공통으로 사용하는 Source에서 Display까지 신호 경로" />
 
         <div class="current-position__action">
-          <div class="progress-track" role="progressbar" aria-label="전체 학습 진도 · 0/6 완료" aria-valuemin="0" aria-valuemax={totalLessonCount} aria-valuenow="0" data-progress-bar>
+          <div class="progress-track" role="progressbar" aria-label="RF 개념 트랙 진도 · 0/6 완료" aria-valuemin="0" aria-valuemax={totalLessonCount} aria-valuenow="0" data-progress-bar>
             <span style="--progress: 0%" data-progress-fill></span>
           </div>
           <a class="button-primary" href={firstModule.representativeLessonHref} data-progress-action>첫 실험 시작</a>
@@ -93,6 +97,39 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
         <p class="bench-protocol__scope">기본 기준: connectorized fixture · 50 Ω · 3GPP Release 17</p>
         {spectrumIqCompletionNote && <p class="bench-protocol__scope">{spectrumIqCompletionNote}</p>}
       </aside>
+    </section>
+
+    <section class="home-track-index" aria-labelledby="home-track-index-title">
+      <header class="section-heading">
+        <div>
+          <p class="data-label">전체 사이트 범위</p>
+          <h2 id="home-track-index-title">전체 학습 자료를 세 트랙에서 이어갑니다.</h2>
+        </div>
+        <p>{totalLessonCount} RF · {instrumentChapterCount} 장비 · {cellularLessonCount} Cellular</p>
+      </header>
+      <ol>
+        <li>
+          <header><span>01</span><p>RF concepts</p><strong>{totalLessonCount} lessons</strong></header>
+          <h3>물리 신호와 계측 화면의 공통 언어</h3>
+          <p>주파수·IQ·OFDM·VNA·power flow·PA pull을 6개 linked-view 실험으로 연결합니다.</p>
+          <ul><li>RF·dB·50 Ω</li><li>Spectrum·IQ</li><li>Smith·PA</li></ul>
+          <a href="#curriculum">RF 6축 전체 보기 <span aria-hidden="true">→</span></a>
+        </li>
+        <li>
+          <header><span>02</span><p>3GPP·PAMiD</p><strong>{cellularLessonCount} questions</strong></header>
+          <h3>GSM에서 NR FR1과 module 진단까지</h3>
+          <p>공통 기초, PAMiD, GSM, LTE, NR, diagnostics를 6개 section의 57개 질문으로 학습합니다.</p>
+          <ul><li>GSM PvT</li><li>LTE·NR grid</li><li>PAMiD DVT</li></ul>
+          <a href="/cellular/">Cellular 57개 전체 보기 <span aria-hidden="true">→</span></a>
+        </li>
+        <li>
+          <header><span>03</span><p>Instrument bench</p><strong>{instrumentChapterCount} chapters</strong></header>
+          <h3>다섯 Keysight 장비와 안전한 자동화</h3>
+          <p>SG·SA·VNA·power sensor·PSU를 장비별 5개 chapter와 dry-run-first PyVISA로 연결합니다.</p>
+          <ul><li>안전 bring-up</li><li>SCPI state</li><li>PA workflow</li></ul>
+          <a href="/instruments/">장비 25개 전체 보기 <span aria-hidden="true">→</span></a>
+        </li>
+      </ol>
     </section>
 
     <section class="curriculum-section" id="curriculum" aria-labelledby="curriculum-title">
@@ -197,7 +234,7 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
         if (count) count.textContent = String(state.completedCount);
         if (bar) {
           bar.setAttribute('aria-valuenow', String(state.completedCount));
-          bar.setAttribute('aria-label', `전체 학습 진도 · ${state.completedCount}/${modules.length} 완료`);
+          bar.setAttribute('aria-label', `RF 개념 트랙 진도 · ${state.completedCount}/${modules.length} 완료`);
         }
         if (fill) fill.style.setProperty('--progress', `${(state.completedCount / modules.length) * 100}%`);
         if (action) {
