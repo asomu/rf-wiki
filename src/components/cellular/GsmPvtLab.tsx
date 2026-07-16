@@ -350,7 +350,14 @@ export default function GsmPvtLab() {
             {X_TICKS.map((tick) => (
               <g key={tick}>
                 <line className="plot-grid" x1={xFor(tick)} y1={SVG_FRAME.top} x2={xFor(tick)} y2={SVG_FRAME.bottom} />
-                <text className="plot-label" x={xFor(tick)} y={SVG_FRAME.bottom + 24} textAnchor="middle">{tick}</text>
+                <text
+                  className={`plot-label ${tick === -20 || tick === 563 ? 'gsm-pvt__edge-tick' : ''}`}
+                  x={xFor(tick)}
+                  y={SVG_FRAME.bottom + 24}
+                  textAnchor="middle"
+                >
+                  {tick}
+                </text>
               </g>
             ))}
             <text className="plot-label" x={SVG_FRAME.left} y={SVG_FRAME.top - 10}>POWER / dBc</text>

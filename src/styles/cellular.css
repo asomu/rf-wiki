@@ -1583,12 +1583,16 @@
     min-width: 0;
   }
 
-  .gsm-pvt__chart .plot-label {
+  .cellular-visual svg.gsm-pvt__chart .plot-label {
     font-size: var(--font-size-headline);
   }
 
   .gsm-pvt__chart .gsm-pvt__direct-label {
     font-size: var(--font-size-headline);
+  }
+
+  .gsm-pvt__chart .gsm-pvt__edge-tick {
+    display: none;
   }
 
   .gsm-pvt__actions {
