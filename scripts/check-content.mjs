@@ -388,6 +388,12 @@ if (!configuredRoot) {
       errors.push(`DVT/${file} is missing authoritative references.`);
     }
     if (/\bTODO\b/i.test(source)) errors.push(`DVT/${file} is ready but still contains TODO content.`);
+    if (/3GPP TS 36\.521-1[^\n]*V17\.7\.0/i.test(source)) {
+      errors.push(`DVT/${file} must not reintroduce the unsupported TS 36.521-1 V17.7.0 citation.`);
+    }
+    if (/3GPP TS 36\.521-1[^\n]*(?:§|clause)\s*6(?!\.)/i.test(source)) {
+      errors.push(`DVT/${file} must cite exact TS 36.521-1 clauses, not generic clause 6.`);
+    }
 
     const layers = [...source.matchAll(lessonLayerPattern)].map((match) => match[1]);
     if (layers.length !== expectedLayerOrder.length || layers.some((layer, index) => layer !== expectedLayerOrder[index])) {

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   advanceDiagnosticCase,
   buildConclusionEvidenceLinkage,
+  compareObservedCaseEvidence,
   DVT_BUILT_IN_CASES,
   validateConclusionSourceRecords,
   validateDiagnosticPlan,
@@ -17,12 +18,14 @@ import type {
   DvtEvidenceClassification,
   DvtExpectedEvidence,
   DvtHypothesisEffect,
+  DvtObservedCaseEvidence,
 } from '@/types/dvt';
 import { useLabControlInteraction } from '../lab/LabControlInteraction';
 import { LabShell } from '../lab/LabShell';
 import type { LedgerEntry } from '../lab/types';
 import {
   DVT_CONCLUSION_SECTION_LABELS,
+  describeAnalyzerHeadroomLevelPlan,
   describeTxNoiseAnalyzerFrontEndSetup,
   DvtConclusionReport,
   validateDvtConclusion,
@@ -47,11 +50,38 @@ interface CaseReview {
 
 type PendingClassificationMatrix = Readonly<Record<string, DvtHypothesisEffect | undefined>>;
 
+interface CapstoneDraftV1 {
+  readonly schemaVersion: 1;
+  readonly progressId: string;
+  readonly currentCaseIndex: number;
+  readonly progress: DvtDiagnosticProgress | null;
+  readonly initialHypothesisId: string;
+  readonly plannedStepId: string;
+  readonly planLocked: boolean;
+  readonly pendingEvidenceId: string;
+  readonly pendingClassification: PendingClassificationMatrix;
+  readonly classifications: readonly DvtEvidenceClassification[];
+  readonly firstHypothesisId: string;
+  readonly secondHypothesisId: string;
+  readonly remainingUncertainty: string;
+  readonly confidence: ConfidenceLabel | '';
+  readonly caseReviews: readonly CaseReview[];
+  readonly conclusionFields: DvtConclusionFields;
+  readonly cleanupAcknowledged: boolean;
+  readonly message: string;
+}
+
+const CAPSTONE_DRAFT_SCHEMA_VERSION = 1;
+
+export function capstoneDraftStorageKey(progressId: string): string {
+  return `rf-wiki:dvt-capstone-draft:v${CAPSTONE_DRAFT_SCHEMA_VERSION}:${progressId}`;
+}
+
 export type ConfidenceLabel = 'Confirmed' | 'Strongly indicated' | 'Unresolved';
 
 const CASE_REPORT_LABELS: Readonly<Record<string, string>> = {
-  'gain-pae-fail': 'Gain·PAE fail',
-  'evm-aclr-fail': 'EVM·ACLR fail',
+  'gain-pae-fail': 'Gain·PAE historical false-fail root-cause review',
+  'evm-aclr-fail': 'EVM·ACLR anomaly investigation',
   'desense-risk-budget': 'desense risk budget',
 };
 
@@ -108,6 +138,190 @@ function newProgress(diagnosticCase: DvtDiagnosticCase): DvtDiagnosticProgress {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function hasExactKeys(record: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(record).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function isClassification(value: unknown, diagnosticCase: DvtDiagnosticCase): value is DvtEvidenceClassification {
+  if (!isRecord(value) || !hasExactKeys(value, ['evidenceId', 'hypothesisId', 'effect'])) return false;
+  if (typeof value.evidenceId !== 'string' || typeof value.hypothesisId !== 'string') return false;
+  if (!['support', 'contradict', 'neutral'].includes(String(value.effect))) return false;
+  return validateEvidenceClassification(diagnosticCase.id, value as unknown as DvtEvidenceClassification).valid;
+}
+
+function isCaseReview(value: unknown, diagnosticCase: DvtDiagnosticCase): value is CaseReview {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    'caseId', 'reportLabel', 'initialHypothesisId', 'plannedStepId', 'firstHypothesisId',
+    'secondHypothesisId', 'remainingUncertainty', 'confidence', 'classifications', 'acceptedEvidenceIds',
+  ])) return false;
+  if (
+    value.caseId !== diagnosticCase.id ||
+    value.reportLabel !== (CASE_REPORT_LABELS[diagnosticCase.id] ?? diagnosticCase.title) ||
+    typeof value.initialHypothesisId !== 'string' ||
+    !diagnosticCase.hypotheses.some(({ hypothesisId }) => hypothesisId === value.initialHypothesisId) ||
+    typeof value.plannedStepId !== 'string' ||
+    !diagnosticCase.steps.some(({ stepId }) => stepId === value.plannedStepId) ||
+    typeof value.firstHypothesisId !== 'string' ||
+    typeof value.secondHypothesisId !== 'string' ||
+    value.firstHypothesisId === value.secondHypothesisId ||
+    typeof value.remainingUncertainty !== 'string' || value.remainingUncertainty.trim().length < 12 ||
+    !['Confirmed', 'Strongly indicated', 'Unresolved'].includes(String(value.confidence)) ||
+    !Array.isArray(value.classifications) || !isStringArray(value.acceptedEvidenceIds)
+  ) return false;
+  const expectedAcceptedIds = diagnosticCase.steps.map(({ expectedEvidenceId }) => expectedEvidenceId);
+  if (JSON.stringify(value.acceptedEvidenceIds) !== JSON.stringify(expectedAcceptedIds)) return false;
+  if (
+    value.classifications.length !== diagnosticCase.steps.length * diagnosticCase.hypotheses.length ||
+    !value.classifications.every((classification) => isClassification(classification, diagnosticCase))
+  ) return false;
+  return validateRankedReview(
+    diagnosticCase,
+    value.classifications as readonly DvtEvidenceClassification[],
+    value.firstHypothesisId,
+    value.secondHypothesisId,
+    value.confidence as ConfidenceLabel,
+  ).valid;
+}
+
+function isConclusionFieldsDraft(
+  value: unknown,
+  linkage: DvtConclusionEvidenceLinkage,
+  reviews: readonly CaseReview[],
+  currentCaseIndex: number,
+): value is DvtConclusionFields {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    'reportId', 'stationId', 'measurementPointId', 'decisionIds', 'acceptedDiagnosticEvidenceIds',
+    'sections', 'cleanup', 'nextAction', 'owner',
+  ])) return false;
+  if (
+    typeof value.reportId !== 'string' ||
+    value.stationId !== linkage.stationId ||
+    value.measurementPointId !== linkage.measurementPointId ||
+    !isStringArray(value.decisionIds) ||
+    JSON.stringify(value.decisionIds) !== JSON.stringify(linkage.decisions.map(({ metricId }) => metricId)) ||
+    !isStringArray(value.acceptedDiagnosticEvidenceIds) ||
+    !isRecord(value.sections) ||
+    !hasExactKeys(value.sections, Object.keys(DVT_CONCLUSION_SECTION_LABELS)) ||
+    Object.values(value.sections).some((section) => typeof section !== 'string') ||
+    !isRecord(value.cleanup) ||
+    JSON.stringify(value.cleanup) !== JSON.stringify(linkage.cleanup) ||
+    typeof value.nextAction !== 'string' || typeof value.owner !== 'string'
+  ) return false;
+  const expectedAcceptedIds = currentCaseIndex === DVT_BUILT_IN_CASES.length
+    ? reviews.flatMap(({ acceptedEvidenceIds }) => acceptedEvidenceIds)
+    : [];
+  return JSON.stringify(value.acceptedDiagnosticEvidenceIds) === JSON.stringify(expectedAcceptedIds);
+}
+
+function parseCapstoneDraft(
+  serialized: string,
+  progressId: string,
+  linkage: DvtConclusionEvidenceLinkage,
+): CapstoneDraftV1 | null {
+  try {
+    const candidate: unknown = JSON.parse(serialized);
+    if (!isRecord(candidate) || !hasExactKeys(candidate, [
+      'schemaVersion', 'progressId', 'currentCaseIndex', 'progress', 'initialHypothesisId',
+      'plannedStepId', 'planLocked', 'pendingEvidenceId', 'pendingClassification',
+      'classifications', 'firstHypothesisId', 'secondHypothesisId', 'remainingUncertainty',
+      'confidence', 'caseReviews', 'conclusionFields', 'cleanupAcknowledged', 'message',
+    ]) || candidate.schemaVersion !== CAPSTONE_DRAFT_SCHEMA_VERSION || candidate.progressId !== progressId) return null;
+    const currentCaseIndex = candidate.currentCaseIndex;
+    if (!Number.isSafeInteger(currentCaseIndex) || (currentCaseIndex as number) < 0 || (currentCaseIndex as number) > DVT_BUILT_IN_CASES.length) return null;
+    const index = currentCaseIndex as number;
+    const diagnosticCase = DVT_BUILT_IN_CASES[index];
+    const progress = candidate.progress;
+    if (diagnosticCase === undefined) {
+      if (progress !== null) return null;
+    } else {
+      if (!isRecord(progress) || progress.caseId !== diagnosticCase.id || !Number.isSafeInteger(progress.nextStepIndex)) return null;
+      const nextStepIndex = progress.nextStepIndex as number;
+      const acceptedEvidenceIds = progress.acceptedEvidenceIds;
+      if (nextStepIndex < 0 || nextStepIndex > diagnosticCase.steps.length || !isStringArray(acceptedEvidenceIds)) return null;
+      const expectedAcceptedIds = diagnosticCase.steps.slice(0, nextStepIndex).map(({ expectedEvidenceId }) => expectedEvidenceId);
+      if (JSON.stringify(acceptedEvidenceIds) !== JSON.stringify(expectedAcceptedIds)) return null;
+      if (!hasExactKeys(progress, ['caseId', 'nextStepIndex', 'acceptedEvidenceIds', 'accepted', 'complete'])) return null;
+      if (
+        typeof progress.accepted !== 'boolean' ||
+        progress.accepted !== (nextStepIndex > 0) ||
+        typeof progress.complete !== 'boolean' ||
+        progress.complete !== (nextStepIndex === diagnosticCase.steps.length)
+      ) return null;
+    }
+    const stringFields = [
+      'initialHypothesisId', 'plannedStepId', 'pendingEvidenceId', 'firstHypothesisId',
+      'secondHypothesisId', 'remainingUncertainty', 'confidence', 'message',
+    ] as const;
+    if (stringFields.some((field) => typeof candidate[field] !== 'string')) return null;
+    if (typeof candidate.planLocked !== 'boolean' || typeof candidate.cleanupAcknowledged !== 'boolean') return null;
+    if (!isRecord(candidate.pendingClassification) || !Array.isArray(candidate.classifications) || !Array.isArray(candidate.caseReviews)) return null;
+    if (candidate.caseReviews.length !== index) return null;
+    const reviews = candidate.caseReviews as unknown[];
+    if (!reviews.every((review, reviewIndex) => {
+      const reviewCase = DVT_BUILT_IN_CASES[reviewIndex];
+      return reviewCase !== undefined && isCaseReview(review, reviewCase);
+    })) return null;
+    if (!isConclusionFieldsDraft(candidate.conclusionFields, linkage, reviews as CaseReview[], index)) return null;
+    if (candidate.cleanupAcknowledged && index !== DVT_BUILT_IN_CASES.length) return null;
+
+    if (diagnosticCase === undefined) {
+      if (
+        candidate.initialHypothesisId !== '' || candidate.plannedStepId !== '' || candidate.planLocked !== false ||
+        candidate.pendingEvidenceId !== '' || Object.keys(candidate.pendingClassification).length > 0 ||
+        candidate.classifications.length > 0 || candidate.firstHypothesisId !== '' ||
+        candidate.secondHypothesisId !== '' || candidate.remainingUncertainty !== '' || candidate.confidence !== ''
+      ) return null;
+    } else {
+      const hypothesisIds = new Set(diagnosticCase.hypotheses.map(({ hypothesisId }) => hypothesisId));
+      const selectedHypothesisIds = [candidate.initialHypothesisId, candidate.firstHypothesisId, candidate.secondHypothesisId]
+        .filter((value): value is string => typeof value === 'string' && value !== '');
+      if (selectedHypothesisIds.some((value) => !hypothesisIds.has(value))) return null;
+      const plannedStep = diagnosticCase.steps.find(({ stepId }) => stepId === candidate.plannedStepId);
+      if (candidate.plannedStepId !== '' && plannedStep === undefined) return null;
+      if (candidate.planLocked && (candidate.initialHypothesisId === '' || plannedStep === undefined)) return null;
+      const typedProgress = progress as unknown as DvtDiagnosticProgress;
+      if (!candidate.planLocked && (
+        typedProgress.nextStepIndex !== 0 || candidate.pendingEvidenceId !== '' || candidate.classifications.length > 0
+      )) return null;
+      const pendingIndex = candidate.pendingEvidenceId === '' ? -1 : typedProgress.nextStepIndex - 1;
+      if (candidate.pendingEvidenceId !== '' && (
+        pendingIndex < 0 || diagnosticCase.steps[pendingIndex]?.expectedEvidenceId !== candidate.pendingEvidenceId
+      )) return null;
+      const classifiedStepCount = typedProgress.nextStepIndex - (candidate.pendingEvidenceId === '' ? 0 : 1);
+      const expectedClassificationCount = classifiedStepCount * diagnosticCase.hypotheses.length;
+      if (
+        candidate.classifications.length !== expectedClassificationCount ||
+        !candidate.classifications.every((classification) => isClassification(classification, diagnosticCase))
+      ) return null;
+      const expectedClassificationKeys = new Set(diagnosticCase.steps.slice(0, classifiedStepCount).flatMap((step) => (
+        diagnosticCase.hypotheses.map(({ hypothesisId }) => `${step.expectedEvidenceId}:${hypothesisId}`)
+      )));
+      const actualClassificationKeys = new Set((candidate.classifications as DvtEvidenceClassification[]).map(({ evidenceId, hypothesisId }) => `${evidenceId}:${hypothesisId}`));
+      if (actualClassificationKeys.size !== expectedClassificationKeys.size || [...actualClassificationKeys].some((key) => !expectedClassificationKeys.has(key))) return null;
+      const pendingEntries = Object.entries(candidate.pendingClassification);
+      if (candidate.pendingEvidenceId === '' && pendingEntries.length > 0) return null;
+      if (pendingEntries.some(([hypothesisId, effect]) => (
+        !hypothesisIds.has(hypothesisId) || !['support', 'contradict', 'neutral'].includes(String(effect))
+      ))) return null;
+      if (candidate.firstHypothesisId !== '' && candidate.firstHypothesisId === candidate.secondHypothesisId) return null;
+      if (candidate.confidence !== '' && !['Confirmed', 'Strongly indicated', 'Unresolved'].includes(candidate.confidence as string)) return null;
+    }
+    return candidate as unknown as CapstoneDraftV1;
+  } catch {
+    return null;
+  }
+}
+
 function evidenceSummary(evidence: DvtExpectedEvidence): string {
   switch (evidence.metric) {
     case 'typed-signature':
@@ -119,11 +333,24 @@ function evidenceSummary(evidence: DvtExpectedEvidence): string {
     case 'im3':
       return `IM3 ${evidence.valueDbc.toFixed(1)} dBc · tolerance ±${evidence.toleranceDb.toFixed(1)} dB`;
     case 'synchronized-kpi':
-      return `Pin·Pout·VDD·IDD ${evidence.acquisitionMode} · trigger repeatability ≤${(evidence.maximumTriggerRepeatabilitySeconds * 1e6).toFixed(2)} µs · ${evidence.observedSupplyRegulationMode} · gain droop ${evidence.gainDroopDbAcrossAperture.toFixed(2)} dB · fixture temperature ${evidence.fixtureTemperatureEvidence}; thermal claim ${evidence.thermalMechanismClaimAllowed ? 'allowed' : 'blocked'}`;
+      return `Pin·Pout·VDD·IDD ${evidence.acquisitionMode} · trigger repeatability ≤${(evidence.maximumTriggerRepeatabilitySeconds * 1e6).toFixed(2)} µs · required ${evidence.requiredSupplyRegulationMode} · gain droop ≤${evidence.maximumGainDroopDbAcrossAperture.toFixed(2)} dB · thermal claim requires fixture-temperature evidence`;
     case 'analyzer-attenuation-step':
-      return `Attenuation +${evidence.attenuationStepDeltaDb.toFixed(0)} dB · corrected ACLR Δ${evidence.correctedAclrDeltaDb.toFixed(2)} dB · repeatability ${evidence.repeatabilityDb.toFixed(2)} dB · U ${evidence.expandedUncertaintyDb.toFixed(2)} dB · mixer/noise headroom ${evidence.mixerHeadroomAfterDb.toFixed(1)}/${evidence.noiseFloorHeadroomAfterDb.toFixed(1)} dB`;
+      return `Attenuation +${evidence.attenuationStepDeltaDb.toFixed(0)} dB · |corrected ACLR Δ| ≤${evidence.maximumAbsoluteCorrectedAclrDeltaDb.toFixed(2)} dB · repeatability ≤${evidence.maximumRepeatabilityDb.toFixed(2)} dB · mixer/noise headroom ≥${evidence.minimumMixerHeadroomDb.toFixed(1)}/${evidence.minimumNoiseFloorHeadroomDb.toFixed(1)} dB`;
     case 'desense-risk-budget':
-      return `Point ${evidence.measurementPointId} · TX ${(evidence.txCarrierFrequencyHz / 1e9).toFixed(3)} GHz ${evidence.txWaveformId} ${evidence.txOutputPowerDbm.toFixed(1)} dBm ${evidence.txModeId}/${evidence.supplyStateId} · RX ${(evidence.rxFrequencyRangeHz.startHz / 1e9).toFixed(3)}…${(evidence.rxFrequencyRangeHz.stopHz / 1e9).toFixed(3)} GHz · noise ${evidence.noiseMeasurement.convention === 'density' ? `${evidence.noiseMeasurement.densityDbmPerHz.toFixed(1)} dBm/Hz` : `${evidence.noiseMeasurement.integratedNoisePowerDbm.toFixed(1)} dBm in ${evidence.noiseMeasurement.equivalentNoiseBandwidthHz.toFixed(0)} Hz ENBW`} at ${(evidence.noiseMeasurementFrequencyHz / 1e9).toFixed(3)} GHz · isolation ${evidence.txToRxIsolationDb.toFixed(0)} dB vs educational ${evidence.educationalIsolationTargetDb.toFixed(0)} dB target (${evidence.isolationEvidenceId}) · floor ${evidence.floorEvidenceId} · U(noise/isolation) ${evidence.noiseExpandedUncertaintyDb.toFixed(1)}/${evidence.isolationExpandedUncertaintyDb.toFixed(1)} dB · risk-budget-only`;
+      return `Point ${evidence.requiredMeasurementPointId} · TX ${(evidence.requiredTxCarrierFrequencyHz / 1e9).toFixed(3)} GHz · noise/isolation at ${(evidence.requiredNoiseMeasurementFrequencyHz / 1e9).toFixed(3)} GHz · independent ${evidence.requiredIsolationApplicability} evidence · resolved analyzer floor · educational isolation target ${evidence.educationalIsolationTargetDb.toFixed(0)} dB · risk-budget-only`;
+  }
+}
+
+function observedEvidenceSummary(observed: DvtObservedCaseEvidence): string {
+  if (observed.availability === 'unavailable' || observed.payload === undefined) {
+    return `UNAVAILABLE · ${observed.unavailableReason ?? '관찰 payload 없음'}`;
+  }
+  const payload = observed.payload;
+  switch (payload.metric) {
+    case 'typed-signature': return `${payload.observedSignature} · ${payload.observation}`;
+    case 'synchronized-kpi': return `Observed PAE ${payload.observedPaePercent.toFixed(1)}% · ${payload.observedSupplyRegulationMode} · trigger ${(payload.maximumTriggerRepeatabilitySeconds * 1e6).toFixed(2)} µs`;
+    case 'analyzer-attenuation-step': return `Observed attenuation +${payload.attenuationStepDeltaDb.toFixed(0)} dB · ACLR Δ${payload.correctedAclrDeltaDb.toFixed(2)} dB · mixer headroom ${payload.mixerHeadroomBeforeDb.toFixed(1)}→${payload.mixerHeadroomAfterDb.toFixed(1)} dB`;
+    case 'desense-risk-budget': return `Observed isolation ${payload.txToRxIsolationDb.toFixed(1)} dB at ${(payload.frequencyHz / 1e9).toFixed(3)} GHz · ${payload.scope}`;
   }
 }
 
@@ -228,6 +455,7 @@ function validateRankedReview(
 function buildConclusion(
   reviews: readonly CaseReview[],
   linkage: DvtConclusionEvidenceLinkage,
+  sourceRecords: DvtConclusionSourceRecords,
 ): DvtConclusionFields {
   const hypothesisSummary = reviews.map((review) => {
     const diagnosticCase = DVT_BUILT_IN_CASES.find(({ id }) => id === review.caseId)!;
@@ -237,13 +465,14 @@ function buildConclusion(
     const diagnosticCase = DVT_BUILT_IN_CASES.find(({ id }) => id === review.caseId)!;
     const observations = review.acceptedEvidenceIds.map((evidenceId) => {
       const step = diagnosticCase.steps.find(({ expectedEvidenceId }) => expectedEvidenceId === evidenceId)!;
+      const observed = sourceRecords.observedCaseEvidence.find((record) => record.caseId === review.caseId && record.evidenceId === evidenceId);
       const matrix = step.expectedEffects.map((contract) => {
         const classification = review.classifications.find(({ evidenceId: classifiedId, hypothesisId }) => (
           classifiedId === evidenceId && hypothesisId === contract.hypothesisId
         ));
         return `${hypothesisLabel(diagnosticCase, contract.hypothesisId)}:${classification?.effect ?? 'unrecorded'} (${contract.rationale})`;
       }).join(', ');
-      return `${evidenceId} [${evidenceSummary(step.expectedEvidence)}] → ${matrix}`;
+      return `${evidenceId} [${observed ? observedEvidenceSummary(observed) : 'observed evidence unavailable'}] → ${matrix}`;
     }).join('; ');
     return `${review.reportLabel}: plan ${review.plannedStepId}; ${observations}`;
   }).join(' / ');
@@ -257,7 +486,7 @@ function buildConclusion(
     sections: {
       scope: 'One requalified LTE FDD PAMiD multi-metric point with three investigation threads; compliance waveform or product disposition is out of scope.',
       station: `Requalified station ${linkage.stationId} · revision ${linkage.stationRevisionId} · ${linkage.stationReadiness.state.toUpperCase()} · ${linkage.stationReadiness.evidence.join(', ')}. 이전 BLOCKED qualification revision과 혼동하지 않는다.`,
-      symptom: '같은 multi-metric point에서 Gain·PAE, EVM·ACLR과 TX-noise/RX-branch risk의 세 investigation thread를 분리했다.',
+      symptom: 'Preliminary symptom은 Gain·PAE와 EVM·ACLR suspected fail이었다. Historical false-fail root-cause confidence는 retained mode query-back evidence에서만 도출하며, requalified current allocation disposition은 PAE PASS, ACLR INCONCLUSIVE다. TX-noise/RX-branch risk는 별도 risk-budget thread다.',
       validity: `Measurement point ${linkage.measurementPointId} · ${linkage.measurementValidation.validity.toUpperCase()}. Paired plan 3개와 ordered evidence 9개의 full effect matrix가 validator를 통과했지만 실제 DUT raw trace와 조직 sign-off를 대신하지 않는다.`,
       decision: `Guardband linkage · ${linkage.decisions.map(({ metricId, verdict }) => `${metricId}:${verdict.toUpperCase()}`).join(', ')}. INCONCLUSIVE는 유효한 측정의 uncertainty overlap으로 보고하고 residual risk와 next action을 닫는다. TX-noise decision은 sensitivity/BLER가 아닌 RX-branch risk budget으로만 사용한다.`,
       hypotheses: hypothesisSummary,
@@ -293,6 +522,7 @@ function HypothesisChoices({
             checked={value === hypothesis.hypothesisId}
             onChange={() => onChange(hypothesis.hypothesisId)}
           />
+          <span className="dvt-choice-indicator" aria-hidden="true" />
           <span>{hypothesis.label}</span>
         </label>
       ))}
@@ -331,6 +561,7 @@ interface BlindControlsProps {
   onConclusionChange: (fields: DvtConclusionFields) => void;
   onCleanupAcknowledgedChange: (acknowledged: boolean) => void;
   onCommit: () => void;
+  onResetDraft: () => void;
 }
 
 function BlindControls(props: BlindControlsProps) {
@@ -360,6 +591,7 @@ function BlindControls(props: BlindControlsProps) {
     return (
       <div className="dvt-capstone-controls">
         <p className="dvt-case-progress">3/3 case evidence chains closed</p>
+        <button type="button" className="lab-button lab-button--secondary" disabled={committed} onClick={props.onResetDraft}>초안 초기화</button>
         <div className="dvt-conclusion-fields">
           <label className="dvt-field"><span>Report ID</span><input readOnly value={conclusionFields.reportId} /></label>
           <label className="dvt-field"><span>Station ID</span><input readOnly value={conclusionFields.stationId} /></label>
@@ -375,6 +607,7 @@ function BlindControls(props: BlindControlsProps) {
           }).join('\n')} /></label>
           <label className="dvt-field"><span>9-step source mapping</span><textarea readOnly rows={9} value={evidenceLinkage.diagnosticEvidenceSources.map((source) => `${source.caseId}/${source.evidenceId} → point ${source.sourceMeasurementPointId} · metric ${source.sourceMetricEvidenceIds.join('+') || 'none'} · external ${source.sourceExternalEvidenceIds.join('+') || 'none'} · decision ${source.decisionMetricId ?? 'none'}`).join('\n')} /></label>
           <label className="dvt-field"><span>N9020B RX-band noise recorded setup</span><textarea readOnly rows={3} value={describeTxNoiseAnalyzerFrontEndSetup(sourceRecords)} /></label>
+          <label className="dvt-field"><span>N9020B connector-to-mixer level plan</span><textarea readOnly rows={4} value={describeAnalyzerHeadroomLevelPlan(sourceRecords)} /></label>
           {(Object.entries(DVT_CONCLUSION_SECTION_LABELS) as [DvtConclusionSectionId, string][]).map(([sectionId, label]) => (
             <label key={sectionId} className="dvt-field">
               <span>{label}</span>
@@ -403,6 +636,7 @@ function BlindControls(props: BlindControlsProps) {
               disabled={committed}
               onChange={(event) => props.onCleanupAcknowledgedChange(event.currentTarget.checked)}
             />
+            <span className="dvt-choice-indicator" aria-hidden="true" />
             <span>Linked measurement-point cleanup evidence를 검토했습니다</span>
           </label>
           <label className="dvt-field"><span>Next action</span><textarea rows={3} value={conclusionFields.nextAction} onChange={(event) => props.onConclusionChange({ ...conclusionFields, nextAction: event.currentTarget.value })} /></label>
@@ -444,6 +678,7 @@ function BlindControls(props: BlindControlsProps) {
             {currentCase.steps.map((step) => (
               <label key={step.stepId}>
                 <input type="radio" name={`${currentCase.id}-planned-step`} checked={plannedStepId === step.stepId} onChange={() => props.onPlannedStepChange(step.stepId)} />
+                <span className="dvt-choice-indicator" aria-hidden="true" />
                 <span><strong>{step.prompt}</strong><small>{evidenceSummary(step.expectedEvidence)}</small></span>
               </label>
             ))}
@@ -471,7 +706,8 @@ function BlindControls(props: BlindControlsProps) {
             <ol className="dvt-evidence-list">
               {currentCase.steps.slice(0, progress.nextStepIndex).map((step) => {
                 const matrix = classifications.filter(({ evidenceId }) => evidenceId === step.expectedEvidenceId);
-                return <li key={step.expectedEvidenceId}><strong>{step.expectedEvidenceId}</strong><span>{evidenceSummary(step.expectedEvidence)}</span>{matrix.length > 0 && <span>판정 matrix · {matrix.map((classification) => `${hypothesisLabel(currentCase, classification.hypothesisId)}:${EFFECT_LABELS[classification.effect]}`).join(' · ')}</span>}</li>;
+                const observed = sourceRecords.observedCaseEvidence.find((record) => record.caseId === currentCase.id && record.evidenceId === step.expectedEvidenceId);
+                return <li key={step.expectedEvidenceId}><strong>{step.expectedEvidenceId}</strong><span>{observed ? observedEvidenceSummary(observed) : 'Observed payload unavailable'}</span>{matrix.length > 0 && <span>판정 matrix · {matrix.map((classification) => `${hypothesisLabel(currentCase, classification.hypothesisId)}:${EFFECT_LABELS[classification.effect]}`).join(' · ')}</span>}</li>;
               })}
             </ol>
           </section>
@@ -492,6 +728,7 @@ function BlindControls(props: BlindControlsProps) {
                         checked={pendingClassification[contract.hypothesisId] === effect}
                         onChange={() => props.onPendingClassificationChange(contract.hypothesisId, effect)}
                       />
+                      <span className="dvt-choice-indicator" aria-hidden="true" />
                       <span>{EFFECT_LABELS[effect]}</span>
                     </label>
                   ))}
@@ -507,13 +744,14 @@ function BlindControls(props: BlindControlsProps) {
               <HypothesisChoices legend="1순위 hypothesis" name={`${currentCase.id}-rank-one`} hypotheses={currentCase.hypotheses} value={firstHypothesisId} onChange={(value) => props.onReviewChange('firstHypothesisId', value)} />
               <HypothesisChoices legend="2순위 competing hypothesis" name={`${currentCase.id}-rank-two`} hypotheses={currentCase.hypotheses} value={secondHypothesisId} onChange={(value) => props.onReviewChange('secondHypothesisId', value)} />
               <label className="dvt-field"><span>False-positive / remaining uncertainty</span><textarea rows={3} value={remainingUncertainty} onChange={(event) => props.onReviewChange('remainingUncertainty', event.currentTarget.value)} /></label>
-              <fieldset className="dvt-choice-field"><legend>Confidence</legend>{(['Confirmed', 'Strongly indicated', 'Unresolved'] as const).map((label) => <label key={label}><input type="radio" name={`${currentCase.id}-confidence`} checked={confidence === label} onChange={() => props.onReviewChange('confidence', label)} /><span>{label}</span></label>)}</fieldset>
+              <fieldset className="dvt-choice-field"><legend>Confidence</legend>{(['Confirmed', 'Strongly indicated', 'Unresolved'] as const).map((label) => <label key={label}><input type="radio" name={`${currentCase.id}-confidence`} checked={confidence === label} onChange={() => props.onReviewChange('confidence', label)} /><span className="dvt-choice-indicator" aria-hidden="true" /><span>{label}</span></label>)}</fieldset>
               {firstHypothesisId === secondHypothesisId && firstHypothesisId.length > 0 && <p role="alert">1순위와 2순위 가설은 달라야 합니다.</p>}
               <button type="button" className="lab-button lab-button--primary" disabled={!reviewReady} onClick={props.onCloseCase}>Case 결론 기록</button>
             </section>
           )}
         </>
       )}
+      <button type="button" className="lab-button lab-button--secondary" onClick={props.onResetDraft}>초안 초기화</button>
       <p className="dvt-capstone-status" aria-live="polite">{message}</p>
     </div>
   );
@@ -543,12 +781,103 @@ export function BlindFddCapstoneLab({
   const [remainingUncertainty, setRemainingUncertainty] = useState('');
   const [confidence, setConfidence] = useState<ConfidenceLabel | ''>('');
   const [caseReviews, setCaseReviews] = useState<readonly CaseReview[]>([]);
-  const [conclusionFields, setConclusionFields] = useState<DvtConclusionFields>(EMPTY_CONCLUSION);
+  const [conclusionFields, setConclusionFields] = useState<DvtConclusionFields>(() => ({
+    ...EMPTY_CONCLUSION,
+    stationId: evidenceLinkage.stationId,
+    measurementPointId: evidenceLinkage.measurementPointId,
+    decisionIds: evidenceLinkage.decisions.map(({ metricId }) => metricId),
+    cleanup: evidenceLinkage.cleanup,
+  }));
   const [cleanupAcknowledged, setCleanupAcknowledged] = useState(false);
   const [committed, setCommitted] = useState(false);
   const [message, setMessage] = useState('Case 1의 evidence를 보기 전에 사전 계획을 고정하세요.');
+  const [draftReady, setDraftReady] = useState(false);
+  const skipNextDraftWrite = useRef(false);
+  const draftPersistenceAvailable = useRef(true);
   const acceptedEvidenceCount = caseReviews.reduce((count, review) => count + review.acceptedEvidenceIds.length, 0) + (progress?.acceptedEvidenceIds.length ?? 0);
   const totalEvidenceCount = useMemo(() => DVT_BUILT_IN_CASES.reduce((count, diagnosticCase) => count + diagnosticCase.steps.length, 0), []);
+
+  useEffect(() => {
+    const storageKey = capstoneDraftStorageKey(progressId);
+    let serialized: string | null = null;
+    try {
+      serialized = window.sessionStorage.getItem(storageKey);
+    } catch {
+      draftPersistenceAvailable.current = false;
+      setMessage('브라우저가 session storage 접근을 차단해 초안 persistence만 비활성화했습니다. 현재 lab은 계속 사용할 수 있습니다.');
+      setDraftReady(true);
+      return;
+    }
+    if (serialized !== null) {
+      const draft = parseCapstoneDraft(serialized, progressId, evidenceLinkage);
+      if (draft === null) {
+        skipNextDraftWrite.current = true;
+        try {
+          window.sessionStorage.removeItem(storageKey);
+        } catch {
+          draftPersistenceAvailable.current = false;
+        }
+        setMessage('호환되지 않거나 손상된 초안을 폐기하고 Case 1에서 다시 시작합니다.');
+      } else {
+        setCurrentCaseIndex(draft.currentCaseIndex);
+        setProgress(draft.progress);
+        setInitialHypothesisId(draft.initialHypothesisId);
+        setPlannedStepId(draft.plannedStepId);
+        setPlanLocked(draft.planLocked);
+        setPendingEvidenceId(draft.pendingEvidenceId);
+        setPendingClassification(draft.pendingClassification);
+        setClassifications(draft.classifications);
+        setFirstHypothesisId(draft.firstHypothesisId);
+        setSecondHypothesisId(draft.secondHypothesisId);
+        setRemainingUncertainty(draft.remainingUncertainty);
+        setConfidence(draft.confidence);
+        setCaseReviews(draft.caseReviews);
+        setConclusionFields(draft.conclusionFields);
+        setCleanupAcknowledged(draft.cleanupAcknowledged);
+        setMessage(draft.message);
+      }
+    }
+    setDraftReady(true);
+  }, [evidenceLinkage, progressId]);
+
+  useEffect(() => {
+    if (!draftReady || committed || !draftPersistenceAvailable.current) return;
+    if (skipNextDraftWrite.current) {
+      skipNextDraftWrite.current = false;
+      return;
+    }
+    const draft: CapstoneDraftV1 = {
+      schemaVersion: CAPSTONE_DRAFT_SCHEMA_VERSION,
+      progressId,
+      currentCaseIndex,
+      progress,
+      initialHypothesisId,
+      plannedStepId,
+      planLocked,
+      pendingEvidenceId,
+      pendingClassification,
+      classifications,
+      firstHypothesisId,
+      secondHypothesisId,
+      remainingUncertainty,
+      confidence,
+      caseReviews,
+      conclusionFields,
+      cleanupAcknowledged,
+      message,
+    };
+    try {
+      window.sessionStorage.setItem(capstoneDraftStorageKey(progressId), JSON.stringify(draft));
+    } catch {
+      draftPersistenceAvailable.current = false;
+      setMessage('브라우저가 session storage 쓰기를 차단해 초안 persistence만 비활성화했습니다. 현재 lab은 계속 사용할 수 있습니다.');
+    }
+  }, [
+    caseReviews, classifications, cleanupAcknowledged, committed, conclusionFields,
+    confidence, currentCaseIndex, draftReady, firstHypothesisId, initialHypothesisId,
+    message, pendingClassification, pendingEvidenceId, planLocked, plannedStepId,
+    progress, progressId, remainingUncertainty, secondHypothesisId,
+  ]);
 
   function resetCaseState(nextIndex: number) {
     setCurrentCaseIndex(nextIndex);
@@ -556,6 +885,40 @@ export function BlindFddCapstoneLab({
     setInitialHypothesisId(''); setPlannedStepId(''); setPlanLocked(false);
     setPendingEvidenceId(''); setPendingClassification({}); setClassifications([]);
     setFirstHypothesisId(''); setSecondHypothesisId(''); setRemainingUncertainty(''); setConfidence('');
+  }
+
+  function resetDraft() {
+    skipNextDraftWrite.current = true;
+    if (draftPersistenceAvailable.current) {
+      try {
+        window.sessionStorage.removeItem(capstoneDraftStorageKey(progressId));
+      } catch {
+        draftPersistenceAvailable.current = false;
+      }
+    }
+    resetCaseState(0);
+    setCaseReviews([]);
+    setConclusionFields({
+      ...EMPTY_CONCLUSION,
+      stationId: evidenceLinkage.stationId,
+      measurementPointId: evidenceLinkage.measurementPointId,
+      decisionIds: evidenceLinkage.decisions.map(({ metricId }) => metricId),
+      cleanup: evidenceLinkage.cleanup,
+    });
+    setCleanupAcknowledged(false);
+    setCommitted(false);
+    setMessage('초안을 초기화했습니다. Case 1의 사전 계획부터 다시 시작하세요.');
+  }
+
+  function commitConclusion() {
+    if (draftPersistenceAvailable.current) {
+      try {
+        window.sessionStorage.removeItem(capstoneDraftStorageKey(progressId));
+      } catch {
+        draftPersistenceAvailable.current = false;
+      }
+    }
+    setCommitted(true);
   }
 
   function lockPlan() {
@@ -569,7 +932,16 @@ export function BlindFddCapstoneLab({
 
   function revealEvidence(evidenceId: string) {
     if (!currentCase || !progress || !planLocked || progress.complete || pendingEvidenceId) return;
-    const next = advanceDiagnosticCase(currentCase.id, progress, evidenceId);
+    const observed = sourceRecords.observedCaseEvidence.find((record) => (
+      record.caseId === currentCase.id && record.evidenceId === evidenceId
+    ));
+    if (!observed) { setMessage(`${evidenceId} observed payload를 찾을 수 없습니다.`); return; }
+    const comparison = compareObservedCaseEvidence(currentCase.id, evidenceId, observed);
+    if (comparison.state !== 'match') {
+      setMessage(`${evidenceId} 관찰 evidence가 locked contract와 일치하지 않아 진행과 effect classification을 차단했습니다. ${comparison.reason}`);
+      return;
+    }
+    const next = advanceDiagnosticCase(currentCase.id, progress, observed);
     if (next.nextStepIndex === progress.nextStepIndex) { setMessage('현재 evidence 순서가 아닙니다. Evidence 1부터 실행하세요.'); return; }
     setProgress(next); setPendingEvidenceId(evidenceId); setPendingClassification({});
     setMessage(`${evidenceId} 공개 · 다음 evidence 전에 hypothesis effect를 판정하세요.`);
@@ -602,7 +974,7 @@ export function BlindFddCapstoneLab({
     setCaseReviews(nextReviews);
     resetCaseState(nextIndex);
     if (nextIndex < DVT_BUILT_IN_CASES.length) setMessage(`Case ${nextIndex + 1}의 사전 계획을 고정하세요.`);
-    else { setConclusionFields(buildConclusion(nextReviews, evidenceLinkage)); setMessage('3/3 case closed · 9-section DVT conclusion을 완성하세요.'); }
+    else { setConclusionFields(buildConclusion(nextReviews, evidenceLinkage, sourceRecords)); setMessage('3/3 case closed · 9-section DVT conclusion을 완성하세요.'); }
   }
 
   const ledger: LedgerEntry[] = [
@@ -620,7 +992,10 @@ export function BlindFddCapstoneLab({
       description="한 requalified multi-metric point의 Gain·PAE, EVM·ACLR, TX-noise/RX-branch risk를 세 investigation thread로 나눠 사전 가설 → paired plan → classified evidence → ranked update → 9-section conclusion으로 닫습니다."
       activeStages={['source', 'dut', 'acquisition', 'dsp', 'display']}
       stageMap={{ 'blind-fdd-commit': ['source', 'dut', 'acquisition', 'dsp', 'display'] }}
-      controls={<BlindControls currentCase={currentCase} caseIndex={currentCaseIndex} progress={progress} initialHypothesisId={initialHypothesisId} plannedStepId={plannedStepId} planLocked={planLocked} pendingEvidenceId={pendingEvidenceId} pendingClassification={pendingClassification} classifications={classifications} firstHypothesisId={firstHypothesisId} secondHypothesisId={secondHypothesisId} remainingUncertainty={remainingUncertainty} confidence={confidence} conclusionFields={conclusionFields} evidenceLinkage={evidenceLinkage} sourceRecords={sourceRecords} cleanupAcknowledged={cleanupAcknowledged} committed={committed} message={message} onInitialHypothesisChange={setInitialHypothesisId} onPlannedStepChange={setPlannedStepId} onLockPlan={lockPlan} onEvidence={revealEvidence} onPendingClassificationChange={(hypothesisId, effect) => setPendingClassification((current) => ({ ...current, [hypothesisId]: effect }))} onRecordClassification={recordClassification} onReviewChange={(field, value) => { if (field === 'firstHypothesisId') setFirstHypothesisId(value); if (field === 'secondHypothesisId') setSecondHypothesisId(value); if (field === 'remainingUncertainty') setRemainingUncertainty(value); if (field === 'confidence') setConfidence(value as ConfidenceLabel); }} onCloseCase={closeCurrentCase} onConclusionChange={setConclusionFields} onCleanupAcknowledgedChange={setCleanupAcknowledged} onCommit={() => setCommitted(true)} />}
+      layoutVariant="prediction-first"
+      controlsTitle="조사 계획"
+      controlsHint="가설·근거 순서"
+      controls={<BlindControls currentCase={currentCase} caseIndex={currentCaseIndex} progress={progress} initialHypothesisId={initialHypothesisId} plannedStepId={plannedStepId} planLocked={planLocked} pendingEvidenceId={pendingEvidenceId} pendingClassification={pendingClassification} classifications={classifications} firstHypothesisId={firstHypothesisId} secondHypothesisId={secondHypothesisId} remainingUncertainty={remainingUncertainty} confidence={confidence} conclusionFields={conclusionFields} evidenceLinkage={evidenceLinkage} sourceRecords={sourceRecords} cleanupAcknowledged={cleanupAcknowledged} committed={committed} message={message} onInitialHypothesisChange={setInitialHypothesisId} onPlannedStepChange={setPlannedStepId} onLockPlan={lockPlan} onEvidence={revealEvidence} onPendingClassificationChange={(hypothesisId, effect) => setPendingClassification((current) => ({ ...current, [hypothesisId]: effect }))} onRecordClassification={recordClassification} onReviewChange={(field, value) => { if (field === 'firstHypothesisId') setFirstHypothesisId(value); if (field === 'secondHypothesisId') setSecondHypothesisId(value); if (field === 'remainingUncertainty') setRemainingUncertainty(value); if (field === 'confidence') setConfidence(value as ConfidenceLabel); }} onCloseCase={closeCurrentCase} onConclusionChange={setConclusionFields} onCleanupAcknowledgedChange={setCleanupAcknowledged} onCommit={commitConclusion} onResetDraft={resetDraft} />}
       ledger={ledger}
       prediction={{ id: 'blind-fdd-method', prompt: '익명 FDD module에서 동시에 여러 KPI가 나빠졌다면 첫 원칙은?', options: ['측정 유효성을 먼저 확인하고 경쟁 가설을 유지한 채 다음 evidence를 설계한다', '가장 나쁜 KPI 하나만 보고 DUT 불량으로 확정한다', 'Receiver sensitivity와 BLER까지 이 bench 결과로 직접 확정한다'], correctIndex: 0, explanation: 'Senior DVT conclusion은 measurement transaction 유효성을 먼저 닫고 competing hypothesis를 evidence로 줄입니다. TX-noise 결과는 desense risk budget이지 sensitivity나 BLER 판정이 아닙니다.' }}
       note="세 case는 서로 다른 point가 아니라 한 built-in deterministic multi-metric point의 investigation thread입니다. 실제 station capability, calibrated reference plane, raw trace, limit source와 조직 decision rule을 연결하기 전에는 DUT disposition이나 compliance verdict로 사용할 수 없습니다."

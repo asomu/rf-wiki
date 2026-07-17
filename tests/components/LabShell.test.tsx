@@ -4,6 +4,59 @@ import { RangeControl } from '../../src/components/lab/ControlField';
 import { LabShell } from '../../src/components/lab/LabShell';
 
 describe('LabShell', () => {
+  it('puts prediction before controls in DOM and moves focus into enabled controls after lock', () => {
+    const { container } = render(
+      <LabShell
+        labId="prediction-first-lab"
+        title="Prediction-first instrument"
+        question="어떤 evidence를 먼저 볼까?"
+        description="예측을 먼저 고정하는 senior workflow입니다."
+        activeStages={['display']}
+        layoutVariant="prediction-first"
+        controlsTitle="역량 근거"
+        controlsHint="필수 근거 검토"
+        controls={(
+          <RangeControl
+            id="prediction-first-control"
+            label="Evidence level"
+            min={0}
+            max={10}
+            value={5}
+            valueText="5"
+            onChange={() => undefined}
+          />
+        )}
+        ledger={[
+          { label: '변경', value: '예측 후 evidence 검토' },
+          { label: '직접 효과', value: 'control 활성화' },
+          { label: '화면 결과', value: 'focus 이동' },
+          { label: '비용·한계', value: '교육 모델' },
+        ]}
+        prediction={{
+          id: 'prediction-first-contract',
+          prompt: '첫 순서는?',
+          options: ['예측 고정', '결론 확정'],
+          correctIndex: 0,
+          explanation: '관찰 전에 예측을 고정합니다.',
+        }}
+      >
+        <div>locked result</div>
+      </LabShell>,
+    );
+
+    const workbench = container.querySelector('.lab-shell__workbench');
+    expect(Array.from(workbench?.children ?? []).map((element) => element.className)).toEqual([
+      'lab-prediction',
+      'lab-controls',
+      'lab-views',
+    ]);
+    expect(screen.getByRole('complementary', { name: /Prediction-first instrument 역량 근거/ })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('radio', { name: '예측 고정' }));
+    fireEvent.click(screen.getByRole('button', { name: '예측 고정' }));
+    expect(screen.getByRole('slider', { name: 'Evidence level' })).toHaveFocus();
+  });
+
   it('uses the fallback path before interaction and the control-specific stage map afterward', () => {
     const { container } = render(
       <LabShell

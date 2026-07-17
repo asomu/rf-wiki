@@ -351,3 +351,94 @@ test.describe('interactive state visual regression', () => {
     expect(screenshot).toMatchSnapshot('search-results-390.png', { maxDiffPixelRatio: 0.01 });
   });
 });
+
+const capstoneCompletedFlow = [
+  {
+    effects: [
+      ['중립', '반증', '중립', '중립'],
+      ['지지', '중립', '중립', '중립'],
+      ['중립', '중립', '반증', '중립'],
+    ],
+    first: 'DUT gain-mode state mismatch',
+    second: 'Supply CC or thermal droop',
+    confidence: 'Strongly indicated',
+  },
+  {
+    effects: [
+      ['중립', '반증', '중립', '중립'],
+      ['중립', '중립', '반증', '중립'],
+      ['지지', '반증', '중립', '중립'],
+    ],
+    first: 'DUT compression/nonlinearity',
+    second: 'EVM demodulation artifact',
+    confidence: 'Strongly indicated',
+  },
+  {
+    effects: [
+      ['중립', '중립', '반증', '중립'],
+      ['중립', '중립', '중립', '중립'],
+      ['지지', '중립', '반증', '지지'],
+    ],
+    first: 'PA-on TX noise contribution',
+    second: 'Duplexer or fixture isolation shortfall',
+    confidence: 'Unresolved',
+  },
+] as const;
+
+async function completeCapstoneForVisual(page: Page) {
+  const scenario = visualScenarios.find(({ name }) => name === 'dvt-blind-capstone')!;
+  await page.goto(scenario.path, { waitUntil: 'networkidle' });
+  await waitForScenario(page, scenario);
+  const lab = page.locator('[data-lab-id="dvt:fdd-dvt-conclusion"]');
+  await lab.getByRole('radio', { name: /측정 유효성을 먼저 확인하고 경쟁 가설을 유지/ }).check();
+  await lab.getByRole('button', { name: '예측 고정' }).click();
+
+  for (const flow of capstoneCompletedFlow) {
+    await lab.getByRole('group', { name: 'Initial hypothesis' }).getByRole('radio').first().check();
+    await lab.getByRole('group', { name: 'Next measurement + Expected signature' }).getByRole('radio').first().check();
+    await lab.getByRole('button', { name: '사전 계획 고정' }).click();
+    for (const [stepIndex, effects] of flow.effects.entries()) {
+      await lab.getByRole('button', { name: new RegExp(`^Evidence ${stepIndex + 1}:`) }).click();
+      const effectGroups = lab.locator('.dvt-case-section').filter({ hasText: 'competing-hypothesis effect matrix' }).getByRole('group');
+      await expect(effectGroups).toHaveCount(effects.length);
+      for (const [effectIndex, effect] of effects.entries()) {
+        await effectGroups.nth(effectIndex).getByRole('radio', { name: effect, exact: true }).check();
+      }
+      await lab.getByRole('button', { name: 'Evidence matrix 기록' }).click();
+    }
+    await lab.getByRole('group', { name: '1순위 hypothesis' }).getByRole('radio', { name: flow.first }).check();
+    await lab.getByRole('group', { name: '2순위 competing hypothesis' }).getByRole('radio', { name: flow.second }).check();
+    await lab.getByRole('textbox', { name: 'False-positive / remaining uncertainty' }).fill('Independent thermal evidence, fixture repeatability, and receiver tests remain open.');
+    await lab.getByRole('group', { name: 'Confidence' }).getByRole('radio', { name: flow.confidence }).check();
+    await lab.getByRole('button', { name: 'Case 결론 기록' }).click();
+  }
+  await lab.getByRole('textbox', { name: 'Conclusion' }).fill('Historical false-fail root-cause confidence is separated from the current PAE PASS allocation disposition.');
+  await lab.getByRole('textbox', { name: 'Residual risk' }).fill('Fixture temperature, radiated leakage, and receiver performance require follow-up tests.');
+  await lab.getByRole('checkbox', { name: 'Linked measurement-point cleanup evidence를 검토했습니다' }).check();
+  await lab.getByRole('textbox', { name: 'Next action' }).fill('Repeat all cases with fixture-temperature and independent leakage evidence.');
+  await lab.getByRole('textbox', { name: 'Owner' }).fill('RF DVT engineer');
+  await lab.getByRole('button', { name: 'Blind case 결론 확정' }).click();
+  await expect(lab.getByRole('heading', { name: 'Blind FDD capstone 보고서' })).toBeVisible();
+  return lab.locator('.dvt-conclusion-report');
+}
+
+test.describe('completed DVT report visual regression', () => {
+  for (const viewport of [
+    { name: '390', width: 390, height: 844 },
+    { name: '1440', width: 1440, height: 1000 },
+  ] as const) {
+    test.describe(`${viewport.width}px`, () => {
+      test.use({ viewport: { width: viewport.width, height: viewport.height } });
+      test(`completed blind capstone report at ${viewport.width}px`, async ({ page }) => {
+        test.setTimeout(60_000);
+        const report = await completeCapstoneForVisual(page);
+        await placeBelowStickyHeader(page, '.dvt-conclusion-report');
+        await expect(report).toBeVisible();
+        const screenshot = await page.screenshot({ caret: 'hide' });
+        expect(screenshot).toMatchSnapshot(`dvt-blind-capstone-completed-${viewport.name}.png`, {
+          maxDiffPixelRatio: 0.01,
+        });
+      });
+    });
+  }
+});

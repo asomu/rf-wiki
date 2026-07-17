@@ -26,11 +26,15 @@ equipmentContext:
   analyzer: "N9020B-526/B1X/MPB/P26, E5080B-2K0, U2061XA, N6705C/N6752A와 조건부 accessory"
 standards:
   - "3GPP TS 36.101 V17.6.0 §5.5, §6.2, §6.6"
-  - "3GPP TS 36.521-1 V17.7.0 §6"
+  - "3GPP TS 36.521-1 V17.6.1 §4, §6.2.2, §6.6.2.3 — UE conformance context only"
 references:
   - title: "ETSI TS 136 101 V17.6.0 — E-UTRA UE radio transmission and reception"
     organization: "ETSI / 3GPP"
     url: "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/17.06.00_60/ts_136101v170600p.pdf"
+    kind: "standard"
+  - title: "ETSI TS 136 521-1 V17.6.1 — E-UTRA UE conformance specification"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.06.01_60/ts_13652101v170601p.pdf"
     kind: "standard"
   - title: "MXG X-Series Signal Generator N5182B Data Sheet"
     organization: "Keysight Technologies"
@@ -39,6 +43,18 @@ references:
   - title: "N9020B MXA Signal Analyzer Specifications Guide"
     organization: "Keysight Technologies"
     url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+  - title: "E5080B ENA Vector Network Analyzer Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06574/data-sheets/5992-3843.pdf"
+    kind: "vendor"
+  - title: "U2049XA and U/L2050/60 X-Series Peak and Average Power Sensors Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3120-1424/data-sheets/U2049XA-Option-TVA-UL205060-X-Series-USBLAN-Wide-Dynamic-Range-Peak-Average-Power.pdf"
+    kind: "vendor"
+  - title: "N6700 Modular Power System Specifications Guide — N6705C/N6752A"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04533/technical-specifications/9018-04533.pdf"
     kind: "vendor"
 progressId: "dvt:bench-capability"
 crossLinks:
@@ -124,7 +140,7 @@ N6705C/N6752A readback을 DUT junction temperature나 완전 동시 V/I capture�
 
 <LessonLayer level="theory" title="표준 적용 범위와 module 책임을 분리한다">
 
-TS 36.101 V17.6.0 clause 5.5는 E-UTRA operating band를, clause 6은 완성 UE transmitter의 minimum requirement를 다룬다. TS 36.521-1 V17.7.0 clause 6은 해당 UE transmitter conformance 조건을 제공한다. 이 문서들이 개별 PAMiD의 gain·PAE·EVM allocation을 직접 정하는 것은 아니다.
+TS 36.101 V17.6.0 clause 5.5는 E-UTRA operating band를, clause 6은 완성 UE transmitter의 minimum requirement를 다룬다. TS 36.521-1 V17.6.1 clause 4는 공통 conformance reference condition과 test tolerance 원칙을, 6.2.2와 6.6.2.3은 각각 UE maximum output power와 ACLR test context를 제공한다. 이 문서들이 개별 PAMiD의 gain·PAE·EVM allocation을 직접 정하는 것은 아니다.
 
 이 경로의 대표 사례는 **Band 3 계열 1.7 GHz UE uplink, LTE 20 MHz FDD**다. 실제 EARFCN이나 고객 specification을 복제하지 않고, page에 제시되는 module target은 모두 명시적인 **가상 project allocation**이다. 따라서 capability 질문은 두 층으로 기록한다.
 

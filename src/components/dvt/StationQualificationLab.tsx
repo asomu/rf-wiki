@@ -140,6 +140,7 @@ const STATION_MANIFEST: DvtStationManifest = {
       accessoryEvidenceId: 'edu-forward-coupler', assetId: 'edu-sensor-u2061xa',
       label: 'Forward directional coupler', model: 'EDU-COUPLER-30', serialOrRedactedId: 'EDU-REDACTED-COUPLER',
       maximumFrequencyHz: 6_000_000_000, maximumInputPowerDbm: 47, impedanceOhms: 50,
+      role: 'forward-coupler', measurementPlane: 'dut-input-path',
       ratingEvidenceId: 'edu-coupler-rating-sheet', ratingState: 'unverified',
       unverifiedConditions: ['Coupling factor, directivity, port direction and power derating require inspection and verification.'],
     },
@@ -147,6 +148,7 @@ const STATION_MANIFEST: DvtStationManifest = {
       accessoryEvidenceId: 'edu-output-attenuator', assetId: 'edu-analyzer-n9020b',
       label: 'Output path attenuator', model: 'EDU-ATT-30', serialOrRedactedId: 'EDU-REDACTED-ATT',
       maximumFrequencyHz: 6_000_000_000, maximumInputPowerDbm: 47, impedanceOhms: 50,
+      role: 'output-attenuator', measurementPlane: 'dut-output-path',
       ratingEvidenceId: 'edu-attenuator-rating-sheet', ratingState: 'unverified',
       unverifiedConditions: ['Actual installed accessory identity and power derating require inspection.'],
     },
@@ -154,6 +156,7 @@ const STATION_MANIFEST: DvtStationManifest = {
       accessoryEvidenceId: 'edu-dc-block', assetId: 'edu-analyzer-n9020b',
       label: 'DC block', model: 'EDU-DC-BLOCK', serialOrRedactedId: 'EDU-REDACTED-DCB',
       maximumFrequencyHz: 6_000_000_000, maximumInputPowerDbm: 36, impedanceOhms: 50,
+      role: 'dc-block', measurementPlane: 'analyzer-input',
       ratingEvidenceId: 'edu-dc-block-rating-sheet', ratingState: 'unverified',
       unverifiedConditions: ['Frequency range, voltage rating and insertion loss require inspection and verification.'],
     },
@@ -161,6 +164,7 @@ const STATION_MANIFEST: DvtStationManifest = {
       accessoryEvidenceId: 'edu-50ohm-load', assetId: 'edu-source-n5182b',
       label: '50 Ω termination', model: 'EDU-LOAD-50', serialOrRedactedId: 'EDU-REDACTED-LOAD',
       maximumFrequencyHz: 6_000_000_000, maximumInputPowerDbm: 30, impedanceOhms: 50,
+      role: 'termination', measurementPlane: 'source-output',
       ratingEvidenceId: 'edu-load-rating-sheet', ratingState: 'unverified',
       unverifiedConditions: ['Return loss and safe continuous-power rating require verification.'],
     },
@@ -168,6 +172,7 @@ const STATION_MANIFEST: DvtStationManifest = {
       accessoryEvidenceId: 'edu-rf-cable-set', assetId: 'edu-vna-e5080b',
       label: 'RF cable set', model: 'EDU-CABLE-SET', serialOrRedactedId: 'EDU-REDACTED-CABLES',
       maximumFrequencyHz: 6_000_000_000, maximumInputPowerDbm: 47, impedanceOhms: 50,
+      role: 'rf-cable', measurementPlane: 'vna-reference-plane',
       ratingEvidenceId: 'edu-cable-inspection-record', ratingState: 'unverified',
       unverifiedConditions: ['Cable identity, flex state, connector wear and phase stability require inspection.'],
     },
@@ -175,12 +180,14 @@ const STATION_MANIFEST: DvtStationManifest = {
       accessoryEvidenceId: 'edu-cal-kit', assetId: 'edu-vna-e5080b',
       label: 'VNA calibration kit', model: 'EDU-CAL-KIT', serialOrRedactedId: 'EDU-REDACTED-CALKIT',
       maximumFrequencyHz: 6_000_000_000, impedanceOhms: 50,
+      role: 'calibration-kit', measurementPlane: 'vna-reference-plane',
       ratingEvidenceId: 'edu-cal-kit-definition', ratingState: 'unverified',
       unverifiedConditions: ['Cal-kit model, serial, definition and connector condition require query-back and inspection.'],
     },
     {
       accessoryEvidenceId: 'edu-torque-tool', assetId: 'edu-vna-e5080b',
       label: 'RF connector torque tool', model: 'EDU-TORQUE', serialOrRedactedId: 'EDU-REDACTED-TORQUE',
+      role: 'torque-tool', measurementPlane: 'connector-interface',
       ratingEvidenceId: 'edu-torque-calibration-record', ratingState: 'unverified',
       unverifiedConditions: ['Torque setting, tool calibration status and connector-family applicability require inspection.'],
     },
@@ -257,7 +264,13 @@ const STATION_MANIFEST: DvtStationManifest = {
 
 const REQUIRED_CAPABILITIES = STATION_MANIFEST.capabilities.map(({ id }) => id);
 
-function QualificationControls({ onCommit }: { onCommit: () => void }) {
+function QualificationControls({
+  onCommit,
+  onReviewProgress,
+}: {
+  onCommit: () => void;
+  onReviewProgress: (reviewedCount: number) => void;
+}) {
   const reportInteraction = useLabControlInteraction();
   const [reviewed, setReviewed] = useState<ReadonlySet<string>>(() => new Set());
   const allReviewed = reviewed.size === REQUIRED_CAPABILITIES.length;
@@ -267,6 +280,7 @@ function QualificationControls({ onCommit }: { onCommit: () => void }) {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      onReviewProgress(next.size);
       return next;
     });
   }
@@ -281,6 +295,7 @@ function QualificationControls({ onCommit }: { onCommit: () => void }) {
             checked={reviewed.has(capability.id)}
             onChange={() => toggle(capability.id)}
           />
+          <span className="dvt-choice-indicator" aria-hidden="true" />
           <span>
             <strong>{capability.label}</strong>
             <small>{capability.evidence}</small>
@@ -304,6 +319,7 @@ function QualificationControls({ onCommit }: { onCommit: () => void }) {
 
 export function StationQualificationLab({ progressId }: DvtLabProps) {
   const [committed, setCommitted] = useState(false);
+  const [reviewedCount, setReviewedCount] = useState(0);
   const result = useMemo(
     () => evaluateStationReadiness(
       STATION_MANIFEST,
@@ -346,7 +362,7 @@ export function StationQualificationLab({ progressId }: DvtLabProps) {
     },
   ];
   const ledger: LedgerEntry[] = [
-    { label: '변경', value: '네 capability evidence를 순서대로 검토하고 station 판정을 commit' },
+    { label: '변경', value: committed ? '4/4 capability evidence 검토 후 station 판정을 commit' : `${reviewedCount}/4 capability evidence 검토` },
     { label: '직접 효과', value: `Required capability reduction → ${resultLabel} · 5 asset query-back provenance records`, tone: result.state === 'ready' ? 'active' : 'warning' },
     { label: '화면 결과', value: blocker ? `${blocker.label}: ${blocker.reasons.join('; ')}` : '모든 required capability의 effective state가 ready' },
     { label: '비용·한계', value: '교육용 station manifest · 실제 calibration certificate, safety policy와 장비 option query를 대신하지 않음', tone: 'warning' },
@@ -363,7 +379,10 @@ export function StationQualificationLab({ progressId }: DvtLabProps) {
       description="Calibration, verification, working-limit headroom과 abort protection을 독립 capability evidence로 검토한 뒤 station 사용 가능 여부를 판정합니다."
       activeStages={['source', 'dut', 'acquisition', 'dsp', 'display']}
       stageMap={{ 'station-qualification-commit': ['source', 'dut', 'acquisition', 'dsp', 'display'] }}
-      controls={<QualificationControls onCommit={() => setCommitted(true)} />}
+      controls={<QualificationControls onCommit={() => setCommitted(true)} onReviewProgress={setReviewedCount} />}
+      layoutVariant="prediction-first"
+      controlsTitle="역량 근거"
+      controlsHint="필수 근거 검토"
       ledger={ledger}
       prediction={{
         id: 'station-readiness-gate',
@@ -396,7 +415,7 @@ export function StationQualificationLab({ progressId }: DvtLabProps) {
       ) : (
         <section className="dvt-evidence-placeholder" aria-live="polite">
           <h3>Station evidence 잠김</h3>
-          <p>예측을 고정하고 네 capability evidence를 모두 검토한 뒤 보고서를 생성하세요.</p>
+          <p>예측을 고정하고 네 capability evidence를 모두 검토한 뒤 보고서를 생성하세요. 현재 {reviewedCount}/4 검토.</p>
         </section>
       )}
     </LabShell>

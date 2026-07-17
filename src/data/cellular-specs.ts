@@ -50,8 +50,8 @@ export const cellularSpecRegistry = {
     url: 'https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/17.06.00_60/ts_136101v170600p.pdf', applicability: 'LTE UE ACLR, SEM and spurious emissions', kind: 'normative',
   },
   'lte-36-521-1-6': {
-    specification: '3GPP TS 36.521-1', version: '17.7.0', clause: '6', title: 'LTE UE transmitter conformance tests',
-    url: 'https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.07.00_60/ts_13652101v170700p.pdf', applicability: 'LTE UE conformance conditions; not a PAMiD component target', kind: 'conformance',
+    specification: '3GPP TS 36.521-1', version: '17.6.1', clause: '4, 6.2.2, 6.6.2.3', title: 'General conformance conditions, UE maximum output power, and ACLR',
+    url: 'https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.06.01_60/ts_13652101v170601p.pdf', applicability: 'LTE UE conformance setup, output-power, and ACLR context; not a PAMiD component target', kind: 'conformance',
   },
   'nr-38-211-4': {
     specification: '3GPP TS 38.211', version: '17.7.0', clause: '4', title: 'Numerologies, frame structure and resource grids',

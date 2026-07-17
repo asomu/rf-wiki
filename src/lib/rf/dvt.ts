@@ -17,12 +17,15 @@ import type {
   DvtDiagnosticPlan,
   DvtDiagnosticProgress,
   DvtEvidenceClassification,
+  DvtIndependentIsolationEvidence,
   DvtMetricEvidence,
   DvtMetricEvidenceId,
   DvtMeasurementPoint,
   DvtMeasurementValidation,
   DvtMeasurementValidationContext,
   DvtNonnegativeUncertainty,
+  DvtObservedCaseEvidence,
+  DvtObservedEvidenceComparison,
   DvtPaExpectedValues,
   DvtQuantity,
   DvtSignedCovarianceContribution,
@@ -34,6 +37,12 @@ import type {
 } from '../../types/dvt';
 import { DEFAULT_EDUCATIONAL_PA, evaluatePa, rappOneDbCompressionPoint } from './pa';
 import { dbmToWatts, powerRatioToDb } from './units';
+
+/** Canonical envelope version used before computing educational provenance checksums. */
+export const DVT_EVIDENCE_CANONICAL_PAYLOAD_VERSION = 'dvt-evidence-canonical-v1' as const;
+
+/** FNV-1a is deterministic for this lab, but it is not cryptographic or tamper-proof. */
+export const DVT_EVIDENCE_CHECKSUM_DESCRIPTION = 'FNV-1a 32-bit deterministic educational checksum (non-security)' as const;
 
 export function evaluateStationReadiness(
   manifest: DvtStationManifest,
@@ -80,6 +89,18 @@ export function evaluateStationReadiness(
       effective.effectiveState = 'conditional';
       if (!effective.reasons.includes(reason)) effective.reasons.push(reason);
     }
+  }
+
+  const manifestIdGroups = [
+    manifest.capabilities.map(({ id }) => id),
+    manifest.assets.map(({ assetId }) => assetId),
+    manifest.applications.map(({ applicationEvidenceId }) => applicationEvidenceId),
+    manifest.accessories.map(({ accessoryEvidenceId }) => accessoryEvidenceId),
+    manifest.calibrations.map(({ calibrationEvidenceId }) => calibrationEvidenceId),
+    manifest.verificationIds,
+  ];
+  if (manifestIdGroups.some((ids) => ids.some((id) => id.trim().length === 0) || new Set(ids).size !== ids.length)) {
+    for (const id of requiredCapabilityIds) block(id, 'station manifest IDs must be nonempty and unique within each registry');
   }
 
   for (const id of requiredCapabilityIds) {
@@ -190,8 +211,18 @@ export function evaluateStationReadiness(
     for (const accessoryId of capability.requiredAccessoryIds) {
       const accessory = accessoryById.get(accessoryId);
       if (!accessory) block(id, `required accessory ${accessoryId} is missing`);
-      else if (accessory.ratingState === 'unverified') {
-        condition(id, `required accessory ${accessoryId} exists but rating is unverified`);
+      else {
+        const ratings = [accessory.maximumFrequencyHz, accessory.maximumInputPowerDbm, accessory.impedanceOhms]
+          .filter((value): value is number => value !== undefined);
+        if (ratings.some((value) => !Number.isFinite(value) || value <= 0)) {
+          block(id, `required accessory ${accessoryId} contains a non-finite or non-positive rating`);
+        }
+        if (accessory.ratingEvidenceId.trim().length === 0) {
+          block(id, `required accessory ${accessoryId} rating evidence is missing`);
+        }
+        if (accessory.ratingState === 'unverified') {
+          condition(id, `required accessory ${accessoryId} exists but rating is unverified`);
+        }
       }
     }
     for (const applicationId of capability.requiredApplicationIds) {
@@ -275,6 +306,13 @@ export function validateMeasurementPoint(
     point.waveform.sourceSetpointDbm,
     point.triggerDelaySeconds,
     point.dwellSeconds,
+    point.analyzerHeadroom.strongestConnectorSignalDbm,
+    point.analyzerHeadroom.connectorTotalPowerDbm,
+    point.analyzerHeadroom.inputAttenuationDb,
+    point.analyzerHeadroom.mixerTotalPowerDbm,
+    point.analyzerHeadroom.stationVerifiedMixerOperatingLimitDbm,
+    point.analyzerHeadroom.mixerHeadroomDb,
+    point.analyzerHeadroom.referenceLevelDbm,
     ...(point.acquisitionPolicy.mode === 'simultaneous'
       ? [point.acquisitionPolicy.minimumRequiredApertureOverlapSeconds]
       : [
@@ -374,6 +412,7 @@ export function validateMeasurementPoint(
   if (point.instrumentErrors.length > 0) {
     invalidReasons.push('instrument error queue is not empty');
   }
+  validateAnalyzerHeadroom(point, context, invalidReasons);
   validateMeasurementContext(point, context, invalidReasons, inconclusiveReasons);
   validateCleanupEvidence(point, invalidReasons, inconclusiveReasons);
   validateMetricEvidence(point, context, invalidReasons, inconclusiveReasons);
@@ -424,6 +463,196 @@ function calibrationIsValidAt(
     acquiredAtMs >= validFromMs && acquiredAtMs <= validThroughMs;
 }
 
+function validateAccessoryForPoint(
+  accessory: DvtStationManifest['accessories'][number],
+  point: DvtMeasurementPoint,
+  incidentPowerDbm: number,
+  expectedRole: DvtStationManifest['accessories'][number]['role'],
+  expectedPlane: DvtStationManifest['accessories'][number]['measurementPlane'],
+  invalidReasons: string[],
+): void {
+  if (accessory.ratingState !== 'verified') invalidReasons.push(`${accessory.accessoryEvidenceId} accessory rating is unverified`);
+  if (accessory.role !== expectedRole) invalidReasons.push(`${accessory.accessoryEvidenceId} accessory role is incompatible with the measurement path`);
+  if (accessory.measurementPlane !== expectedPlane) invalidReasons.push(`${accessory.accessoryEvidenceId} accessory reference plane is incompatible with the measurement path`);
+  if (!Number.isFinite(accessory.maximumFrequencyHz) || (accessory.maximumFrequencyHz ?? 0) <= 0) {
+    invalidReasons.push(`${accessory.accessoryEvidenceId} maximum frequency must be finite and positive`);
+  } else if (accessory.maximumFrequencyHz! < point.waveform.centerFrequencyHz) {
+    invalidReasons.push(`${accessory.accessoryEvidenceId} frequency rating does not cover the measurement point`);
+  }
+  if (!Number.isFinite(accessory.maximumInputPowerDbm)) {
+    invalidReasons.push(`${accessory.accessoryEvidenceId} maximum input power must be finite`);
+  } else if (accessory.maximumInputPowerDbm! < incidentPowerDbm) {
+    invalidReasons.push(`${accessory.accessoryEvidenceId} power rating is below the measurement-path power`);
+  }
+  if (!Number.isFinite(accessory.impedanceOhms) || (accessory.impedanceOhms ?? 0) <= 0) {
+    invalidReasons.push(`${accessory.accessoryEvidenceId} impedance must be finite and positive`);
+  } else if (Math.abs(accessory.impedanceOhms! - 50) > 1e-9) {
+    invalidReasons.push(`${accessory.accessoryEvidenceId} impedance does not match the 50 ohm point contract`);
+  }
+}
+
+function validateAnalyzerHeadroom(
+  point: DvtMeasurementPoint,
+  context: DvtMeasurementValidationContext,
+  invalidReasons: string[],
+): void {
+  const headroom = point.analyzerHeadroom;
+  if (headroom.evidenceId.trim().length === 0) invalidReasons.push('analyzer headroom evidence identity is missing');
+  if (headroom.operatingLimitEvidenceId.trim().length === 0) {
+    invalidReasons.push('analyzer operating-limit evidence identity is missing');
+  }
+  if (headroom.residualState.evidenceId.trim().length === 0) {
+    invalidReasons.push('analyzer residual-state evidence identity is missing');
+  }
+  if (headroom.strongestConnectorSignalSourceId.trim().length === 0) {
+    invalidReasons.push('strongest connector signal source identity is missing');
+  }
+  if (headroom.inputAttenuationDb < 0) invalidReasons.push('analyzer input attenuation must be non-negative');
+  const analyzerInputs = point.metricEvidence.flatMap<{
+    evidenceId: string;
+    powerDbm: number;
+    assetId: string;
+  }>((evidence) => {
+    if (evidence.metric === 'pout') return [{ evidenceId: evidence.evidenceId, powerDbm: evidence.rawPowerDbm, assetId: evidence.instrumentAssetId }];
+    if (evidence.metric === 'spectrum') return [{ evidenceId: evidence.evidenceId, powerDbm: evidence.rawChannelPowerDbm, assetId: evidence.instrumentAssetId }];
+    return [];
+  });
+  if (
+    analyzerInputs.length === 0 &&
+    !point.requiredEvidenceIds.some((evidenceId) => evidenceId === 'pout' || evidenceId === 'spectrum')
+  ) invalidReasons.push('analyzer headroom has no analyzer-input power record');
+  if (analyzerInputs.length === 0) return;
+  const strongest = analyzerInputs.reduce((current, candidate) => (
+    candidate.powerDbm > current.powerDbm ? candidate : current
+  ), { evidenceId: '', powerDbm: Number.NEGATIVE_INFINITY, assetId: '' });
+  if (Number.isFinite(strongest.powerDbm) && Math.abs(strongest.powerDbm - headroom.strongestConnectorSignalDbm) > 1e-9) {
+    invalidReasons.push('strongest connector signal does not match the analyzer metric records');
+  }
+  if (strongest.evidenceId !== '' && headroom.strongestConnectorSignalSourceId !== strongest.evidenceId) {
+    invalidReasons.push('strongest connector signal source does not match the dominant analyzer metric record');
+  }
+  if (headroom.connectorTotalPowerDbm + 1e-9 < headroom.strongestConnectorSignalDbm) {
+    invalidReasons.push('connector total power cannot be below its strongest signal');
+  }
+  if (Math.abs(
+    headroom.mixerTotalPowerDbm - (headroom.connectorTotalPowerDbm - headroom.inputAttenuationDb)
+  ) > 1e-9) invalidReasons.push('mixer total power must equal connector total power minus input attenuation');
+  if (Math.abs(
+    headroom.mixerHeadroomDb - (
+      headroom.stationVerifiedMixerOperatingLimitDbm - headroom.mixerTotalPowerDbm
+    )
+  ) > 1e-9) invalidReasons.push('mixer headroom must be measured against the station-verified mixer boundary');
+  if (headroom.mixerHeadroomDb < 0) invalidReasons.push('mixer total power exceeds the station-verified operating boundary');
+  if (headroom.residualState.status !== 'verified-in-range') {
+    invalidReasons.push('IF/ADC or attenuation-step residual state is not verified in range');
+  }
+  const analyzerAsset = context.stationManifest.assets.find(({ assetId }) => assetId === strongest.assetId);
+  if (analyzerAsset?.role !== 'analyzer') {
+    invalidReasons.push('analyzer headroom dominant metric does not resolve to a registered analyzer asset');
+  }
+  const headroomRecord = context.externalEvidenceRegistry?.find(({ evidenceId }) => evidenceId === headroom.evidenceId);
+  if (
+    headroomRecord?.evidenceKind !== 'analyzer-headroom' ||
+    headroomRecord.sourceMeasurementPointId !== point.pointId ||
+    headroomRecord.sourceAssetId !== strongest.assetId ||
+    headroomRecord.analyzerHeadroom === undefined ||
+    !structurallyEqual(headroomRecord.analyzerHeadroom, headroom)
+  ) invalidReasons.push('analyzer headroom requires an exact dedicated point registry record');
+
+  const operatingLimitRecord = context.externalEvidenceRegistry?.find(({ evidenceId }) => (
+    evidenceId === headroom.operatingLimitEvidenceId
+  ));
+  const operatingObservedAt = Date.parse(operatingLimitRecord?.observedAtIso ?? '');
+  const operatingValidFrom = Date.parse(operatingLimitRecord?.validFromIso ?? '');
+  const operatingValidThrough = Date.parse(operatingLimitRecord?.validThroughIso ?? '');
+  const pointAcquiredAt = Date.parse(point.acquiredAtIso);
+  if (
+    operatingLimitRecord?.evidenceKind !== 'analyzer-operating-limit' ||
+    operatingLimitRecord.sourceMeasurementPointId !== point.pointId ||
+    operatingLimitRecord.sourceAssetId !== strongest.assetId ||
+    operatingLimitRecord.metric !== 'analyzer-operating-boundary' ||
+    operatingLimitRecord.value !== headroom.stationVerifiedMixerOperatingLimitDbm ||
+    operatingLimitRecord.unit !== 'dBm' ||
+    operatingLimitRecord.verificationStatus !== 'verified' ||
+    operatingLimitRecord.applicability !== 'mixer-operating-boundary' ||
+    operatingLimitRecord.instrumentQueryBackEvidenceId !== analyzerAsset?.queryBack.evidenceId ||
+    analyzerAsset?.queryBack.status !== 'verified' ||
+    operatingLimitRecord.qualificationEvidenceId === undefined ||
+    !context.stationManifest.verificationIds.includes(operatingLimitRecord.qualificationEvidenceId) ||
+    !Number.isFinite(operatingObservedAt) ||
+    !Number.isFinite(operatingValidFrom) ||
+    !Number.isFinite(operatingValidThrough) ||
+    !Number.isFinite(pointAcquiredAt) ||
+    operatingValidFrom > operatingObservedAt ||
+    operatingObservedAt > pointAcquiredAt ||
+    pointAcquiredAt > operatingValidThrough
+  ) invalidReasons.push('analyzer operating limit requires exact valid typed station provenance');
+
+  const residualRecord = context.externalEvidenceRegistry?.find(({ evidenceId }) => (
+    evidenceId === headroom.residualState.evidenceId
+  ));
+  const expectedResidualApplicability = headroom.residualState.kind === 'if-adc-status'
+    ? 'if-adc-input-range'
+    : 'attenuation-step-stability';
+  const residualObservedAt = Date.parse(residualRecord?.observedAtIso ?? '');
+  const configuredAt = Date.parse(point.configuredAtIso);
+  if (
+    residualRecord?.evidenceKind !== 'analyzer-residual-status' ||
+    residualRecord.sourceMeasurementPointId !== point.pointId ||
+    residualRecord.sourceAssetId !== strongest.assetId ||
+    residualRecord.metric !== 'analyzer-residual-status' ||
+    residualRecord.unit !== 'state' ||
+    residualRecord.value !== 0 ||
+    residualRecord.verificationStatus !== 'verified' ||
+    residualRecord.analyzerResidualKind !== headroom.residualState.kind ||
+    residualRecord.analyzerResidualStatus !== headroom.residualState.status ||
+    residualRecord.applicability !== expectedResidualApplicability ||
+    residualRecord.instrumentQueryBackEvidenceId !== analyzerAsset?.queryBack.evidenceId ||
+    residualRecord.observedAtIso !== headroom.residualState.observedAtIso ||
+    !Number.isFinite(residualObservedAt) ||
+    !Number.isFinite(configuredAt) ||
+    !Number.isFinite(pointAcquiredAt) ||
+    residualObservedAt < configuredAt ||
+    residualObservedAt > pointAcquiredAt
+  ) invalidReasons.push('analyzer residual state requires exact typed point and asset provenance');
+}
+
+function validateEvmProvenance(
+  evidence: Extract<DvtMetricEvidence, { metric: 'evm' }>,
+  point: DvtMeasurementPoint,
+  context: DvtMeasurementValidationContext,
+  invalidReasons: string[],
+): void {
+  const application = context.stationManifest.applications.find(({ applicationEvidenceId }) => (
+    applicationEvidenceId === evidence.applicationEvidenceId
+  ));
+  const instrument = context.stationManifest.assets.find(({ assetId }) => assetId === evidence.instrumentAssetId);
+  if (!application) {
+    invalidReasons.push('EVM application evidence is not registered in the station manifest');
+  } else {
+    if (application.assetId !== evidence.instrumentAssetId) invalidReasons.push('EVM application does not belong to the measurement instrument');
+    if (application.queryBackEvidenceId !== evidence.instrumentQueryBackEvidenceId) invalidReasons.push('EVM application query-back does not match the measurement instrument');
+    if (application.licenseState !== 'verified' || evidence.licenseState !== 'verified') invalidReasons.push('EVM application license is not verified');
+    if (application.licenseState !== evidence.licenseState) invalidReasons.push('EVM license state does not match the application manifest');
+  }
+  if (instrument?.queryBack.evidenceId !== evidence.instrumentQueryBackEvidenceId) {
+    invalidReasons.push('EVM instrument query-back does not match the current manifest');
+  }
+  if (evidence.referenceWaveformId !== point.waveform.waveformId) {
+    invalidReasons.push('EVM reference waveform does not match the current measurement waveform');
+  }
+  const residual = context.externalEvidenceRegistry?.find(({ evidenceId }) => evidenceId === evidence.residualEvidenceId);
+  if (!residual || residual.evidenceKind !== 'diagnostic-observation' || residual.metric !== 'evm-residual') {
+    invalidReasons.push('EVM residual evidence is missing from the typed registry');
+  } else {
+    if (residual.sourceAssetId !== evidence.instrumentAssetId) invalidReasons.push('EVM residual instrument does not match the EVM record');
+    if (residual.instrumentQueryBackEvidenceId !== evidence.instrumentQueryBackEvidenceId) invalidReasons.push('EVM residual query-back does not match the EVM record');
+    if (residual.applicationEvidenceId !== evidence.applicationEvidenceId) invalidReasons.push('EVM residual application does not match the EVM record');
+    if (residual.waveformId !== evidence.referenceWaveformId) invalidReasons.push('EVM residual waveform does not match the EVM record');
+    if (residual.unit !== 'percent' || residual.value !== evidence.residualEvmPercent) invalidReasons.push('EVM residual value does not match the typed registry');
+  }
+}
+
 function validateCleanupEvidence(
   point: DvtMeasurementPoint,
   invalidReasons: string[],
@@ -472,7 +701,7 @@ function validateMetricEvidence(
       continue;
     }
     evidenceById.set(evidence.evidenceId, evidence);
-    validateEvidenceStructure(evidence, context, invalidReasons);
+    validateEvidenceStructure(evidence, point, context, invalidReasons);
   }
 
   const requiredEvidence: DvtMetricEvidence[] = [];
@@ -557,6 +786,7 @@ function validateMetricEvidence(
 
 function validateEvidenceStructure(
   evidence: DvtMetricEvidence,
+  point: DvtMeasurementPoint,
   context: DvtMeasurementValidationContext,
   invalidReasons: string[],
 ): void {
@@ -661,7 +891,12 @@ function validateEvidenceStructure(
         accessoryEvidenceId === evidence.coupler.accessoryEvidenceId
       ));
       if (!couplerAccessory) invalidReasons.push('Pin forward coupler is not registered in the station manifest');
-      else if (couplerAccessory.ratingState !== 'verified') invalidReasons.push('Pin forward coupler rating is unverified');
+      else {
+        validateAccessoryForPoint(couplerAccessory, point, evidence.correctedPowerDbm, 'forward-coupler', 'dut-input-path', invalidReasons);
+        if (couplerAccessory.assetId !== evidence.instrumentAssetId) {
+          invalidReasons.push('Pin forward coupler asset does not match the power-sensor evidence instrument');
+        }
+      }
       if (evidence.coupler.direction !== 'forward') invalidReasons.push('Pin coupler direction must be forward');
       if (new Set([
         evidence.coupler.inputPort,
@@ -701,8 +936,11 @@ function validateEvidenceStructure(
           accessoryEvidenceId === accessoryId
         ));
         if (!accessory) invalidReasons.push(`Pout output-path accessory ${accessoryId} is not registered`);
-        else if (accessory.ratingState !== 'verified') {
-          invalidReasons.push(`Pout output-path accessory ${accessoryId} rating is unverified`);
+        else {
+          validateAccessoryForPoint(accessory, point, evidence.correctedPowerDbm, 'output-attenuator', 'dut-output-path', invalidReasons);
+          if (accessory.assetId !== evidence.instrumentAssetId) {
+            invalidReasons.push(`Pout output-path accessory ${accessoryId} asset does not match the analyzer evidence instrument`);
+          }
         }
       }
       if (evidence.outputPath.expandedUncertaintyDb < 0) {
@@ -774,6 +1012,7 @@ function validateEvidenceStructure(
         evidence.normalizationReference,
         evidence.residualEvidenceId,
       ].some((value) => value.trim().length === 0)) invalidReasons.push('EVM analysis conditions are incomplete');
+      validateEvmProvenance(evidence, point, context, invalidReasons);
       break;
     case 'tx-noise':
       values.push(
@@ -1092,7 +1331,7 @@ export function decideWithGuardband(request: DvtDecisionRequest): DvtDecision {
       throw new RangeError('upper-bound decisions require only an upper limit');
     }
     marginValue = upperValue - guardbandedUpperValue;
-    intervalVerdict = guardbandedUpperValue <= upperValue
+    intervalVerdict = guardbandedUpperValue < upperValue
       ? 'pass'
       : guardbandedLowerValue > upperValue
         ? 'fail'
@@ -1102,7 +1341,7 @@ export function decideWithGuardband(request: DvtDecisionRequest): DvtDecision {
       throw new RangeError('lower-bound decisions require only a lower limit');
     }
     marginValue = guardbandedLowerValue - lowerValue;
-    intervalVerdict = guardbandedLowerValue >= lowerValue
+    intervalVerdict = guardbandedLowerValue > lowerValue
       ? 'pass'
       : guardbandedUpperValue < lowerValue
         ? 'fail'
@@ -1116,7 +1355,7 @@ export function decideWithGuardband(request: DvtDecisionRequest): DvtDecision {
       guardbandedLowerValue - lowerValue,
       upperValue - guardbandedUpperValue,
     );
-    intervalVerdict = guardbandedLowerValue >= lowerValue && guardbandedUpperValue <= upperValue
+    intervalVerdict = guardbandedLowerValue > lowerValue && guardbandedUpperValue < upperValue
       ? 'pass'
       : guardbandedUpperValue < lowerValue || guardbandedLowerValue > upperValue
         ? 'fail'
@@ -1209,6 +1448,7 @@ export function evaluateDesenseRiskBudget(
     evidence.analyzerFloorDensityDbmPerHz,
     evidence.floorExpandedUncertaintyDb,
     evidence.minimumFloorHeadroomDb,
+    evidence.isolationExcitation.powerDbm,
     noiseMeasurementValue(evidence.noiseMeasurement),
   ];
   if (!numericValues.every(Number.isFinite)) reasons.push('desense risk evidence contains a non-finite value');
@@ -1256,6 +1496,16 @@ export function evaluateDesenseRiskBudget(
   ) reasons.push('noise, isolation, floor uncertainty, and minimum headroom must be non-negative');
   if (evidence.noiseCorrectionId.trim().length === 0) reasons.push('noise correction identity is missing');
   if (evidence.isolationEvidenceId.trim().length === 0) reasons.push('isolation evidence identity is missing');
+  if (!Number.isFinite(Date.parse(evidence.isolationAcquiredAtIso))) reasons.push('isolation acquisition timestamp is invalid');
+  if (evidence.isolationCalibrationEvidenceId.trim().length === 0) reasons.push('isolation calibration evidence identity is missing');
+  if (evidence.isolationDutControlStateId.trim().length === 0) reasons.push('isolation DUT control-state identity is missing');
+  if (evidence.isolationDutPathState !== 'small-signal-passive-path' || evidence.isolationDutBiasState !== 'off') {
+    reasons.push('isolation DUT path and bias must describe the independent small-signal passive-path state');
+  }
+  if (evidence.isolationExcitation.kind !== 'small-signal-cw' || evidence.isolationExcitation.sourceAssetId.trim().length === 0) {
+    reasons.push('isolation excitation must be an identified small-signal CW source');
+  }
+  if (evidence.isolationApplicability !== 'small-signal-path-isolation-only') reasons.push('isolation applicability must remain small-signal only');
   if (evidence.floorEvidenceId.trim().length === 0) reasons.push('analyzer-floor evidence identity is missing');
   if (evidence.terminatedBaselineEvidenceId.trim().length === 0) {
     reasons.push('source-terminated baseline evidence identity is missing');
@@ -1336,6 +1586,7 @@ export function validateDesenseEvidenceAgainstMeasurementPoint(
   evidence: DvtDesenseRiskEvidence,
   point: DvtMeasurementPoint,
   manifest: DvtStationManifest,
+  independentIsolation?: DvtConclusionSourceRecords['independentIsolationEvidence'][number],
 ): DvtConclusionLinkageValidation {
   const reasons: string[] = [];
   const pout = point.metricEvidence.find((record) => record.evidenceId === 'pout');
@@ -1399,6 +1650,89 @@ export function validateDesenseEvidenceAgainstMeasurementPoint(
   if (!manifest.verificationIds.includes(evidence.isolationEvidenceId)) {
     reasons.push('desense isolation evidence is not registered in the station manifest');
   }
+  if (independentIsolation !== undefined) {
+    const expectedIsolation = {
+      evidenceId: evidence.isolationEvidenceId,
+      measurementPointId: evidence.measurementPointId,
+      valueDb: evidence.txToRxIsolationDb,
+      frequencyHz: evidence.isolationMeasurementFrequencyHz,
+      txPlane: evidence.isolationTxPlane,
+      rxPlane: evidence.isolationRxPlane,
+      direction: evidence.isolationDirection,
+      dutPathState: evidence.isolationDutPathState,
+      dutControlStateId: evidence.isolationDutControlStateId,
+      dutBiasState: evidence.isolationDutBiasState,
+      acquiredAtIso: evidence.isolationAcquiredAtIso,
+      calibrationEvidenceId: evidence.isolationCalibrationEvidenceId,
+      expandedUncertaintyDb: evidence.isolationExpandedUncertaintyDb,
+      excitation: evidence.isolationExcitation,
+      applicability: evidence.isolationApplicability,
+    };
+    if (!structurallyEqual(independentIsolation, expectedIsolation)) {
+      reasons.push('desense isolation fields do not exactly match the independent isolation source record');
+    }
+  }
+  return { valid: reasons.length === 0, reasons };
+}
+
+export function validateIndependentIsolationEvidence(
+  isolation: DvtIndependentIsolationEvidence,
+  point: DvtMeasurementPoint,
+  manifest: DvtStationManifest,
+): DvtConclusionLinkageValidation {
+  const reasons: string[] = [];
+  const acquiredAt = Date.parse(isolation.acquiredAtIso);
+  const finitePositive = [
+    isolation.valueDb,
+    isolation.frequencyHz,
+    isolation.expandedUncertaintyDb,
+  ].every((value) => Number.isFinite(value) && value > 0);
+  if (isolation.evidenceId.trim().length === 0) reasons.push('independent isolation evidence ID is missing');
+  if (isolation.measurementPointId !== point.pointId) reasons.push('independent isolation measurement point does not match the synchronized point');
+  if (!finitePositive) reasons.push('independent isolation value, frequency, and uncertainty must be finite and positive');
+  if (!Number.isFinite(isolation.excitation.powerDbm)) reasons.push('independent isolation excitation power must be finite');
+  if (!Number.isFinite(acquiredAt)) reasons.push('independent isolation acquisition timestamp is invalid');
+  if (isolation.txPlane.trim().length === 0 || isolation.rxPlane.trim().length === 0) {
+    reasons.push('independent isolation reference planes are missing');
+  }
+  if (isolation.dutControlStateId.trim().length === 0) reasons.push('independent isolation DUT control state is missing');
+  if (!manifest.verificationIds.includes(isolation.evidenceId)) {
+    reasons.push('independent isolation evidence is not registered in the station manifest');
+  }
+
+  const source = manifest.assets.find(({ assetId }) => assetId === isolation.excitation.sourceAssetId);
+  if (!source) {
+    reasons.push('independent isolation excitation source asset is missing from the station manifest');
+  } else {
+    if (isolation.excitation.sourceRole !== 'stimulus-source' || source.role !== 'network-analyzer') {
+      reasons.push('independent isolation excitation must use the registered network-analyzer stimulus-source role');
+    }
+    if (
+      source.queryBack.status !== 'verified' ||
+      source.queryBack.evidenceId !== isolation.excitation.sourceQueryBackEvidenceId
+    ) reasons.push('independent isolation excitation source query-back is not verified');
+  }
+
+  const calibration = manifest.calibrations.find(({ calibrationEvidenceId }) => (
+    calibrationEvidenceId === isolation.calibrationEvidenceId
+  ));
+  if (!calibration) {
+    reasons.push('independent isolation calibration is missing from the station manifest');
+  } else {
+    const validFrom = Date.parse(calibration.validFromIso);
+    const validThrough = Date.parse(calibration.validThroughIso);
+    if (
+      calibration.assetId !== isolation.excitation.sourceAssetId ||
+      source?.assetId !== calibration.assetId
+    ) reasons.push('independent isolation calibration belongs to the wrong asset');
+    if (
+      calibration.state !== 'valid' ||
+      !Number.isFinite(validFrom) ||
+      !Number.isFinite(validThrough) ||
+      !Number.isFinite(acquiredAt) ||
+      acquiredAt < validFrom || acquiredAt > validThrough
+    ) reasons.push('independent isolation calibration is outside its validity window');
+  }
   return { valid: reasons.length === 0, reasons };
 }
 
@@ -1437,6 +1771,7 @@ export const DVT_CAPSTONE_OPERATING_PROFILE = Object.freeze({
   stateRepeatabilityEvidenceId: 'capstone-state-repeatability-2026-07-r2',
   desenseIsolationDb: 45,
   txNoiseDensityDbmPerHz: -125,
+  analyzerFloorDensityDbmPerHz: -145,
   floorEvidenceId: 'capstone-source-terminated-floor',
   terminatedBaselineEvidenceId: 'capstone-source-terminated-baseline',
   paOffLeakageEvidenceId: 'capstone-pa-off-leakage',
@@ -1446,7 +1781,7 @@ export const DVT_CAPSTONE_OPERATING_PROFILE = Object.freeze({
 export const DVT_BUILT_IN_CASES: readonly DvtDiagnosticCase[] = Object.freeze([
   Object.freeze({
     id: 'gain-pae-fail',
-    title: 'Gain and PAE fail',
+    title: 'Historical Gain and PAE false-fail root-cause investigation',
     hypotheses: Object.freeze([
       { hypothesisId: 'dut-mode-state', label: 'DUT gain-mode state mismatch' },
       { hypothesisId: 'path-correction', label: 'RF path correction error' },
@@ -1486,7 +1821,7 @@ export const DVT_BUILT_IN_CASES: readonly DvtDiagnosticCase[] = Object.freeze([
           expectedObservation: 'A pre-correction query-back mismatch is retained; the final synchronized point records the corrected matching state.',
         },
         expectedEffects: Object.freeze([
-          { hypothesisId: 'dut-mode-state', effect: 'support' as const, rationale: 'Generic mode query-back directly disagrees with intent.' },
+          { hypothesisId: 'dut-mode-state', effect: 'support' as const, rationale: 'The retained pre-correction mode query-back directly disagrees with historical intent and supports the false-fail root-cause hypothesis.' },
           { hypothesisId: 'path-correction', effect: 'neutral' as const, rationale: 'Mode query-back does not measure path correction.' },
           { hypothesisId: 'acquisition-alignment', effect: 'neutral' as const, rationale: 'Mode query-back alone does not prove acquisition-group, trigger, or state repeatability.' },
           { hypothesisId: 'supply-thermal', effect: 'neutral' as const, rationale: 'Mode query-back does not measure supply regulation or thermal drift.' },
@@ -1510,13 +1845,12 @@ export const DVT_BUILT_IN_CASES: readonly DvtDiagnosticCase[] = Object.freeze([
           stateRepeatabilityEvidenceId: DVT_CAPSTONE_OPERATING_PROFILE.stateRepeatabilityEvidenceId,
           expectedPaePercent: DVT_CAPSTONE_OPERATING_PROFILE.expectedPaePercent,
           tolerancePercent: 0.2,
-          observedSupplyRegulationMode: 'CV' as const,
-          gainDroopDbAcrossAperture: 0.1,
-          fixtureTemperatureEvidence: 'absent' as const,
-          thermalMechanismClaimAllowed: false,
+          requiredSupplyRegulationMode: 'CV' as const,
+          maximumGainDroopDbAcrossAperture: 0.2,
+          thermalMechanismClaimRequiresFixtureTemperatureEvidence: true as const,
         },
         expectedEffects: Object.freeze([
-          { hypothesisId: 'dut-mode-state', effect: 'support' as const, rationale: 'Low PAE remains after synchronized RF/DC evidence is valid.' },
+          { hypothesisId: 'dut-mode-state', effect: 'neutral' as const, rationale: 'The corrected synchronized point is PAE PASS; it does not add support for the historical mode mismatch beyond the retained query-back record.' },
           { hypothesisId: 'path-correction', effect: 'neutral' as const, rationale: 'Synchronization alone does not independently recalibrate the RF path.' },
           { hypothesisId: 'acquisition-alignment', effect: 'contradict' as const, rationale: 'Pin, Pout and DC records share the acquisition group, point trigger, contiguous sequence and state-repeatability contract.' },
           { hypothesisId: 'supply-thermal', effect: 'neutral' as const, rationale: 'CV and low gain droop lower supply-limit concern, but absent fixture-temperature evidence prevents a thermal mechanism conclusion.' },
@@ -1526,7 +1860,7 @@ export const DVT_BUILT_IN_CASES: readonly DvtDiagnosticCase[] = Object.freeze([
   }),
   Object.freeze({
     id: 'evm-aclr-fail',
-    title: 'EVM and ACLR fail',
+    title: 'EVM and ACLR suspected-fail investigation',
     hypotheses: Object.freeze([
       { hypothesisId: 'dut-nonlinearity', label: 'DUT compression/nonlinearity' },
       { hypothesisId: 'source-residual', label: 'Source waveform residual' },
@@ -1563,13 +1897,10 @@ export const DVT_BUILT_IN_CASES: readonly DvtDiagnosticCase[] = Object.freeze([
         expectedEvidence: {
           metric: 'analyzer-attenuation-step' as const,
           attenuationStepDeltaDb: 10,
-          correctedAclrDeltaDb: 0.15,
-          repeatabilityDb: 0.1,
-          expandedUncertaintyDb: 0.4,
-          mixerHeadroomBeforeDb: 3,
-          mixerHeadroomAfterDb: 13,
-          noiseFloorHeadroomBeforeDb: 16,
-          noiseFloorHeadroomAfterDb: 6,
+          maximumAbsoluteCorrectedAclrDeltaDb: 0.4,
+          maximumRepeatabilityDb: 0.2,
+          minimumMixerHeadroomDb: 0,
+          minimumNoiseFloorHeadroomDb: 0,
         },
         expectedEffects: Object.freeze([
           { hypothesisId: 'dut-nonlinearity', effect: 'neutral' as const, rationale: 'Analyzer attenuation does not change the DUT operating point.' },
@@ -1658,45 +1989,12 @@ export const DVT_BUILT_IN_CASES: readonly DvtDiagnosticCase[] = Object.freeze([
           metric: 'desense-risk-budget' as const,
           scope: 'risk-budget-only' as const,
           educationalIsolationTargetDb: 50,
-          measurementPointId: DVT_CAPSTONE_OPERATING_PROFILE.measurementPointId,
-          txCarrierFrequencyHz: DVT_CAPSTONE_OPERATING_PROFILE.txCarrierFrequencyHz,
-          txWaveformId: DVT_CAPSTONE_OPERATING_PROFILE.txWaveformId,
-          txOutputPowerDbm: DVT_CAPSTONE_OPERATING_PROFILE.txOutputPowerDbm,
-          txModeId: DVT_CAPSTONE_OPERATING_PROFILE.txModeId,
-          supplyStateId: DVT_CAPSTONE_OPERATING_PROFILE.supplyStateId,
-          supplyMetricEvidenceId: 'dc' as const,
-          supplyVoltageV: DVT_CAPSTONE_OPERATING_PROFILE.supplyVoltageV,
-          supplyCurrentA: DVT_CAPSTONE_OPERATING_PROFILE.supplyCurrentA,
-          supplyRegulationMode: DVT_CAPSTONE_OPERATING_PROFILE.supplyRegulationMode,
-          frequencyHz: 1_840_000_000,
-          rxFrequencyRangeHz: { startHz: 1_805_000_000, stopHz: 1_880_000_000 },
-          noiseMeasurementFrequencyHz: 1_840_000_000,
-          isolationMeasurementFrequencyHz: 1_840_000_000,
-          noiseSourcePlane: 'pamid-tx-output',
-          noiseMeasurementPlane: 'pamid-tx-output',
-          rxBranchPlane: 'pamid-rx-branch',
-          isolationTxPlane: 'pamid-tx-output',
-          isolationRxPlane: 'pamid-rx-branch',
-          isolationDirection: 'tx-to-rx' as const,
-          txToRxIsolationDb: DVT_CAPSTONE_OPERATING_PROFILE.desenseIsolationDb,
-          noiseMeasurement: {
-            convention: 'density' as const,
-            densityDbmPerHz: DVT_CAPSTONE_OPERATING_PROFILE.txNoiseDensityDbmPerHz,
-          },
-          txNoiseMetricEvidenceId: 'tx-noise' as const,
-          terminationState: 'source-connected' as const,
-          dutPathState: 'pa-on' as const,
-          noiseIncludesTxToRxIsolation: false,
-          noiseExpandedUncertaintyDb: 1.2,
-          isolationExpandedUncertaintyDb: 1.5,
-          isolationEvidenceId: 'capstone-independent-isolation',
-          analyzerFloorDensityDbmPerHz: -165,
-          floorEvidenceId: DVT_CAPSTONE_OPERATING_PROFILE.floorEvidenceId,
-          floorExpandedUncertaintyDb: 1,
-          minimumFloorHeadroomDb: 6,
-          terminatedBaselineEvidenceId: DVT_CAPSTONE_OPERATING_PROFILE.terminatedBaselineEvidenceId,
-          paOffLeakageEvidenceId: DVT_CAPSTONE_OPERATING_PROFILE.paOffLeakageEvidenceId,
-          noiseCorrectionId: DVT_CAPSTONE_OPERATING_PROFILE.noiseCorrectionId,
+          requiredMeasurementPointId: DVT_CAPSTONE_OPERATING_PROFILE.measurementPointId,
+          requiredTxCarrierFrequencyHz: DVT_CAPSTONE_OPERATING_PROFILE.txCarrierFrequencyHz,
+          requiredNoiseMeasurementFrequencyHz: 1_840_000_000,
+          requiredIsolationMeasurementFrequencyHz: 1_840_000_000,
+          requiredIsolationApplicability: 'small-signal-path-isolation-only' as const,
+          requiresAnalyzerFloorResolution: true as const,
         },
         expectedEffects: Object.freeze([
           { hypothesisId: 'pa-tx-noise', effect: 'support' as const, rationale: 'Qualified PA-on noise and TX-to-RX isolation produce a bounded RX-branch risk.' },
@@ -1844,6 +2142,9 @@ export function validateConclusionEvidenceLinkage(
   if (linkage.decisionSources.some(({ sourceMetricEvidenceIds, uncertaintySourceEvidenceIds }) => (
     sourceMetricEvidenceIds.length === 0 || uncertaintySourceEvidenceIds.length === 0
   ))) reasons.push('decision source evidence IDs are incomplete');
+  if (linkage.decisionSources.some(({ valueDigest, sourceDigest }) => (
+    !/^fnv1a32:[a-f\d]{8}$/i.test(valueDigest) || !/^fnv1a32:[a-f\d]{8}$/i.test(sourceDigest)
+  ))) reasons.push('decision source educational checksums are invalid');
   const linkedDiagnosticEvidenceIds = linkage.diagnosticEvidenceSources.map(({ evidenceId }) => evidenceId);
   const expectedDiagnosticSources = expectedDiagnosticEvidenceContract();
   if (
@@ -1883,19 +2184,33 @@ export function buildConclusionEvidenceLinkage(
     sourceAssetId: records.sourceAssetId,
     requiredCapabilityIds: records.requiredCapabilityIds,
     asOfIso: records.stationAsOfIso,
+    externalEvidenceRegistry: records.externalEvidenceRegistry,
   });
   const evidenceById = new Map(records.measurementPoint.metricEvidence.map((evidence) => [
     evidence.evidenceId,
     evidence,
   ]));
+  for (const isolation of records.independentIsolationEvidence) {
+    const validation = validateIndependentIsolationEvidence(
+      isolation,
+      records.measurementPoint,
+      records.stationManifest,
+    );
+    if (!validation.valid) throw new RangeError(validation.reasons.join('; '));
+  }
   const desenseEvaluation = records.desenseEvidence === undefined
     ? undefined
     : evaluateDesenseRiskBudget(records.desenseEvidence);
   if (records.desenseEvidence !== undefined) {
+    const independentIsolation = records.independentIsolationEvidence.find(({ evidenceId }) => (
+      evidenceId === records.desenseEvidence?.isolationEvidenceId
+    ));
+    if (!independentIsolation) throw new RangeError('desense evidence requires a typed independent isolation source record');
     const desensePointValidation = validateDesenseEvidenceAgainstMeasurementPoint(
       records.desenseEvidence,
       records.measurementPoint,
       records.stationManifest,
+      independentIsolation,
     );
     if (!desensePointValidation.valid) {
       throw new RangeError(desensePointValidation.reasons.join('; '));
@@ -1906,6 +2221,13 @@ export function buildConclusionEvidenceLinkage(
     record.evidenceId,
     record,
   ]));
+  const isolationRegistryById = new Map(records.independentIsolationEvidence.map((record) => [
+    record.evidenceId,
+    record,
+  ]));
+  if (isolationRegistryById.size !== records.independentIsolationEvidence.length) {
+    throw new RangeError('independent isolation evidence IDs must be nonempty and unique');
+  }
   if (externalRegistryById.size !== records.externalEvidenceRegistry.length ||
     records.externalEvidenceRegistry.some(({ evidenceId }) => evidenceId.trim().length === 0)) {
     throw new RangeError('external evidence registry IDs must be nonempty and unique');
@@ -1918,6 +2240,100 @@ export function buildConclusionEvidenceLinkage(
       record.sourceMeasurementPointId !== undefined &&
       record.sourceMeasurementPointId !== records.measurementPoint.pointId
     ) throw new RangeError(`external evidence ${record.evidenceId} references another measurement point`);
+  }
+  const sourceRegistryIds = [
+    ...records.externalEvidenceRegistry.map(({ evidenceId }) => evidenceId),
+    ...records.independentIsolationEvidence.map(({ evidenceId }) => evidenceId),
+  ];
+  if (new Set(sourceRegistryIds).size !== sourceRegistryIds.length) {
+    throw new RangeError('typed source registry IDs must be unique across external and isolation records');
+  }
+  const canonicalRegistryRecord = (evidenceId: string) => {
+    const externalRecord = externalRegistryById.get(evidenceId);
+    if (externalRecord !== undefined) return externalRecord;
+    const isolationRecord = isolationRegistryById.get(evidenceId);
+    if (isolationRecord === undefined) return undefined;
+    const calibrationCertificate = records.stationManifest.calibrations.find(({ calibrationEvidenceId }) => (
+      calibrationEvidenceId === isolationRecord.calibrationEvidenceId
+    ));
+    const excitationAsset = records.stationManifest.assets.find(({ assetId }) => (
+      assetId === isolationRecord.excitation.sourceAssetId
+    ));
+    return {
+      independentIsolationRecord: isolationRecord,
+      referencedCalibrationCertificate: calibrationCertificate,
+      excitationAssetQueryBackRecord: excitationAsset,
+    };
+  };
+  const analyzerSourceEvidenceIds = [
+    records.measurementPoint.analyzerHeadroom.evidenceId,
+    records.measurementPoint.analyzerHeadroom.operatingLimitEvidenceId,
+    records.measurementPoint.analyzerHeadroom.residualState.evidenceId,
+  ] as const;
+  const requireAnalyzerSourceEvidence = (
+    label: string,
+    metricIds: readonly DvtMetricEvidenceId[],
+    externalIds: readonly string[],
+  ) => {
+    const usesAnalyzerResult = metricIds.some((metricId) => (
+      metricId === 'pout' || metricId === 'aclr' || metricId === 'evm' ||
+      metricId === 'spectrum' || metricId === 'tx-noise'
+    ));
+    if (usesAnalyzerResult && analyzerSourceEvidenceIds.some((evidenceId) => !externalIds.includes(evidenceId))) {
+      throw new RangeError(`${label} analyzer-based source requires headroom, operating-limit, and residual provenance`);
+    }
+  };
+  for (const cleanup of Object.values(records.measurementPoint.cleanup)) {
+    const registryRecord = externalRegistryById.get(cleanup.evidenceId);
+    if (
+      registryRecord?.evidenceKind !== 'cleanup' ||
+      registryRecord.metric !== 'cleanup-state' ||
+      registryRecord.unit !== 'state' ||
+      registryRecord.value !== 0 ||
+      registryRecord.cleanupStatus !== cleanup.status ||
+      registryRecord.observedAtIso !== cleanup.atIso ||
+      registryRecord.sourceMeasurementPointId !== records.measurementPoint.pointId
+    ) throw new RangeError(`cleanup evidence ${cleanup.evidenceId} does not exactly match typed cleanup provenance`);
+  }
+  if (records.desenseEvidence !== undefined) {
+    const desense = records.desenseEvidence;
+    const txNoise = evidenceById.get(desense.txNoiseMetricEvidenceId);
+    if (!txNoise || txNoise.metric !== 'tx-noise') throw new RangeError('desense typed registry requires the linked TX-noise record');
+    const requireBaseline = (evidenceId: string, label: string) => {
+      const record = externalRegistryById.get(evidenceId);
+      if (
+        record?.evidenceKind !== 'baseline' || record.metric !== 'analyzer-floor' ||
+        record.sourceMeasurementPointId !== records.measurementPoint.pointId ||
+        record.unit !== 'dBm/Hz' || !record.relatedEvidenceIds?.includes(txNoise.analyzerFrontEndSetup.setupEvidenceId)
+      ) throw new RangeError(`${label} is not registered as a typed analyzer-floor baseline for the current setup`);
+      return record;
+    };
+    const floorRecord = requireBaseline(desense.floorEvidenceId, 'analyzer floor evidence');
+    if (floorRecord.value !== desense.analyzerFloorDensityDbmPerHz) {
+      throw new RangeError('analyzer floor value does not match the typed baseline registry');
+    }
+    const terminatedRecord = requireBaseline(desense.terminatedBaselineEvidenceId, 'terminated baseline evidence');
+    if (terminatedRecord.value !== desense.terminatedBaselineDensityDbmPerHz) {
+      throw new RangeError('terminated baseline value does not match the typed baseline registry');
+    }
+    const paOffRecord = requireBaseline(desense.paOffLeakageEvidenceId, 'PA-off leakage evidence');
+    if (paOffRecord.value !== desense.paOffLeakageDensityDbmPerHz) {
+      throw new RangeError('PA-off leakage value does not match the typed baseline registry');
+    }
+    const correction = externalRegistryById.get(desense.noiseCorrectionId);
+    const correctionValueDb = noiseMeasurementValue(txNoise.correctedNoise) - noiseMeasurementValue(txNoise.rawNoise);
+    if (
+      correction?.evidenceKind !== 'correction' ||
+      correction.sourceMeasurementPointId !== records.measurementPoint.pointId ||
+      correction.metric !== 'noise-path-correction' ||
+      correction.unit !== 'dB' ||
+      correction.value === undefined || Math.abs(correction.value - correctionValueDb) > 1e-9
+    ) throw new RangeError('TX-noise correction is not registered as typed point provenance');
+    const frontEndSetup = externalRegistryById.get(txNoise.analyzerFrontEndSetup.setupEvidenceId);
+    if (
+      frontEndSetup?.evidenceKind !== 'station-verification' ||
+      frontEndSetup.sourceAssetId !== txNoise.instrumentAssetId
+    ) throw new RangeError('TX-noise front-end setup is not registered as typed analyzer provenance');
   }
 
   const decisionSources = records.decisionSources.map((source) => {
@@ -1940,17 +2356,48 @@ export function buildConclusionEvidenceLinkage(
       throw new RangeError(`${source.metricId} external source evidence IDs must be unique`);
     }
     for (const evidenceId of source.sourceExternalEvidenceIds) {
-      if (!externalRegistryById.has(evidenceId)) {
+      if (!externalRegistryById.has(evidenceId) && !isolationRegistryById.has(evidenceId)) {
         throw new RangeError(`${source.metricId} external source evidence ${evidenceId} is not registered`);
       }
     }
+    requireAnalyzerSourceEvidence(source.metricId, source.sourceMetricEvidenceIds, source.sourceExternalEvidenceIds);
     if (source.metricKind === 'desense-isolation') {
       if (
         records.desenseEvidence === undefined ||
-        !sameStringArray(source.sourceExternalEvidenceIds, [records.desenseEvidence.isolationEvidenceId])
-      ) throw new RangeError('desense-isolation external source must exactly match isolation evidence');
+        !sameStringArray(source.sourceExternalEvidenceIds, [
+          records.desenseEvidence.isolationEvidenceId,
+          ...analyzerSourceEvidenceIds,
+        ])
+      ) throw new RangeError('desense-isolation external source must exactly match isolation and analyzer provenance');
     }
     const budget = combineUncertaintyBudget(source.uncertaintyComponents, source.coverageFactor);
+    for (const component of source.uncertaintyComponents) {
+      const uncertaintyRecord = externalRegistryById.get(component.sourceEvidenceId);
+      const reported = component.reportedUncertainty.unit === 'dB'
+        ? { value: component.reportedUncertainty.valueDb, unit: 'dB' as const }
+        : { value: component.reportedUncertainty.valuePercent, unit: 'percent' as const };
+      if (
+        uncertaintyRecord?.evidenceKind !== 'uncertainty' ||
+        uncertaintyRecord.metric !== 'uncertainty-source' ||
+        uncertaintyRecord.value !== reported.value ||
+        uncertaintyRecord.unit !== reported.unit ||
+        uncertaintyRecord.sourceMeasurementPointId !== records.measurementPoint.pointId
+      ) {
+        throw new RangeError(`${source.metricId} uncertainty source ${component.sourceEvidenceId} is not registered as typed uncertainty provenance`);
+      }
+      for (const correlation of component.correlations) {
+        const correlationRecord = externalRegistryById.get(correlation.evidenceId);
+        if (
+          correlationRecord?.evidenceKind !== 'uncertainty' ||
+          correlationRecord.metric !== 'correlation' ||
+          correlationRecord.value !== correlation.correlationCoefficient ||
+          correlationRecord.unit !== 'coefficient' ||
+          correlationRecord.sourceMeasurementPointId !== records.measurementPoint.pointId
+        ) {
+          throw new RangeError(`${source.metricId} correlation source ${correlation.evidenceId} is not registered as typed correlation provenance`);
+        }
+      }
+    }
     const measured = measuredQuantityFromSources(source.metricKind, evidenceById, records.desenseEvidence);
     const decisionRequest: DvtDecisionRequest = {
       metricId: source.metricId,
@@ -1972,16 +2419,36 @@ export function buildConclusionEvidenceLinkage(
         sourceMetricEvidenceIds: [...source.sourceMetricEvidenceIds],
         sourceExternalEvidenceIds: [...source.sourceExternalEvidenceIds],
         uncertaintySourceEvidenceIds: source.uncertaintyComponents.map(({ sourceEvidenceId }) => sourceEvidenceId),
+        valueDigest: stableEvidenceDigest(measured),
+        sourceDigest: stableEvidenceDigest({
+          metricKind: source.metricKind,
+          sourceMetricEvidence: source.sourceMetricEvidenceIds.map((evidenceId) => evidenceById.get(evidenceId)),
+          sourceExternalEvidence: source.sourceExternalEvidenceIds.map(canonicalRegistryRecord),
+          uncertaintyComponents: source.uncertaintyComponents,
+          uncertaintyRegistryRecords: source.uncertaintyComponents.flatMap((component) => [
+            canonicalRegistryRecord(component.sourceEvidenceId),
+            ...component.correlations.map(({ evidenceId }) => canonicalRegistryRecord(evidenceId)),
+          ]),
+          decisionRule: source.decisionRule,
+        }),
       },
     };
   });
 
   const decisionIds = new Set(decisionSources.map(({ decision }) => decision.metricId));
+  const observedByKey = new Map(records.observedCaseEvidence.map((record) => [`${record.caseId}/${record.evidenceId}`, record]));
+  if (observedByKey.size !== records.observedCaseEvidence.length) throw new RangeError('observed case evidence identities must be unique');
   const diagnosticEvidenceSources = records.diagnosticEvidenceSources.map((source): DvtDiagnosticEvidenceSource => {
     const diagnosticCase = DVT_BUILT_IN_CASES.find(({ id }) => id === source.caseId);
     if (!diagnosticCase) throw new RangeError(`diagnostic source references unknown case ${source.caseId}`);
     if (!diagnosticCase.steps.some(({ expectedEvidenceId }) => expectedEvidenceId === source.evidenceId)) {
       throw new RangeError(`${source.evidenceId} is not an expected observation in ${source.caseId}`);
+    }
+    const observed = observedByKey.get(`${source.caseId}/${source.evidenceId}`);
+    if (!observed) throw new RangeError(`${source.evidenceId} observed evidence is missing from the source bundle`);
+    const comparison = compareObservedCaseEvidence(source.caseId, source.evidenceId, observed);
+    if (comparison.state !== 'match') {
+      throw new RangeError(`${source.evidenceId} observed evidence does not match the locked deterministic contract: ${comparison.reason}`);
     }
     if (source.sourceMeasurementPointId !== records.measurementPoint.pointId) {
       throw new RangeError(`${source.evidenceId} diagnostic source point does not match the source point`);
@@ -1999,10 +2466,11 @@ export function buildConclusionEvidenceLinkage(
       }
     }
     for (const evidenceId of source.sourceExternalEvidenceIds) {
-      if (!externalRegistryById.has(evidenceId)) {
+      if (!externalRegistryById.has(evidenceId) && !isolationRegistryById.has(evidenceId)) {
         throw new RangeError(`${source.evidenceId} external source ${evidenceId} is not registered`);
       }
     }
+    requireAnalyzerSourceEvidence(source.evidenceId, source.sourceMetricEvidenceIds, source.sourceExternalEvidenceIds);
     if (source.decisionMetricId !== undefined && !decisionIds.has(source.decisionMetricId)) {
       throw new RangeError(`${source.evidenceId} references unknown decision ${source.decisionMetricId}`);
     }
@@ -2013,6 +2481,12 @@ export function buildConclusionEvidenceLinkage(
       sourceMetricEvidenceIds: [...source.sourceMetricEvidenceIds],
       sourceExternalEvidenceIds: [...source.sourceExternalEvidenceIds],
       ...(source.decisionMetricId === undefined ? {} : { decisionMetricId: source.decisionMetricId }),
+      observedValueDigest: stableEvidenceDigest(observed.payload),
+      sourceDigest: stableEvidenceDigest({
+        observed,
+        sourceMetricEvidence: source.sourceMetricEvidenceIds.map((evidenceId) => evidenceById.get(evidenceId)),
+        sourceExternalEvidence: source.sourceExternalEvidenceIds.map(canonicalRegistryRecord),
+      }),
     };
   });
   if (new Set(diagnosticEvidenceSources.map(({ evidenceId }) => evidenceId)).size !== diagnosticEvidenceSources.length) {
@@ -2063,6 +2537,76 @@ export function validateConclusionSourceRecords(
       reasons: [error instanceof Error ? error.message : 'source-record provenance could not be recomputed'],
     };
   }
+}
+
+export function compareObservedCaseEvidence(
+  caseId: string,
+  expectedEvidenceId: string,
+  observed: DvtObservedCaseEvidence,
+): DvtObservedEvidenceComparison {
+  const diagnosticCase = DVT_BUILT_IN_CASES.find(({ id }) => id === caseId);
+  const step = diagnosticCase?.steps.find(({ expectedEvidenceId: id }) => id === expectedEvidenceId);
+  if (!step || observed.caseId !== caseId || observed.evidenceId !== expectedEvidenceId) {
+    return { state: 'mismatch', reason: 'observed evidence identity does not match the locked case step' };
+  }
+  if (observed.availability === 'unavailable' || observed.payload === undefined) {
+    return { state: 'unavailable', reason: observed.unavailableReason?.trim() || 'observed evidence is unavailable' };
+  }
+  if (!Number.isFinite(Date.parse(observed.observedAtIso))) {
+    return { state: 'mismatch', reason: 'observed evidence timestamp is invalid' };
+  }
+  const expected = step.expectedEvidence;
+  const payload = observed.payload;
+  if (expected.metric !== payload.metric) return { state: 'mismatch', reason: 'observed metric does not match the locked signature type' };
+  if (expected.metric === 'typed-signature' && payload.metric === 'typed-signature') {
+    return expected.signature === payload.observedSignature
+      ? { state: 'match', reason: 'observed typed signature matches the locked expectation' }
+      : { state: 'mismatch', reason: 'observed typed signature differs from the locked expectation' };
+  }
+  if (expected.metric === 'synchronized-kpi' && payload.metric === 'synchronized-kpi') {
+    const matches = sameStringArray(expected.requiredEvidenceIds, payload.requiredEvidenceIds) &&
+      expected.acquisitionMode === payload.acquisitionMode &&
+      expected.acquisitionGroupId === payload.acquisitionGroupId &&
+      expected.triggerReferenceId === payload.triggerReferenceId &&
+      payload.maximumTriggerRepeatabilitySeconds <= expected.maximumTriggerRepeatabilitySeconds &&
+      expected.settlingEvidenceId === payload.settlingEvidenceId &&
+      expected.stateRepeatabilityEvidenceId === payload.stateRepeatabilityEvidenceId &&
+      Math.abs(payload.observedPaePercent - expected.expectedPaePercent) <= expected.tolerancePercent &&
+      payload.observedSupplyRegulationMode === expected.requiredSupplyRegulationMode &&
+      payload.gainDroopDbAcrossAperture <= expected.maximumGainDroopDbAcrossAperture &&
+      (!expected.thermalMechanismClaimRequiresFixtureTemperatureEvidence ||
+        payload.fixtureTemperatureEvidence === 'present' || !payload.thermalMechanismClaimAllowed);
+    return matches
+      ? { state: 'match', reason: 'observed synchronized KPI satisfies the locked transaction contract' }
+      : { state: 'mismatch', reason: 'observed synchronized KPI differs from the locked transaction contract' };
+  }
+  if (expected.metric === 'analyzer-attenuation-step' && payload.metric === 'analyzer-attenuation-step') {
+    const matches = payload.attenuationStepDeltaDb === expected.attenuationStepDeltaDb &&
+      Math.abs(payload.correctedAclrDeltaDb) <= expected.maximumAbsoluteCorrectedAclrDeltaDb &&
+      payload.repeatabilityDb <= expected.maximumRepeatabilityDb &&
+      payload.mixerHeadroomBeforeDb >= expected.minimumMixerHeadroomDb &&
+      payload.mixerHeadroomAfterDb >= expected.minimumMixerHeadroomDb &&
+      payload.noiseFloorHeadroomBeforeDb >= expected.minimumNoiseFloorHeadroomDb &&
+      payload.noiseFloorHeadroomAfterDb >= expected.minimumNoiseFloorHeadroomDb;
+    return matches
+      ? { state: 'match', reason: 'observed attenuation step satisfies the locked invariance and headroom contract' }
+      : { state: 'mismatch', reason: 'observed attenuation step violates the locked invariance or headroom contract' };
+  }
+  if (expected.metric === 'desense-risk-budget' && payload.metric === 'desense-risk-budget') {
+    const evaluation = evaluateDesenseRiskBudget(payload);
+    const floorResolved = evaluation.validatedFloorHeadroomDb !== null &&
+      evaluation.validatedFloorHeadroomDb >= payload.minimumFloorHeadroomDb;
+    return evaluation.validity === 'valid' && payload.educationalIsolationTargetDb === expected.educationalIsolationTargetDb &&
+      payload.measurementPointId === expected.requiredMeasurementPointId &&
+      payload.txCarrierFrequencyHz === expected.requiredTxCarrierFrequencyHz &&
+      payload.noiseMeasurementFrequencyHz === expected.requiredNoiseMeasurementFrequencyHz &&
+      payload.isolationMeasurementFrequencyHz === expected.requiredIsolationMeasurementFrequencyHz &&
+      payload.isolationApplicability === expected.requiredIsolationApplicability &&
+      (!expected.requiresAnalyzerFloorResolution || floorResolved)
+      ? { state: 'match', reason: 'observed desense evidence satisfies the locked risk-budget contract' }
+      : { state: 'mismatch', reason: evaluation.reasons.join('; ') || 'observed isolation target differs from the locked contract' };
+  }
+  return { state: 'mismatch', reason: 'observed evidence could not be compared with the locked signature' };
 }
 
 function requiredDecisionEvidenceIds(
@@ -2139,6 +2683,19 @@ function structurallyEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
 }
 
+function stableEvidenceDigest(value: unknown): string {
+  const input = JSON.stringify(canonicalize({
+    canonicalPayloadVersion: DVT_EVIDENCE_CANONICAL_PAYLOAD_VERSION,
+    payload: value,
+  }));
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `fnv1a32:${hash.toString(16).padStart(8, '0')}`;
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value !== null && typeof value === 'object') {
@@ -2153,7 +2710,7 @@ function canonicalize(value: unknown): unknown {
 export function advanceDiagnosticCase(
   caseId: string,
   progress: DvtDiagnosticProgress,
-  evidenceId: string,
+  observed: DvtObservedCaseEvidence,
 ): DvtDiagnosticProgress {
   const diagnosticCase = DVT_BUILT_IN_CASES.find(({ id }) => id === caseId);
   if (!diagnosticCase) throw new RangeError(`unknown built-in DVT case: ${caseId}`);
@@ -2161,12 +2718,14 @@ export function advanceDiagnosticCase(
   if (progress.complete) return progress;
 
   const expectedEvidenceId = diagnosticCase.steps[progress.nextStepIndex]?.expectedEvidenceId;
-  if (evidenceId !== expectedEvidenceId) return progress;
+  if (expectedEvidenceId === undefined) return progress;
+  const comparison = compareObservedCaseEvidence(caseId, expectedEvidenceId, observed);
+  if (comparison.state !== 'match') return progress;
   const nextStepIndex = progress.nextStepIndex + 1;
   return {
     caseId,
     nextStepIndex,
-    acceptedEvidenceIds: [...progress.acceptedEvidenceIds, evidenceId],
+    acceptedEvidenceIds: [...progress.acceptedEvidenceIds, observed.evidenceId],
     accepted: true,
     complete: nextStepIndex === diagnosticCase.steps.length,
   };

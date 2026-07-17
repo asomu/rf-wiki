@@ -21,9 +21,18 @@
 }
 
 .dvt-control-list input {
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 1;
   width: var(--target-min);
   height: var(--target-min);
-  accent-color: var(--color-active);
+  margin: 0;
+  appearance: none;
+  cursor: pointer;
+}
+
+.dvt-control-list label > span:not(.dvt-choice-indicator) {
+  grid-column: 2;
 }
 
 .dvt-control-list span,
@@ -261,10 +270,82 @@
 }
 
 .dvt-choice-field input {
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 1;
   width: var(--target-min);
   height: var(--target-min);
   margin: 0;
-  accent-color: var(--color-active);
+  appearance: none;
+  cursor: pointer;
+}
+
+.dvt-control-list input:focus-visible,
+.dvt-choice-field input:focus-visible,
+.dvt-cleanup-acknowledgement input:focus-visible {
+  outline: var(--stroke-hairline) solid var(--color-active);
+  box-shadow: var(--shadow-focus);
+}
+
+.dvt-cleanup-acknowledgement {
+  display: grid;
+  grid-template-columns: var(--target-min) minmax(0, 1fr);
+  align-items: center;
+  min-height: var(--target-min);
+  cursor: pointer;
+}
+
+.dvt-cleanup-acknowledgement input {
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 1;
+  width: var(--target-min);
+  height: var(--target-min);
+  margin: 0;
+  appearance: none;
+  cursor: pointer;
+}
+
+.dvt-choice-indicator {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: var(--stroke-hairline) solid var(--color-rule-strong);
+  background: var(--color-surface);
+  pointer-events: none;
+}
+
+input[type='radio'] + .dvt-choice-indicator {
+  border-radius: var(--radius-pill);
+}
+
+input[type='radio']:checked + .dvt-choice-indicator::after {
+  display: block;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-active);
+  content: '';
+}
+
+input[type='checkbox']:checked + .dvt-choice-indicator::after {
+  display: block;
+  width: var(--space-2);
+  height: var(--space-1);
+  margin: var(--space-1) 0 0 var(--space-1);
+  border-bottom: var(--stroke-hairline) solid var(--color-active);
+  border-left: var(--stroke-hairline) solid var(--color-active);
+  content: '';
+  transform: rotate(-45deg);
+}
+
+.dvt-choice-field label > span:not(.dvt-choice-indicator),
+.dvt-cleanup-acknowledgement > span:not(.dvt-choice-indicator) {
+  grid-column: 2;
 }
 
 .dvt-choice-field span,
@@ -438,6 +519,10 @@
   overflow-wrap: anywhere;
   text-align: left;
   vertical-align: top;
+}
+
+.dvt-report th {
+  color: var(--color-instrument-muted);
 }
 
 .dvt-report__conclusion {

@@ -92,15 +92,22 @@ function componentStandardUncertaintyDb(component: TeachingUncertaintyComponent)
     : 0;
 }
 
+function formatSignedDbc(value: number): string {
+  return value.toFixed(1).replace('-', '−');
+}
+
 function UncertaintyControls({
   expandedUncertaintyDb,
+  calculated,
+  onCalculate,
   onCommit,
 }: {
   expandedUncertaintyDb: number;
+  calculated: boolean;
+  onCalculate: () => void;
   onCommit: () => void;
 }) {
   const reportInteraction = useLabControlInteraction();
-  const [calculated, setCalculated] = useState(false);
 
   return (
     <div className="dvt-uncertainty-controls">
@@ -122,7 +129,7 @@ function UncertaintyControls({
       <button
         type="button"
         className="lab-button lab-button--secondary"
-        onClick={() => setCalculated(true)}
+        onClick={onCalculate}
       >
         불확도 budget 계산
       </button>
@@ -148,6 +155,7 @@ function UncertaintyControls({
 
 export function UncertaintyDecisionLab({ progressId }: DvtLabProps) {
   const [committed, setCommitted] = useState(false);
+  const [calculated, setCalculated] = useState(false);
   const budget = useMemo(
     () => combineUncertaintyBudget(ACLR_UNCERTAINTY_COMPONENTS, COVERAGE_FACTOR),
     [],
@@ -175,7 +183,7 @@ export function UncertaintyDecisionLab({ progressId }: DvtLabProps) {
     : 0;
   const verdict = decision.verdict.toUpperCase();
   const ledger: LedgerEntry[] = [
-    { label: '변경', value: committed ? '표준 불확도를 결합하고 negative-dBc upper limit에 guardband 적용' : 'Raw ACLR와 limit만 비교 중' },
+    { label: '변경', value: committed ? '표준 불확도를 결합하고 negative-dBc upper limit에 guardband 적용' : calculated ? `불확도 budget 계산 완료 · interval ${formatSignedDbc(MEASURED_ACLR_DBC - expandedUncertaintyDb)}…${formatSignedDbc(MEASURED_ACLR_DBC + expandedUncertaintyDb)} dBc` : 'Raw ACLR와 limit만 비교 중' },
     { label: '직접 효과', value: committed ? `Native ACLR=adjacent−main · c_main=−1, c_adjacent=+1 · common covariance ${commonCovarianceDbSquared.toFixed(2)} dB² → expanded ±${expandedUncertaintyDb.toFixed(2)} dB` : 'Distribution·divisor·sensitivity·correlation 해석 전', tone: committed ? 'active' : 'neutral' },
     { label: '화면 결과', value: committed ? `${verdict} · normalized margin ${marginDb?.toFixed(2) ?? '—'} dB` : 'Decision report 잠김', tone: committed && decision.verdict !== 'pass' ? 'warning' : 'neutral' },
     { label: '비용·한계', value: 'Evidence-backed general ρ covariance 교육 모델 · 실제 distribution, degrees of freedom와 조직 decision rule은 별도 검토', tone: 'warning' },
@@ -190,7 +198,10 @@ export function UncertaintyDecisionLab({ progressId }: DvtLabProps) {
       description="Type A/B source, divisor, signed sensitivity와 evidence-backed ρ covariance를 결합하고 expanded uncertainty를 negative-dBc 결과에 올바른 방향으로 적용합니다."
       activeStages={['acquisition', 'dsp', 'display']}
       stageMap={{ 'uncertainty-decision-commit': ['acquisition', 'dsp', 'display'] }}
-      controls={<UncertaintyControls expandedUncertaintyDb={expandedUncertaintyDb} onCommit={() => setCommitted(true)} />}
+      controls={<UncertaintyControls expandedUncertaintyDb={expandedUncertaintyDb} calculated={calculated} onCalculate={() => setCalculated(true)} onCommit={() => setCommitted(true)} />}
+      layoutVariant="prediction-first"
+      controlsTitle="불확도 예산"
+      controlsHint="상관 항 검토"
       ledger={ledger}
       prediction={{
         id: 'aclr-guardband-direction',
@@ -229,7 +240,7 @@ export function UncertaintyDecisionLab({ progressId }: DvtLabProps) {
       ) : (
         <section className="dvt-evidence-placeholder" aria-live="polite">
           <h3>Guardbanded decision 잠김</h3>
-          <p>불확도 budget을 계산한 뒤 negative-dBc 결과의 worst-case 방향을 적용하세요.</p>
+          <p>{calculated ? `계산된 interval ${formatSignedDbc(MEASURED_ACLR_DBC - expandedUncertaintyDb)}…${formatSignedDbc(MEASURED_ACLR_DBC + expandedUncertaintyDb)} dBc를 limit과 비교해 판정을 확정하세요.` : '불확도 budget을 계산한 뒤 negative-dBc 결과의 worst-case 방향을 적용하세요.'}</p>
         </section>
       )}
     </LabShell>

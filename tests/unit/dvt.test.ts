@@ -20,14 +20,41 @@ import {
 import { DEFAULT_EDUCATIONAL_PA, evaluatePa, rappOneDbCompressionPoint } from '../../src/lib/rf/pa';
 import { dbmToWatts } from '../../src/lib/rf/units';
 import { ACLR_UNCERTAINTY_COMPONENTS } from '../../src/components/dvt/UncertaintyDecisionLab';
+import { CAPSTONE_OBSERVED_CASE_EVIDENCE, CAPSTONE_SOURCE_RECORDS } from '../../src/data/dvt-capstone';
 import type {
   DvtDiagnosticProgress,
+  DvtConclusionEvidenceLinkage,
+  DvtConclusionReport,
   DvtConclusionSourceRecords,
   DvtDesenseRiskEvidence,
   DvtMeasurementPoint,
   DvtMeasurementValidationContext,
   DvtStationManifest,
 } from '../../src/types/dvt';
+
+function makeCapstoneConclusionReport(linkage: DvtConclusionEvidenceLinkage): DvtConclusionReport {
+  return {
+    reportId: 'capstone-provenance-test-report',
+    stationId: linkage.stationId,
+    measurementPointId: linkage.measurementPointId,
+    decisionIds: linkage.decisions.map(({ metricId }) => metricId),
+    acceptedDiagnosticEvidenceIds: linkage.diagnosticEvidenceSources.map(({ evidenceId }) => evidenceId),
+    sections: {
+      scope: 'Built-in educational capstone provenance test scope.',
+      station: 'Requalified station manifest and typed source registry are linked.',
+      symptom: 'Historical observations are separated from current allocation results.',
+      validity: 'The synchronized measurement point passes its validity gates.',
+      decision: 'Guardband decisions are recomputed from the linked source records.',
+      hypotheses: 'Evidence-bounded causal confidence remains explicitly recorded.',
+      evidence: 'Metric, external, uncertainty, and cleanup evidence are linked.',
+      conclusion: 'This report is used only to validate deterministic source linkage.',
+      residualRisk: 'The educational model limitations and isolation state difference remain.',
+    },
+    cleanup: linkage.cleanup,
+    nextAction: 'Repeat the built-in sequence if any canonical source record changes.',
+    owner: 'RF DVT engineer',
+  };
+}
 
 describe('DVT station decision models', () => {
   it('reduces required capability evidence to ready, conditional, or blocked', () => {
@@ -389,6 +416,23 @@ describe('DVT station decision models', () => {
       triggerAlignment: 'aligned',
       psuRegulationMode: 'CV',
       instrumentErrors: [],
+      analyzerHeadroom: {
+        strongestConnectorSignalDbm: -4.7,
+        strongestConnectorSignalSourceId: 'pout',
+        strongestConnectorSignalRole: 'dominant-off-screen-tx-carrier',
+        connectorTotalPowerDbm: -4.7,
+        inputAttenuationDb: 10,
+        mixerTotalPowerDbm: -14.7,
+        stationVerifiedMixerOperatingLimitDbm: -10,
+        operatingLimitEvidenceId: 'analyzer-operating-limit-001',
+        mixerHeadroomDb: 4.7,
+        residualState: {
+          kind: 'if-adc-status', status: 'verified-in-range', evidenceId: 'if-adc-in-range-001',
+          observedAtIso: '2026-07-17T08:00:01.200Z',
+        },
+        referenceLevelDbm: 0,
+        evidenceId: 'analyzer-headroom-001',
+      },
       cleanup: {
         rfOutput: {
           status: 'off',
@@ -438,12 +482,14 @@ describe('DVT station decision models', () => {
             accessoryEvidenceId: 'coupler-001', assetId: 'sensor-in', label: 'Forward coupler',
             model: 'coupler', serialOrRedactedId: 'coupler-serial', maximumFrequencyHz: 6e9,
             maximumInputPowerDbm: 40, impedanceOhms: 50, ratingEvidenceId: 'coupler-rating',
+            role: 'forward-coupler', measurementPlane: 'dut-input-path',
             ratingState: 'verified', unverifiedConditions: [],
           },
           {
             accessoryEvidenceId: 'output-attenuator-001', assetId: 'analyzer-out', label: 'Output attenuator',
             model: 'attenuator', serialOrRedactedId: 'attenuator-serial', maximumFrequencyHz: 6e9,
             maximumInputPowerDbm: 47, impedanceOhms: 50, ratingEvidenceId: 'attenuator-rating',
+            role: 'output-attenuator', measurementPlane: 'dut-output-path',
             ratingState: 'verified', unverifiedConditions: [],
           },
         ],
@@ -463,7 +509,8 @@ describe('DVT station decision models', () => {
         verificationIds: [
           'input-path-verify-001', 'output-path-verify-001', 'psu-verify-001',
           'settling-001', 'state-repeatability-001', 'isolation-001',
-          'analyzer-front-end-setup-001',
+          'analyzer-front-end-setup-001', 'analyzer-headroom-001',
+          'analyzer-level-plan-qualification-001',
         ],
         unverifiedConditions: [],
         capabilities: [{
@@ -482,6 +529,47 @@ describe('DVT station decision models', () => {
       },
       sourceAssetId: 'source-main', requiredCapabilityIds: ['measurement-ready'],
       asOfIso: '2026-07-17T08:00:01.000Z',
+      externalEvidenceRegistry: [
+        {
+          evidenceId: validPoint.analyzerHeadroom.evidenceId,
+          evidenceKind: 'analyzer-headroom',
+          sourceAssetId: 'analyzer-out',
+          sourceMeasurementPointId: validPoint.pointId,
+          analyzerHeadroom: validPoint.analyzerHeadroom,
+        },
+        {
+          evidenceId: validPoint.analyzerHeadroom.operatingLimitEvidenceId,
+          evidenceKind: 'analyzer-operating-limit',
+          sourceAssetId: 'analyzer-out',
+          sourceMeasurementPointId: validPoint.pointId,
+          metric: 'analyzer-operating-boundary',
+          value: -10,
+          unit: 'dBm',
+          verificationStatus: 'verified',
+          observedAtIso: '2026-07-15T09:00:00.000Z',
+          validFromIso: '2026-01-01T00:00:00.000Z',
+          validThroughIso: '2026-12-31T23:59:59.000Z',
+          qualificationEvidenceId: 'analyzer-level-plan-qualification-001',
+          applicability: 'mixer-operating-boundary',
+          instrumentQueryBackEvidenceId: 'analyzer-out-qb-001',
+          relatedEvidenceIds: ['analyzer-level-plan-qualification-001'],
+        },
+        {
+          evidenceId: validPoint.analyzerHeadroom.residualState.evidenceId,
+          evidenceKind: 'analyzer-residual-status',
+          sourceAssetId: 'analyzer-out',
+          sourceMeasurementPointId: validPoint.pointId,
+          metric: 'analyzer-residual-status',
+          value: 0,
+          unit: 'state',
+          verificationStatus: 'verified',
+          observedAtIso: validPoint.acquiredAtIso,
+          applicability: 'if-adc-input-range',
+          analyzerResidualKind: 'if-adc-status',
+          analyzerResidualStatus: 'verified-in-range',
+          instrumentQueryBackEvidenceId: 'analyzer-out-qb-001',
+        },
+      ],
     };
 
     expect(validateMeasurementPoint(validPoint, context)).toEqual({ validity: 'valid', reasons: [] });
@@ -668,7 +756,12 @@ describe('DVT station decision models', () => {
       sourceAssetId: context.sourceAssetId,
       decisionSources: [{
         metricId: 'pae-derived-001', metricKind: 'pae',
-        sourceMetricEvidenceIds: ['pin', 'pout', 'dc'], sourceExternalEvidenceIds: [],
+        sourceMetricEvidenceIds: ['pin', 'pout', 'dc'],
+        sourceExternalEvidenceIds: [
+          validPoint.analyzerHeadroom.evidenceId,
+          validPoint.analyzerHeadroom.operatingLimitEvidenceId,
+          validPoint.analyzerHeadroom.residualState.evidenceId,
+        ],
         uncertaintyComponents: [{
           id: 'pae-repeatability', label: 'PAE repeatability', evaluationType: 'A',
           sourceType: 'repeatability-study', sourceEvidenceId: 'pae-repeatability-study-001',
@@ -683,7 +776,20 @@ describe('DVT station decision models', () => {
         },
       }],
       diagnosticEvidenceSources: nineStepSourceBundle,
-      externalEvidenceRegistry: [],
+      observedCaseEvidence: CAPSTONE_OBSERVED_CASE_EVIDENCE,
+      externalEvidenceRegistry: [
+        ...context.externalEvidenceRegistry!,
+        {
+          evidenceId: 'pae-repeatability-study-001', evidenceKind: 'uncertainty',
+          sourceMeasurementPointId: 'p-001', metric: 'uncertainty-source', value: 0.5, unit: 'percent',
+        },
+        ...Object.values(validPoint.cleanup).map(({ evidenceId, status, atIso }) => ({
+          evidenceId, evidenceKind: 'cleanup' as const, sourceMeasurementPointId: 'p-001',
+          metric: 'cleanup-state' as const, value: 0, unit: 'state' as const,
+          cleanupStatus: status, observedAtIso: atIso,
+        })),
+      ],
+      independentIsolationEvidence: [],
     };
     const derivedLinkage = buildConclusionEvidenceLinkage(sourceRecords);
     expect(derivedLinkage).toMatchObject({
@@ -691,7 +797,12 @@ describe('DVT station decision models', () => {
       measurementValidation: { validity: 'valid', reasons: [] },
       decisionSources: [{
         metricId: 'pae-derived-001', sourceMeasurementPointId: 'p-001',
-        sourceMetricEvidenceIds: ['pin', 'pout', 'dc'], sourceExternalEvidenceIds: [],
+        sourceMetricEvidenceIds: ['pin', 'pout', 'dc'],
+        sourceExternalEvidenceIds: [
+          validPoint.analyzerHeadroom.evidenceId,
+          validPoint.analyzerHeadroom.operatingLimitEvidenceId,
+          validPoint.analyzerHeadroom.residualState.evidenceId,
+        ],
         uncertaintySourceEvidenceIds: ['pae-repeatability-study-001'],
       }],
       diagnosticEvidenceSources: nineStepSourceBundle.map(({ evidenceId }) => ({ evidenceId })),
@@ -756,13 +867,19 @@ describe('DVT station decision models', () => {
         noiseMeasurementFrequencyHz: 1_840_000_000, isolationMeasurementFrequencyHz: 1_840_000_000,
         noiseSourcePlane: 'tx-output', noiseMeasurementPlane: 'tx-output', rxBranchPlane: 'rx-branch',
         isolationTxPlane: 'tx-output', isolationRxPlane: 'rx-branch', isolationDirection: 'tx-to-rx',
+        isolationDutPathState: 'small-signal-passive-path', isolationDutControlStateId: 'passive-isolation-state',
+        isolationDutBiasState: 'off', isolationAcquiredAtIso: '2026-07-17T07:59:30.000Z',
+        isolationCalibrationEvidenceId: 'vna-path-cal',
+        isolationExcitation: { kind: 'small-signal-cw', sourceAssetId: 'vna-path', sourceRole: 'stimulus-source', sourceQueryBackEvidenceId: 'vna-path-qb-001', powerDbm: -20 },
+        isolationApplicability: 'small-signal-path-isolation-only',
         txToRxIsolationDb: 45, noiseMeasurement: { convention: 'density', densityDbmPerHz: -125 },
         txNoiseMetricEvidenceId: 'tx-noise',
         terminationState: 'source-connected', dutPathState: 'pa-on', noiseIncludesTxToRxIsolation: true,
         noiseExpandedUncertaintyDb: 1, isolationExpandedUncertaintyDb: 1,
         isolationEvidenceId: 'isolation-001', analyzerFloorDensityDbmPerHz: -165,
         floorEvidenceId: 'floor-001', floorExpandedUncertaintyDb: 1, minimumFloorHeadroomDb: 6,
-        terminatedBaselineEvidenceId: 'terminated-001', paOffLeakageEvidenceId: 'pa-off-001',
+        terminatedBaselineEvidenceId: 'terminated-001', terminatedBaselineDensityDbmPerHz: -165,
+        paOffLeakageEvidenceId: 'pa-off-001', paOffLeakageDensityDbmPerHz: -164,
         noiseCorrectionId: 'noise-correction-001',
       },
       decisionSources: [{
@@ -777,9 +894,14 @@ describe('DVT station decision models', () => {
         coverageFactor: 2,
         decisionRule: { direction: 'lower-bound', lowerLimit: { unit: 'dB', valueDb: 50 } },
       }],
-      externalEvidenceRegistry: [{
-        evidenceId: 'isolation-001', evidenceKind: 'desense-isolation',
-        sourceMeasurementPointId: 'p-001',
+      independentIsolationEvidence: [{
+        evidenceId: 'isolation-001', measurementPointId: 'p-001', valueDb: 45, frequencyHz: 1_840_000_000,
+        txPlane: 'tx-output', rxPlane: 'rx-branch', direction: 'tx-to-rx',
+        dutPathState: 'small-signal-passive-path', dutControlStateId: 'passive-isolation-state',
+        dutBiasState: 'off', acquiredAtIso: '2026-07-17T07:59:30.000Z',
+        calibrationEvidenceId: 'vna-path-cal', expandedUncertaintyDb: 1,
+        excitation: { kind: 'small-signal-cw', sourceAssetId: 'vna-path', sourceRole: 'stimulus-source', sourceQueryBackEvidenceId: 'vna-path-qb-001', powerDbm: -20 },
+        applicability: 'small-signal-path-isolation-only',
       }],
     };
     expect(validateConclusionSourceRecords(provenanceReport, invalidDesenseRecords)).toEqual({
@@ -830,14 +952,29 @@ describe('DVT station decision models', () => {
       isolationMeasurementFrequencyHz: 1_840_000_000,
       noiseSourcePlane: 'tx-output', noiseMeasurementPlane: 'tx-output', rxBranchPlane: 'rx-branch',
       isolationTxPlane: 'tx-output', isolationRxPlane: 'rx-branch', isolationDirection: 'tx-to-rx',
+      isolationDutPathState: 'small-signal-passive-path', isolationDutControlStateId: 'passive-isolation-state',
+      isolationDutBiasState: 'off', isolationAcquiredAtIso: '2026-07-17T07:59:30.000Z',
+      isolationCalibrationEvidenceId: 'vna-path-cal',
+      isolationExcitation: { kind: 'small-signal-cw', sourceAssetId: 'vna-path', sourceRole: 'stimulus-source', sourceQueryBackEvidenceId: 'vna-path-qb-001', powerDbm: -20 },
+      isolationApplicability: 'small-signal-path-isolation-only',
       txToRxIsolationDb: 45, noiseMeasurement: { convention: 'density', densityDbmPerHz: -125 },
       txNoiseMetricEvidenceId: 'tx-noise', terminationState: 'source-connected', dutPathState: 'pa-on',
       noiseIncludesTxToRxIsolation: false, noiseExpandedUncertaintyDb: 1,
       isolationExpandedUncertaintyDb: 1, isolationEvidenceId: 'isolation-001',
       analyzerFloorDensityDbmPerHz: -165, floorEvidenceId: 'floor-001',
       floorExpandedUncertaintyDb: 1, minimumFloorHeadroomDb: 6,
-      terminatedBaselineEvidenceId: 'terminated-001', paOffLeakageEvidenceId: 'pa-off-001',
+      terminatedBaselineEvidenceId: 'terminated-001', terminatedBaselineDensityDbmPerHz: -165,
+      paOffLeakageEvidenceId: 'pa-off-001', paOffLeakageDensityDbmPerHz: -164,
       noiseCorrectionId: 'noise-correction-001',
+    };
+    const independentIsolationEvidence = {
+      evidenceId: 'isolation-001', measurementPointId: 'p-001', valueDb: 45, frequencyHz: 1_840_000_000,
+      txPlane: 'tx-output', rxPlane: 'rx-branch', direction: 'tx-to-rx' as const,
+      dutPathState: 'small-signal-passive-path' as const, dutControlStateId: 'passive-isolation-state',
+      dutBiasState: 'off' as const, acquiredAtIso: '2026-07-17T07:59:30.000Z',
+      calibrationEvidenceId: 'vna-path-cal', expandedUncertaintyDb: 1,
+      excitation: { kind: 'small-signal-cw' as const, sourceAssetId: 'vna-path', sourceRole: 'stimulus-source' as const, sourceQueryBackEvidenceId: 'vna-path-qb-001', powerDbm: -20 },
+      applicability: 'small-signal-path-isolation-only' as const,
     };
     expect(validateDesenseEvidenceAgainstMeasurementPoint(
       desenseEvidence, desensePoint, context.stationManifest,
@@ -907,7 +1044,13 @@ describe('DVT station decision models', () => {
         ...sourceRecords.decisionSources,
         {
           metricId: 'isolation-derived-001', metricKind: 'desense-isolation',
-          sourceMetricEvidenceIds: ['tx-noise'], sourceExternalEvidenceIds: ['isolation-001'],
+          sourceMetricEvidenceIds: ['tx-noise'],
+          sourceExternalEvidenceIds: [
+            'isolation-001',
+            desensePoint.analyzerHeadroom.evidenceId,
+            desensePoint.analyzerHeadroom.operatingLimitEvidenceId,
+            desensePoint.analyzerHeadroom.residualState.evidenceId,
+          ],
           uncertaintyComponents: [{
             id: 'isolation-u', label: 'Isolation U', evaluationType: 'B', sourceType: 'model',
             sourceEvidenceId: 'isolation-u-001', reportedUncertainty: { unit: 'dB', valueDb: 1 },
@@ -918,10 +1061,31 @@ describe('DVT station decision models', () => {
           decisionRule: { direction: 'lower-bound', lowerLimit: { unit: 'dB', valueDb: 50 } },
         },
       ],
-      externalEvidenceRegistry: [{
-        evidenceId: 'isolation-001', evidenceKind: 'desense-isolation',
-        sourceMeasurementPointId: 'p-001',
-      }],
+      externalEvidenceRegistry: [
+        ...sourceRecords.externalEvidenceRegistry,
+        {
+          evidenceId: 'isolation-u-001', evidenceKind: 'uncertainty',
+          sourceMeasurementPointId: 'p-001', metric: 'uncertainty-source', value: 1, unit: 'dB',
+        },
+        {
+          evidenceId: 'floor-001', evidenceKind: 'baseline', sourceMeasurementPointId: 'p-001',
+          sourceAssetId: 'analyzer-out', metric: 'analyzer-floor', value: -165, unit: 'dBm/Hz',
+          relatedEvidenceIds: ['analyzer-front-end-setup-001'],
+        },
+        {
+          evidenceId: 'terminated-001', evidenceKind: 'baseline', sourceMeasurementPointId: 'p-001',
+          metric: 'analyzer-floor', value: -165, unit: 'dBm/Hz',
+          relatedEvidenceIds: ['analyzer-front-end-setup-001'],
+        },
+        {
+          evidenceId: 'pa-off-001', evidenceKind: 'baseline', sourceMeasurementPointId: 'p-001',
+          metric: 'analyzer-floor', value: -164, unit: 'dBm/Hz',
+          relatedEvidenceIds: ['analyzer-front-end-setup-001'],
+        },
+        { evidenceId: 'noise-correction-001', evidenceKind: 'correction', sourceMeasurementPointId: 'p-001', metric: 'noise-path-correction', value: 0.2, unit: 'dB' },
+        { evidenceId: 'analyzer-front-end-setup-001', evidenceKind: 'station-verification', sourceAssetId: 'analyzer-out' },
+      ],
+      independentIsolationEvidence: [independentIsolationEvidence],
     };
     expect(buildConclusionEvidenceLinkage(validDesenseRecords).desenseEvaluation).toMatchObject({ validity: 'valid' });
     const sameIdTamperRecords: DvtConclusionSourceRecords = {
@@ -931,13 +1095,13 @@ describe('DVT station decision models', () => {
           ? { ...source, sourceExternalEvidenceIds: ['tampered-isolation'] }
           : source
       )),
-      externalEvidenceRegistry: [{
-        evidenceId: 'tampered-isolation', evidenceKind: 'desense-isolation',
-        sourceMeasurementPointId: 'p-001',
-      }],
+      independentIsolationEvidence: [
+        independentIsolationEvidence,
+        { ...independentIsolationEvidence, evidenceId: 'tampered-isolation' },
+      ],
     };
     expect(() => buildConclusionEvidenceLinkage(sameIdTamperRecords)).toThrow(
-      'desense-isolation external source must exactly match isolation evidence',
+      'independent isolation evidence is not registered in the station manifest',
     );
     expect(() => buildConclusionEvidenceLinkage({
       ...sourceRecords,
@@ -1101,6 +1265,32 @@ describe('DVT station decision models', () => {
       valueConvention: 'analyzer-negative-dbc',
     }).verdict).toBe('inconclusive');
 
+    const exactTouchDecisions = [
+      decideWithGuardband({
+        metricId: 'upper-exact-touch', validity: 'valid', direction: 'upper-bound',
+        measured: { unit: 'dBc', valueDbc: -31 }, expandedUncertainty: { unit: 'dB', valueDb: 1 },
+        upperLimit: { unit: 'dBc', valueDbc: -30 }, valueConvention: 'analyzer-negative-dbc',
+      }),
+      decideWithGuardband({
+        metricId: 'lower-exact-touch', validity: 'valid', direction: 'lower-bound',
+        measured: { unit: 'dB', valueDb: 31 }, expandedUncertainty: { unit: 'dB', valueDb: 1 },
+        lowerLimit: { unit: 'dB', valueDb: 30 }, valueConvention: 'positive-ratio-aclr-db',
+      }),
+      decideWithGuardband({
+        metricId: 'range-exact-touch', validity: 'valid', direction: 'range',
+        measured: { unit: 'percent', valuePercent: 2.5 }, expandedUncertainty: { unit: 'percent', valuePercent: 0.5 },
+        lowerLimit: { unit: 'percent', valuePercent: 1 }, upperLimit: { unit: 'percent', valuePercent: 3 },
+      }),
+    ];
+    expect(exactTouchDecisions.map(({ verdict }) => verdict)).toEqual([
+      'inconclusive', 'inconclusive', 'inconclusive',
+    ]);
+    expect(exactTouchDecisions.map(({ normalizedMargin }) => normalizedMargin)).toEqual([
+      { unit: 'dB', valueDb: 0 },
+      { unit: 'dB', valueDb: 0 },
+      { unit: 'percent', valuePercent: 0 },
+    ]);
+
     expect(decideWithGuardband({
       metricId: 'stale-aclr',
       validity: 'invalid',
@@ -1148,6 +1338,13 @@ describe('DVT station decision models', () => {
       isolationTxPlane: 'pamid-tx-output',
       isolationRxPlane: 'pamid-rx-branch',
       isolationDirection: 'tx-to-rx',
+      isolationDutPathState: 'small-signal-passive-path',
+      isolationDutControlStateId: 'passive-isolation-state',
+      isolationDutBiasState: 'off',
+      isolationAcquiredAtIso: '2026-07-17T07:59:30.000Z',
+      isolationCalibrationEvidenceId: 'vna-path-cal',
+      isolationExcitation: { kind: 'small-signal-cw', sourceAssetId: 'vna-path', sourceRole: 'stimulus-source', sourceQueryBackEvidenceId: 'vna-path-qb-001', powerDbm: -20 },
+      isolationApplicability: 'small-signal-path-isolation-only',
       txToRxIsolationDb: 45,
       noiseMeasurement: { convention: 'density', densityDbmPerHz: -125 },
       txNoiseMetricEvidenceId: 'tx-noise',
@@ -1162,7 +1359,9 @@ describe('DVT station decision models', () => {
       floorExpandedUncertaintyDb: 1,
       minimumFloorHeadroomDb: 6,
       terminatedBaselineEvidenceId: 'terminated-baseline-001',
+      terminatedBaselineDensityDbmPerHz: -165,
       paOffLeakageEvidenceId: 'pa-off-leakage-001',
+      paOffLeakageDensityDbmPerHz: -164,
       noiseCorrectionId: 'rx-noise-corr-001',
     } as const;
 
@@ -1268,11 +1467,19 @@ describe('DVT station decision models', () => {
       expect(advanceDiagnosticCase(
         expectedCase.id,
         progress,
-        expectedCase.evidenceIds[1],
+        CAPSTONE_OBSERVED_CASE_EVIDENCE.find(({ caseId, evidenceId }) => (
+          caseId === expectedCase.id && evidenceId === expectedCase.evidenceIds[1]
+        ))!,
       )).toEqual(progress);
 
       for (const evidenceId of expectedCase.evidenceIds) {
-        progress = advanceDiagnosticCase(expectedCase.id, progress, evidenceId);
+        progress = advanceDiagnosticCase(
+          expectedCase.id,
+          progress,
+          CAPSTONE_OBSERVED_CASE_EVIDENCE.find((record) => (
+            record.caseId === expectedCase.id && record.evidenceId === evidenceId
+          ))!,
+        );
       }
       expect(progress).toMatchObject({
         nextStepIndex: 3,
@@ -1288,18 +1495,14 @@ describe('DVT station decision models', () => {
     expect(riskBudget).toMatchObject({
       metric: 'desense-risk-budget',
       scope: 'risk-budget-only',
-      frequencyHz: 1_840_000_000,
-      measurementPointId: DVT_CAPSTONE_OPERATING_PROFILE.measurementPointId,
-      txCarrierFrequencyHz: DVT_CAPSTONE_OPERATING_PROFILE.txCarrierFrequencyHz,
-      txWaveformId: DVT_CAPSTONE_OPERATING_PROFILE.txWaveformId,
-      floorEvidenceId: DVT_CAPSTONE_OPERATING_PROFILE.floorEvidenceId,
-      isolationEvidenceId: 'capstone-independent-isolation',
-      isolationDirection: 'tx-to-rx',
-      txToRxIsolationDb: 45,
-      noiseExpandedUncertaintyDb: 1.2,
-      isolationExpandedUncertaintyDb: 1.5,
+      requiredMeasurementPointId: DVT_CAPSTONE_OPERATING_PROFILE.measurementPointId,
+      requiredTxCarrierFrequencyHz: DVT_CAPSTONE_OPERATING_PROFILE.txCarrierFrequencyHz,
+      requiredNoiseMeasurementFrequencyHz: 1_840_000_000,
+      requiredIsolationMeasurementFrequencyHz: 1_840_000_000,
+      requiredIsolationApplicability: 'small-signal-path-isolation-only',
+      requiresAnalyzerFloorResolution: true,
     });
-    expect(JSON.stringify(riskBudget)).not.toMatch(/sensitivity|BLER/i);
+    expect(JSON.stringify(riskBudget)).not.toMatch(/sensitivity|BLER|"txOutputPowerDbm"|"txToRxIsolationDb"|"noiseMeasurement"|"floorEvidenceId"/i);
 
     const gainPaeFinal = DVT_BUILT_IN_CASES
       .find(({ id }) => id === 'gain-pae-fail')
@@ -1309,11 +1512,11 @@ describe('DVT station decision models', () => {
       requiredEvidenceIds: ['pin', 'pout', 'dc'],
       acquisitionMode: 'repeatable-sequence',
       maximumTriggerRepeatabilitySeconds: 1e-6,
-      observedSupplyRegulationMode: 'CV',
-      gainDroopDbAcrossAperture: 0.1,
-      fixtureTemperatureEvidence: 'absent',
-      thermalMechanismClaimAllowed: false,
+      requiredSupplyRegulationMode: 'CV',
+      maximumGainDroopDbAcrossAperture: 0.2,
+      thermalMechanismClaimRequiresFixtureTemperatureEvidence: true,
     });
+    expect(JSON.stringify(gainPaeFinal)).not.toMatch(/observedSupply|fixtureTemperatureEvidence|thermalMechanismClaimAllowed/);
 
     const attenuationStep = DVT_BUILT_IN_CASES
       .find(({ id }) => id === 'evm-aclr-fail')
@@ -1321,14 +1524,46 @@ describe('DVT station decision models', () => {
     expect(attenuationStep).toMatchObject({
       metric: 'analyzer-attenuation-step',
       attenuationStepDeltaDb: 10,
-      correctedAclrDeltaDb: 0.15,
-      repeatabilityDb: 0.1,
-      expandedUncertaintyDb: 0.4,
-      mixerHeadroomBeforeDb: 3,
-      mixerHeadroomAfterDb: 13,
-      noiseFloorHeadroomBeforeDb: 16,
-      noiseFloorHeadroomAfterDb: 6,
+      maximumAbsoluteCorrectedAclrDeltaDb: 0.4,
+      maximumRepeatabilityDb: 0.2,
+      minimumMixerHeadroomDb: 0,
+      minimumNoiseFloorHeadroomDb: 0,
     });
+    expect(JSON.stringify(attenuationStep)).not.toMatch(/correctedAclrDeltaDb|mixerHeadroomBeforeDb|noiseFloorHeadroomAfterDb/);
+
+    const initialProgress: DvtDiagnosticProgress = {
+      caseId: 'gain-pae-fail', nextStepIndex: 0, acceptedEvidenceIds: [], accepted: false, complete: false,
+    };
+    const firstObserved = CAPSTONE_OBSERVED_CASE_EVIDENCE.find(({ caseId, evidenceId }) => (
+      caseId === 'gain-pae-fail' && evidenceId === 'known-path-recheck'
+    ))!;
+    const sameIdSignatureMismatch = firstObserved.payload?.metric === 'typed-signature'
+      ? { ...firstObserved, payload: { ...firstObserved.payload, observedSignature: 'gain-mode-query-mismatch' as const } }
+      : firstObserved;
+    expect(advanceDiagnosticCase('gain-pae-fail', initialProgress, sameIdSignatureMismatch)).toEqual(initialProgress);
+    expect(() => buildConclusionEvidenceLinkage({
+      ...CAPSTONE_SOURCE_RECORDS,
+      observedCaseEvidence: CAPSTONE_SOURCE_RECORDS.observedCaseEvidence.map((record) => (
+        record.caseId === sameIdSignatureMismatch.caseId && record.evidenceId === sameIdSignatureMismatch.evidenceId
+          ? sameIdSignatureMismatch
+          : record
+      )),
+    })).toThrow(/does not match the locked deterministic contract/);
+
+    const synchronizedObserved = CAPSTONE_OBSERVED_CASE_EVIDENCE.find(({ evidenceId }) => evidenceId === 'synchronized-rf-dc')!;
+    const toleranceMismatch = synchronizedObserved.payload?.metric === 'synchronized-kpi'
+      ? { ...synchronizedObserved, payload: { ...synchronizedObserved.payload, observedPaePercent: synchronizedObserved.payload.observedPaePercent + 1 } }
+      : synchronizedObserved;
+    const progressedTwice = ['known-path-recheck', 'gain-mode-query-back'].reduce((current, evidenceId) => (
+      advanceDiagnosticCase('gain-pae-fail', current, CAPSTONE_OBSERVED_CASE_EVIDENCE.find((record) => record.evidenceId === evidenceId)!)
+    ), initialProgress);
+    expect(advanceDiagnosticCase('gain-pae-fail', progressedTwice, toleranceMismatch)).toEqual(progressedTwice);
+    expect(() => buildConclusionEvidenceLinkage({
+      ...CAPSTONE_SOURCE_RECORDS,
+      observedCaseEvidence: CAPSTONE_SOURCE_RECORDS.observedCaseEvidence.map((record) => (
+        record.evidenceId === toleranceMismatch.evidenceId ? toleranceMismatch : record
+      )),
+    })).toThrow(/differs from the locked transaction contract/);
 
     expect(validateDiagnosticPlan('evm-aclr-fail', {
       nextStepId: 'step-analyzer-attenuation',
@@ -1343,6 +1578,255 @@ describe('DVT station decision models', () => {
       hypothesisId: 'analyzer-artifact',
       effect: 'contradict',
     })).toEqual({ valid: true, reason: 'evidence classification matches the built-in case' });
+  });
+
+  it('binds canonical external values and typed correlation records into educational source checksums', () => {
+    const canonicalDrift: DvtConclusionSourceRecords = {
+      ...CAPSTONE_SOURCE_RECORDS,
+      externalEvidenceRegistry: CAPSTONE_SOURCE_RECORDS.externalEvidenceRegistry.map((record) => (
+        record.evidenceId === 'capstone-state-repeatability-2026-07-r2'
+          ? { ...record, relatedEvidenceIds: ['same-id-canonical-drift'] }
+          : record
+      )),
+    };
+    const canonicalLinkage = buildConclusionEvidenceLinkage(CAPSTONE_SOURCE_RECORDS);
+    const driftedLinkage = buildConclusionEvidenceLinkage(canonicalDrift);
+    expect(driftedLinkage.decisionSources[0]?.sourceDigest).not.toBe(canonicalLinkage.decisionSources[0]?.sourceDigest);
+
+    const correlationEvidenceId = 'capstone-pae-correlation-study';
+    const correlatedRecords: DvtConclusionSourceRecords = {
+      ...CAPSTONE_SOURCE_RECORDS,
+      decisionSources: CAPSTONE_SOURCE_RECORDS.decisionSources.map((source, sourceIndex) => sourceIndex === 0 ? {
+        ...source,
+        uncertaintyComponents: source.uncertaintyComponents.map((component, componentIndex) => componentIndex === 0 ? {
+          ...component,
+          correlations: [{
+            withComponentId: source.uncertaintyComponents[1]!.id,
+            correlationCoefficient: 0.25,
+            evidenceId: correlationEvidenceId,
+          }],
+        } : component),
+      } : source),
+      externalEvidenceRegistry: [
+        ...CAPSTONE_SOURCE_RECORDS.externalEvidenceRegistry,
+        {
+          evidenceId: correlationEvidenceId,
+          evidenceKind: 'uncertainty',
+          sourceMeasurementPointId: CAPSTONE_SOURCE_RECORDS.measurementPoint.pointId,
+          metric: 'correlation',
+          value: 0.25,
+          unit: 'coefficient',
+        },
+      ],
+    };
+    expect(() => buildConclusionEvidenceLinkage(correlatedRecords)).not.toThrow();
+    for (const mutation of [{ value: 0.2 }, { evidenceKind: 'station-verification' as const }]) {
+      expect(() => buildConclusionEvidenceLinkage({
+        ...correlatedRecords,
+        externalEvidenceRegistry: correlatedRecords.externalEvidenceRegistry.map((record) => (
+          record.evidenceId === correlationEvidenceId ? { ...record, ...mutation } : record
+        )),
+      })).toThrow(/correlation source .* is not registered as typed correlation provenance/);
+    }
+  });
+
+  it('validates connector-to-mixer units independently of reference level and blocks unknown typed IDs', () => {
+    const basePoint = CAPSTONE_SOURCE_RECORDS.measurementPoint;
+    const validateHeadroom = (analyzerHeadroom: DvtMeasurementPoint['analyzerHeadroom']) => {
+      const point = { ...basePoint, analyzerHeadroom };
+      const externalEvidenceRegistry = CAPSTONE_SOURCE_RECORDS.externalEvidenceRegistry.map((record) => (
+        record.evidenceId === basePoint.analyzerHeadroom.evidenceId
+          ? { ...record, analyzerHeadroom }
+          : record
+      ));
+      return validateMeasurementPoint(point, {
+        stationManifest: CAPSTONE_SOURCE_RECORDS.stationManifest,
+        sourceAssetId: CAPSTONE_SOURCE_RECORDS.sourceAssetId,
+        requiredCapabilityIds: CAPSTONE_SOURCE_RECORDS.requiredCapabilityIds,
+        asOfIso: CAPSTONE_SOURCE_RECORDS.stationAsOfIso,
+        externalEvidenceRegistry,
+      });
+    };
+
+    expect(basePoint.analyzerHeadroom.mixerTotalPowerDbm).toBeCloseTo(
+      basePoint.analyzerHeadroom.connectorTotalPowerDbm - basePoint.analyzerHeadroom.inputAttenuationDb,
+      12,
+    );
+    expect(basePoint.analyzerHeadroom.stationVerifiedMixerOperatingLimitDbm).toBeLessThan(0);
+    expect(validateHeadroom(basePoint.analyzerHeadroom)).toEqual({ validity: 'valid', reasons: [] });
+    expect(validateHeadroom({
+      ...basePoint.analyzerHeadroom,
+      referenceLevelDbm: basePoint.analyzerHeadroom.referenceLevelDbm + 17,
+    })).toEqual({ validity: 'valid', reasons: [] });
+    expect(validateHeadroom({
+      ...basePoint.analyzerHeadroom,
+      mixerTotalPowerDbm: basePoint.analyzerHeadroom.mixerTotalPowerDbm + 0.1,
+    })).toMatchObject({
+      validity: 'invalid',
+      reasons: expect.arrayContaining(['mixer total power must equal connector total power minus input attenuation']),
+    });
+    expect(validateHeadroom({
+      ...basePoint.analyzerHeadroom,
+      operatingLimitEvidenceId: 'unknown-operating-limit',
+    })).toMatchObject({
+      validity: 'invalid',
+      reasons: expect.arrayContaining(['analyzer operating limit requires exact valid typed station provenance']),
+    });
+    expect(validateHeadroom({
+      ...basePoint.analyzerHeadroom,
+      residualState: { ...basePoint.analyzerHeadroom.residualState, evidenceId: 'unknown-residual-state' },
+    })).toMatchObject({
+      validity: 'invalid',
+      reasons: expect.arrayContaining(['analyzer residual state requires exact typed point and asset provenance']),
+    });
+  });
+
+  it('requires typed analyzer provenance on every analyzer-based decision and diagnostic source', () => {
+    const linkage = buildConclusionEvidenceLinkage(CAPSTONE_SOURCE_RECORDS);
+    const requiredIds = [
+      CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.evidenceId,
+      CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.operatingLimitEvidenceId,
+      CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.residualState.evidenceId,
+    ];
+    const analyzerMetricIds = new Set(['pout', 'aclr', 'evm', 'spectrum', 'tx-noise']);
+    for (const source of [
+      ...CAPSTONE_SOURCE_RECORDS.decisionSources,
+      ...CAPSTONE_SOURCE_RECORDS.diagnosticEvidenceSources,
+    ]) {
+      if (source.sourceMetricEvidenceIds.some((id) => analyzerMetricIds.has(id))) {
+        expect(source.sourceExternalEvidenceIds).toEqual(expect.arrayContaining(requiredIds));
+      }
+    }
+    expect(linkage.measurementValidation.validity).toBe('valid');
+    expect(() => buildConclusionEvidenceLinkage({
+      ...CAPSTONE_SOURCE_RECORDS,
+      decisionSources: CAPSTONE_SOURCE_RECORDS.decisionSources.map((source) => (
+        source.metricKind === 'aclr-native'
+          ? {
+              ...source,
+              sourceExternalEvidenceIds: source.sourceExternalEvidenceIds.filter((id) => (
+                id !== CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.operatingLimitEvidenceId
+              )),
+            }
+          : source
+      )),
+    })).toThrow(/requires headroom, operating-limit, and residual provenance/);
+    expect(() => buildConclusionEvidenceLinkage({
+      ...CAPSTONE_SOURCE_RECORDS,
+      decisionSources: CAPSTONE_SOURCE_RECORDS.decisionSources.map((source) => (
+        source.metricKind === 'desense-isolation'
+          ? {
+              ...source,
+              sourceExternalEvidenceIds: source.sourceExternalEvidenceIds.filter((id) => (
+                id !== CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.residualState.evidenceId
+              )),
+            }
+          : source
+      )),
+    })).toThrow(/requires headroom, operating-limit, and residual provenance/);
+    expect(() => buildConclusionEvidenceLinkage({
+      ...CAPSTONE_SOURCE_RECORDS,
+      diagnosticEvidenceSources: CAPSTONE_SOURCE_RECORDS.diagnosticEvidenceSources.map((source) => (
+        source.evidenceId === 'terminated-floor-baseline'
+          ? {
+              ...source,
+              sourceExternalEvidenceIds: source.sourceExternalEvidenceIds.filter((id) => (
+                id !== CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.evidenceId
+              )),
+            }
+          : source
+      )),
+    })).toThrow(/requires headroom, operating-limit, and residual provenance/);
+  });
+
+  it('rejects an old linkage when the point and headroom registry drift together consistently', () => {
+    const originalLinkage = buildConclusionEvidenceLinkage(CAPSTONE_SOURCE_RECORDS);
+    const driftedHeadroom = {
+      ...CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom,
+      referenceLevelDbm: CAPSTONE_SOURCE_RECORDS.measurementPoint.analyzerHeadroom.referenceLevelDbm + 5,
+    };
+    const driftedRecords: DvtConclusionSourceRecords = {
+      ...CAPSTONE_SOURCE_RECORDS,
+      measurementPoint: {
+        ...CAPSTONE_SOURCE_RECORDS.measurementPoint,
+        analyzerHeadroom: driftedHeadroom,
+      },
+      externalEvidenceRegistry: CAPSTONE_SOURCE_RECORDS.externalEvidenceRegistry.map((record) => (
+        record.evidenceId === driftedHeadroom.evidenceId
+          ? { ...record, analyzerHeadroom: driftedHeadroom }
+          : record
+      )),
+    };
+    const driftedLinkage = buildConclusionEvidenceLinkage(driftedRecords);
+    expect(driftedLinkage.decisionSources[0]?.sourceDigest).not.toBe(
+      originalLinkage.decisionSources[0]?.sourceDigest,
+    );
+    expect(validateConclusionSourceRecords(
+      makeCapstoneConclusionReport(driftedLinkage),
+      driftedRecords,
+      originalLinkage,
+    )).toMatchObject({
+      valid: false,
+      reasons: expect.arrayContaining([
+        'claimed conclusion linkage does not match recomputed source-record provenance',
+      ]),
+    });
+  });
+
+  it('binds isolation certificate and excitation query-back metadata into the canonical source checksum', () => {
+    const originalLinkage = buildConclusionEvidenceLinkage(CAPSTONE_SOURCE_RECORDS);
+    const originalIsolationSource = originalLinkage.decisionSources.find(({ metricId }) => (
+      metricId.includes('desense-isolation')
+    ))!;
+    const driftedBundles: DvtConclusionSourceRecords[] = [
+      {
+        ...CAPSTONE_SOURCE_RECORDS,
+        stationManifest: {
+          ...CAPSTONE_SOURCE_RECORDS.stationManifest,
+          calibrations: CAPSTONE_SOURCE_RECORDS.stationManifest.calibrations.map((calibration) => (
+            calibration.calibrationEvidenceId === 'capstone-vna-cal'
+              ? {
+                  ...calibration,
+                  certificateOrEducationalId: `${calibration.certificateOrEducationalId}-metadata-drift`,
+                  validThroughIso: '2026-11-30T23:59:59.000Z',
+                }
+              : calibration
+          )),
+        },
+      },
+      {
+        ...CAPSTONE_SOURCE_RECORDS,
+        stationManifest: {
+          ...CAPSTONE_SOURCE_RECORDS.stationManifest,
+          assets: CAPSTONE_SOURCE_RECORDS.stationManifest.assets.map((asset) => (
+            asset.assetId === 'capstone-vna-e5080b'
+              ? {
+                  ...asset,
+                  queryBack: { ...asset.queryBack, acquiredAtIso: '2026-07-17T07:59:49.000Z' },
+                }
+              : asset
+          )),
+        },
+      },
+    ];
+
+    for (const driftedRecords of driftedBundles) {
+      const driftedLinkage = buildConclusionEvidenceLinkage(driftedRecords);
+      const driftedIsolationSource = driftedLinkage.decisionSources.find(({ metricId }) => (
+        metricId.includes('desense-isolation')
+      ))!;
+      expect(driftedIsolationSource.sourceDigest).not.toBe(originalIsolationSource.sourceDigest);
+      expect(validateConclusionSourceRecords(
+        makeCapstoneConclusionReport(driftedLinkage),
+        driftedRecords,
+        originalLinkage,
+      )).toMatchObject({
+        valid: false,
+        reasons: expect.arrayContaining([
+          'claimed conclusion linkage does not match recomputed source-record provenance',
+        ]),
+      });
+    }
   });
 
   it('requires every senior conclusion section, linked IDs, cleanup, owner, and next action', () => {
@@ -1422,11 +1906,19 @@ describe('DVT station decision models', () => {
         metricId: 'decision-aclr-001', sourceMeasurementPointId: 'p-001',
         sourceMetricEvidenceIds: ['aclr'], sourceExternalEvidenceIds: [],
         uncertaintySourceEvidenceIds: ['aclr-u-001'],
+        valueDigest: 'fnv1a32:12345678', sourceDigest: 'fnv1a32:90abcdef',
       }],
       diagnosticEvidenceSources: nineStepDiagnosticSources,
       decisions: [linkedDecision],
     } as const;
     expect(validateConclusionEvidenceLinkage(report, linkage)).toEqual({ valid: true, reasons: [] });
+    expect(validateConclusionEvidenceLinkage(report, {
+      ...linkage,
+      decisionSources: linkage.decisionSources.map((source) => ({ ...source, valueDigest: '' })),
+    })).toEqual({
+      valid: false,
+      reasons: ['decision source educational checksums are invalid'],
+    });
     const inconclusiveDecision = decideWithGuardband({
       metricId: 'decision-aclr-inconclusive', validity: 'valid', direction: 'upper-bound',
       measured: { unit: 'dBc', valueDbc: -30.8 }, expandedUncertainty: { unit: 'dB', valueDb: 1 },
@@ -1441,6 +1933,7 @@ describe('DVT station decision models', () => {
           metricId: 'decision-aclr-inconclusive', sourceMeasurementPointId: 'p-001',
           sourceMetricEvidenceIds: ['aclr'], sourceExternalEvidenceIds: [],
           uncertaintySourceEvidenceIds: ['aclr-u-001'],
+          valueDigest: 'fnv1a32:23456789', sourceDigest: 'fnv1a32:abcdef01',
         }],
         diagnosticEvidenceSources: linkage.diagnosticEvidenceSources.map((source) => ({
           ...source, decisionMetricId: 'decision-aclr-inconclusive',

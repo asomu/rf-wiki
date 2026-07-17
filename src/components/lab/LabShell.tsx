@@ -24,7 +24,10 @@ export function LabShell({
   children,
   ledger,
   prediction,
-  note
+  note,
+  layoutVariant = 'default',
+  controlsTitle = '초기 설정',
+  controlsHint = '먼저 값을 읽기',
 }: LabShellProps) {
   const controlsRef = useRef<HTMLFieldSetElement>(null);
   const [predictionComplete, setPredictionComplete] = useState(false);
@@ -99,6 +102,37 @@ export function LabShell({
         ? `설명에 ${explanationAssessment.missing.join(' · ')}을(를) 더 적으세요.`
         : '원인 설명이 준비되었습니다. 이제 완료할 수 있습니다.';
 
+  const controlsNode = (
+    <LabControlInteractionProvider onInteraction={recordControlInteraction}>
+      <aside
+        className="lab-controls"
+        aria-label={`${title} ${controlsTitle}`}
+        aria-describedby={`${labId}-controls-state`}
+      >
+        <div className="lab-controls__sticky">
+          <div className="lab-controls__heading">
+            <h3>{controlsTitle}</h3>
+            <span>{controlsHint}</span>
+          </div>
+          <p id={`${labId}-controls-state`} className="lab-controls__state" aria-live="polite">
+            {!prediction
+              ? '한 번에 한 설정만 바꾸고 연결된 결과를 비교하세요.'
+              : predictionReady
+                ? '예측이 고정되었습니다. 이제 한 번에 한 설정만 바꾸세요.'
+                : '현재 값을 확인한 뒤 결과를 예측하세요. 예측 전에는 설정이 잠겨 있습니다.'}
+          </p>
+          <fieldset ref={controlsRef} className="lab-controls__fields" disabled={!predictionReady}>
+            <legend className="visually-hidden">{title} 설정값</legend>
+            {controls}
+          </fieldset>
+        </div>
+      </aside>
+    </LabControlInteractionProvider>
+  );
+  const predictionNode = prediction
+    ? <LabPrediction spec={prediction} onComplete={completePrediction} onReset={resetPrediction} />
+    : null;
+
   return (
     <section className="lab-shell" data-lab-id={labId} aria-labelledby={`${labId}-question`}>
       <header className="lab-shell__header">
@@ -115,34 +149,8 @@ export function LabShell({
         {...(activeControlId ? { activeControlId } : {})}
       />
 
-      <div className={`lab-shell__workbench${prediction ? '' : ' lab-shell__workbench--no-prediction'}`}>
-        <LabControlInteractionProvider onInteraction={recordControlInteraction}>
-          <aside
-            className="lab-controls"
-            aria-label={`${title} 초기 설정`}
-            aria-describedby={`${labId}-controls-state`}
-          >
-            <div className="lab-controls__sticky">
-              <div className="lab-controls__heading">
-                <h3>초기 설정</h3>
-                <span>먼저 값을 읽기</span>
-              </div>
-              <p id={`${labId}-controls-state`} className="lab-controls__state" aria-live="polite">
-                {!prediction
-                  ? '한 번에 한 설정만 바꾸고 연결된 결과를 비교하세요.'
-                  : predictionReady
-                    ? '예측이 고정되었습니다. 이제 한 번에 한 설정만 바꾸세요.'
-                    : '현재 값을 확인한 뒤 결과를 예측하세요. 예측 전에는 설정이 잠겨 있습니다.'}
-              </p>
-              <fieldset ref={controlsRef} className="lab-controls__fields" disabled={!predictionReady}>
-                <legend className="visually-hidden">{title} 설정값</legend>
-                {controls}
-              </fieldset>
-            </div>
-          </aside>
-        </LabControlInteractionProvider>
-
-        {prediction && <LabPrediction spec={prediction} onComplete={completePrediction} onReset={resetPrediction} />}
+      <div className={`lab-shell__workbench${prediction ? '' : ' lab-shell__workbench--no-prediction'}${layoutVariant === 'prediction-first' ? ' lab-shell__workbench--prediction-first' : ''}`}>
+        {layoutVariant === 'prediction-first' ? <>{predictionNode}{controlsNode}</> : <>{controlsNode}{predictionNode}</>}
 
         <div className="lab-views" aria-label={`${title} 연결된 결과 화면`}>
           {children}

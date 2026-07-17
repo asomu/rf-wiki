@@ -66,6 +66,7 @@ const MEASUREMENT_STATION: DvtStationManifest = {
       label: '30 dB forward directional coupler', model: 'EDU-COUPLER-30',
       serialOrRedactedId: 'EDU-COUPLER-1842', maximumFrequencyHz: 6_000_000_000,
       maximumInputPowerDbm: 47, impedanceOhms: 50, ratingEvidenceId: 'coupler-rating-1842',
+      role: 'forward-coupler', measurementPlane: 'dut-input-path',
       ratingState: 'verified', unverifiedConditions: [],
     },
     {
@@ -73,6 +74,7 @@ const MEASUREMENT_STATION: DvtStationManifest = {
       label: '30 dB analyzer protection attenuator', model: 'EDU-ATT-30',
       serialOrRedactedId: 'EDU-ATT-1842', maximumFrequencyHz: 6_000_000_000,
       maximumInputPowerDbm: 47, impedanceOhms: 50, ratingEvidenceId: 'attenuator-rating-1842',
+      role: 'output-attenuator', measurementPlane: 'dut-output-path',
       ratingState: 'verified', unverifiedConditions: [],
     },
   ],
@@ -94,6 +96,8 @@ const MEASUREMENT_STATION: DvtStationManifest = {
     'rx-noise-path-verification-1842', 'psu-readback-verification-1842',
     'lte-b3-sequence-settling-1842', 'lte-b3-state-repeatability-1842',
     'n9020b-rx-noise-front-end-setup-1842',
+    'n9020b-total-input-headroom-1842',
+    'n9020b-level-plan-qualification-1842',
   ],
   unverifiedConditions: [],
   capabilities: [{
@@ -121,11 +125,79 @@ const MEASUREMENT_STATION: DvtStationManifest = {
   }],
 };
 
+const TEST_POINT_ANALYZER_HEADROOM = {
+  strongestConnectorSignalDbm: -4.7,
+  strongestConnectorSignalSourceId: 'pout',
+  strongestConnectorSignalRole: 'dominant-off-screen-tx-carrier',
+  connectorTotalPowerDbm: -4.7,
+  inputAttenuationDb: 10,
+  mixerTotalPowerDbm: -14.7,
+  stationVerifiedMixerOperatingLimitDbm: -10,
+  operatingLimitEvidenceId: 'n9020b-mixer-operating-limit-1842',
+  mixerHeadroomDb: 4.7,
+  residualState: {
+    kind: 'if-adc-status',
+    status: 'verified-in-range',
+    evidenceId: 'n9020b-if-adc-in-range-1842',
+    observedAtIso: '2026-07-17T08:00:01.500Z',
+  },
+  referenceLevelDbm: 0,
+  evidenceId: 'n9020b-total-input-headroom-1842',
+} as const;
+
 const MEASUREMENT_CONTEXT: DvtMeasurementValidationContext = {
   stationManifest: MEASUREMENT_STATION,
   sourceAssetId: 'edu-source-n5182b',
   requiredCapabilityIds: ['lte-b3-sequential-kpi'],
   asOfIso: '2026-07-17T08:00:01.000Z',
+  externalEvidenceRegistry: [
+    {
+      evidenceId: 'through-evm-residual-001', evidenceKind: 'diagnostic-observation',
+      sourceAssetId: 'edu-analyzer-n9020b', sourceMeasurementPointId: 'fdd-b3-pout-01',
+      metric: 'evm-residual', value: 0.6, unit: 'percent',
+      instrumentQueryBackEvidenceId: 'n9020b-qb-1842', applicationEvidenceId: 'edu-lte-analysis-app',
+      waveformId: 'LTE_FDD_B3_20M_QPSK',
+    },
+    {
+      evidenceId: TEST_POINT_ANALYZER_HEADROOM.evidenceId,
+      evidenceKind: 'analyzer-headroom',
+      sourceAssetId: 'edu-analyzer-n9020b',
+      sourceMeasurementPointId: 'fdd-b3-pout-01',
+      analyzerHeadroom: TEST_POINT_ANALYZER_HEADROOM,
+    },
+    {
+      evidenceId: TEST_POINT_ANALYZER_HEADROOM.operatingLimitEvidenceId,
+      evidenceKind: 'analyzer-operating-limit',
+      sourceAssetId: 'edu-analyzer-n9020b',
+      sourceMeasurementPointId: 'fdd-b3-pout-01',
+      metric: 'analyzer-operating-boundary',
+      value: -10,
+      unit: 'dBm',
+      verificationStatus: 'verified',
+      observedAtIso: '2026-07-15T09:00:00.000Z',
+      validFromIso: '2026-01-01T00:00:00.000Z',
+      validThroughIso: '2026-12-31T23:59:59.000Z',
+      qualificationEvidenceId: 'n9020b-level-plan-qualification-1842',
+      applicability: 'mixer-operating-boundary',
+      instrumentQueryBackEvidenceId: 'n9020b-qb-1842',
+      relatedEvidenceIds: ['n9020b-level-plan-qualification-1842'],
+    },
+    {
+      evidenceId: TEST_POINT_ANALYZER_HEADROOM.residualState.evidenceId,
+      evidenceKind: 'analyzer-residual-status',
+      sourceAssetId: 'edu-analyzer-n9020b',
+      sourceMeasurementPointId: 'fdd-b3-pout-01',
+      metric: 'analyzer-residual-status',
+      value: 0,
+      unit: 'state',
+      verificationStatus: 'verified',
+      observedAtIso: '2026-07-17T08:00:01.500Z',
+      applicability: 'if-adc-input-range',
+      analyzerResidualKind: 'if-adc-status',
+      analyzerResidualStatus: 'verified-in-range',
+      instrumentQueryBackEvidenceId: 'n9020b-qb-1842',
+    },
+  ],
 };
 
 const TEST_POINT: DvtMeasurementPoint = {
@@ -249,12 +321,12 @@ const TEST_POINT: DvtMeasurementPoint = {
       rawNoise: { convention: 'rbw-integrated', integratedNoisePowerDbm: -95.4, equivalentNoiseBandwidthHz: 100_000 },
       correctedNoise: { convention: 'rbw-integrated', integratedNoisePowerDbm: -95, equivalentNoiseBandwidthHz: 100_000 },
       resolutionBandwidthHz: 100_000, equivalentNoiseBandwidthHz: 100_000,
-      analyzerFloorDensityDbmPerHz: -165, floorEvidenceId: 'terminated-floor-001',
+      analyzerFloorDensityDbmPerHz: -145, floorEvidenceId: 'terminated-floor-001',
       analyzerFrontEndSetup: {
         setupEvidenceId: 'n9020b-rx-noise-front-end-setup-1842',
         inputAttenuationDb: 10,
         preamplifierEnabled: false,
-        referenceLevelDbm: -70,
+        referenceLevelDbm: 0,
         detector: 'rms',
         measurementMode: 'swept-spectrum',
       },
@@ -280,6 +352,7 @@ const TEST_POINT: DvtMeasurementPoint = {
   triggerAlignment: 'misaligned',
   psuRegulationMode: 'CV',
   instrumentErrors: [],
+  analyzerHeadroom: TEST_POINT_ANALYZER_HEADROOM,
   cleanup: {
     rfOutput: { status: 'off', atIso: '2026-07-17T08:00:02.100Z', evidenceId: 'sg-rf-off-1842' },
     acquisition: { status: 'aborted', atIso: '2026-07-17T08:00:02.100Z', evidenceId: 'sa-abort-1842' },
@@ -297,14 +370,21 @@ const EVIDENCE = [
   { id: 'transaction', label: 'Repeatable acquisition-sequence contract', value: '서로 다른 record 7개 · group lte-b3-sequence-1842 · common trigger reference · settling ≥10 ms · state evidence lte-b3-state-repeatability-1842 · 최대 trigger repeatability 1.0 µs' },
   { id: 'aclr', label: 'ACLR native/normalized pair', value: 'Native corrected −30.8 dBc adjacent−main · normalized positive main/adjacent ratio 30.8 dB' },
   { id: 'evm', label: 'Qualified EVM evidence', value: '3.1% · verified application · reference, equalization, normalization과 residual 조건 기록' },
-  { id: 'tx-noise-frontend', label: 'N9020B Tx-noise front-end setup', value: 'Input attenuation 10 dB · preamplifier OFF · reference level −70 dBm · RMS swept-spectrum · setup evidence n9020b-rx-noise-front-end-setup-1842' },
+  { id: 'tx-noise-frontend', label: 'N9020B Tx-noise front-end setup', value: 'Input attenuation 10 dB · preamplifier OFF · reference level 0 dBm · source-terminated educational baseline −145 dBm/Hz · RMS swept-spectrum · setup evidence n9020b-rx-noise-front-end-setup-1842' },
+  { id: 'analyzer-headroom', label: 'Connector-to-mixer station level plan', value: 'Dominant off-screen TX carrier = strongest connector signal −4.7 dBm · connector total −4.7 dBm · input attenuation 10.0 dB · mixer total −14.7 dBm · station-verified boundary −10.0 dBm (n9020b-mixer-operating-limit-1842) · mixer headroom 4.7 dB · IF/ADC verified in range (n9020b-if-adc-in-range-1842) · reference level 0 dBm is display/setup only' },
   { id: 'trigger', label: 'Trigger overlay', value: 'Trigger edge가 RF gate보다 2.4 µs 늦음 · MISALIGNED' },
   { id: 'errors', label: 'All instrument error queues', value: 'N5182B/N9020B/N6705C/U2061XA/E5080B error count 0' },
   { id: 'rf-abort', label: 'RF OFF and acquisition abort', value: 'RF OFF CONFIRMED · acquisition ABORTED · result 08:00:02.100Z' },
   { id: 'bias-down', label: 'DUT safe bias-down', value: 'Approved generic safe-down complete · DC OFF CONFIRMED · result 08:00:02.500Z' },
 ] as const;
 
-function EvidenceRevealControls({ onCommit }: { onCommit: () => void }) {
+function EvidenceRevealControls({
+  onCommit,
+  onRevealProgress,
+}: {
+  onCommit: () => void;
+  onRevealProgress: (revealedCount: number) => void;
+}) {
   const reportInteraction = useLabControlInteraction();
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
   const allRevealed = revealed.size === EVIDENCE.length;
@@ -319,7 +399,11 @@ function EvidenceRevealControls({ onCommit }: { onCommit: () => void }) {
             type="button"
             className="lab-button lab-button--secondary"
             aria-pressed={revealed.has(item.id)}
-            onClick={() => setRevealed((current) => new Set([...current, item.id]))}
+            onClick={() => setRevealed((current) => {
+              const next = new Set([...current, item.id]);
+              onRevealProgress(next.size);
+              return next;
+            })}
           >
             증거 확인: {item.label}
           </button>
@@ -347,11 +431,12 @@ function EvidenceRevealControls({ onCommit }: { onCommit: () => void }) {
 
 export function SynchronizedTestPointLab({ progressId }: DvtLabProps) {
   const [committed, setCommitted] = useState(false);
+  const [revealedCount, setRevealedCount] = useState(0);
   const validation = useMemo(() => validateMeasurementPoint(TEST_POINT, MEASUREMENT_CONTEXT), []);
   const status = validation.validity.toUpperCase();
   const reasons = validation.reasons.length > 0 ? validation.reasons.join(' · ') : '모든 validity gate 통과';
   const ledger: LedgerEntry[] = [
-    { label: '변경', value: committed ? `${EVIDENCE.length}개 장비·metric·cleanup evidence를 결합해 point validity를 commit` : 'Validity evidence를 아직 모두 확인하지 않음' },
+    { label: '변경', value: committed ? `${EVIDENCE.length}개 장비·metric·cleanup evidence를 결합해 point validity를 commit` : `${revealedCount}/${EVIDENCE.length} validity evidence 확인` },
     { label: '직접 효과', value: committed ? `Validation state → ${status}` : 'Point state 미확정', tone: committed && validation.validity !== 'valid' ? 'warning' : 'neutral' },
     { label: '화면 결과', value: committed ? reasons : '보고서와 KPI 계산이 잠겨 있음' },
     { label: '비용·한계', value: '이 fixture는 물리적 동시 acquisition이 아니라 동일 operating point를 반복 재현하는 sequence · trigger repeatability와 settling evidence 필요', tone: 'warning' },
@@ -366,7 +451,10 @@ export function SynchronizedTestPointLab({ progressId }: DvtLabProps) {
       description="Source, analyzer, acquisition, calibration, trigger와 error queue evidence가 같은 operating state를 나타내는지 검증합니다."
       activeStages={['source', 'dut', 'acquisition', 'dsp', 'display']}
       stageMap={{ 'synchronized-point-commit': ['source', 'dut', 'acquisition', 'dsp', 'display'] }}
-      controls={<EvidenceRevealControls onCommit={() => setCommitted(true)} />}
+      controls={<EvidenceRevealControls onCommit={() => setCommitted(true)} onRevealProgress={setRevealedCount} />}
+      layoutVariant="prediction-first"
+      controlsTitle="트랜잭션 근거"
+      controlsHint="동일 상태 확인"
       ledger={ledger}
       prediction={{
         id: 'synchronized-point-validity',
@@ -393,7 +481,8 @@ export function SynchronizedTestPointLab({ progressId }: DvtLabProps) {
             { label: 'DC / optional fixture sensor', value: '4.2 V · 1.86 A · 46.5 °C', evidence: 'N6705C CV · fixture sensor metadata · junction temperature 아님' },
             { label: 'ACLR convention pair', value: '−30.8 dBc native · 30.8 dB normalized ratio', evidence: 'adjacent−main negative dBc preserved; positive main/adjacent ratio named separately' },
             { label: 'Qualified EVM', value: '3.1% · VALID', evidence: 'Verified VSA application·reference·equalization·normalization·residual recorded' },
-            { label: 'Tx-noise analyzer front end', value: '10 dB attenuation · preamplifier OFF · reference −70 dBm', evidence: 'RMS swept-spectrum · n9020b-rx-noise-front-end-setup-1842 registered' },
+            { label: 'Tx-noise analyzer front end', value: '10 dB attenuation · preamplifier OFF · reference 0 dBm · terminated baseline −145 dBm/Hz', evidence: 'Pinned setup-specific educational baseline, not instrument accuracy · RMS swept-spectrum · n9020b-rx-noise-front-end-setup-1842 registered' },
+            { label: 'Analyzer connector → mixer level plan', value: 'Connector total −4.7 dBm → input attenuation 10.0 dB → mixer total −14.7 dBm → station-verified boundary −10.0 dBm', evidence: 'Dominant off-screen TX carrier is the same strongest connector signal, not an added carrier · mixer headroom 4.7 dB · IF/ADC verified in range · reference level 0 dBm is display/setup only · headroom n9020b-total-input-headroom-1842 · limit n9020b-mixer-operating-limit-1842 · residual n9020b-if-adc-in-range-1842' },
             { label: 'Instrument status', value: 'SG/SA/PSU/Sensor/VNA error 0', evidence: 'Query-back, aperture, timestamp와 correction IDs reviewed' },
             { label: 'Trigger alignment', value: 'MISALIGNED', evidence: 'RF gate 기준 +2.4 µs' },
             { label: 'Cleanup', value: 'RF OFF · acquisition ABORTED · DUT safe bias-down', evidence: '08:00:02.100Z / 08:00:02.500Z · results confirmed' },
@@ -403,7 +492,7 @@ export function SynchronizedTestPointLab({ progressId }: DvtLabProps) {
       ) : (
         <section className="dvt-evidence-placeholder" aria-live="polite">
           <h3>Test-point validity 잠김</h3>
-          <p>장비·metric·cleanup evidence를 공개해 같은 acquisition state인지 확인하세요.</p>
+          <p>장비·metric·cleanup evidence를 공개해 같은 acquisition state인지 확인하세요. 현재 {revealedCount}/{EVIDENCE.length} 확인.</p>
         </section>
       )}
     </LabShell>

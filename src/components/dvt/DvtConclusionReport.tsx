@@ -1,5 +1,10 @@
 import { useId, useState } from 'react';
-import { validateConclusionEvidenceLinkage, validateConclusionReportCompleteness } from '@/lib/rf/dvt';
+import {
+  DVT_EVIDENCE_CANONICAL_PAYLOAD_VERSION,
+  DVT_EVIDENCE_CHECKSUM_DESCRIPTION,
+  validateConclusionEvidenceLinkage,
+  validateConclusionReportCompleteness,
+} from '@/lib/rf/dvt';
 import type {
   DvtConclusionEvidenceLinkage,
   DvtConclusionReport as DvtConclusionReportData,
@@ -38,6 +43,13 @@ function formatQuantity(quantity: DvtQuantity | DvtDeltaQuantity): string {
   }
 }
 
+function causalConfidenceSummary(fields: DvtConclusionFields): string {
+  const labels = [...fields.sections.hypotheses.matchAll(/· (Confirmed|Strongly indicated|Unresolved) ·/g)]
+    .map((match) => match[1]!)
+    .filter((label, index, all) => all.indexOf(label) === index);
+  return labels.length > 0 ? labels.join(' · ') : 'Not separately recorded';
+}
+
 export function validateDvtConclusion(
   fields: DvtConclusionFields,
   linkage: DvtConclusionEvidenceLinkage,
@@ -61,6 +73,13 @@ export function describeTxNoiseAnalyzerFrontEndSetup(
   return `${setup.setupEvidenceId} · input attenuation ${setup.inputAttenuationDb.toFixed(1)} dB · preamp ${setup.preamplifierEnabled ? 'ON' : 'OFF'} · reference level ${setup.referenceLevelDbm.toFixed(1)} dBm · ${setup.detector.toUpperCase()} detector · ${setup.measurementMode} · recorded educational setup, not an instrument performance claim`;
 }
 
+export function describeAnalyzerHeadroomLevelPlan(
+  sourceRecords: DvtConclusionSourceRecords,
+): string {
+  const headroom = sourceRecords.measurementPoint.analyzerHeadroom;
+  return `${headroom.strongestConnectorSignalRole} ${headroom.strongestConnectorSignalSourceId} = strongest connector signal ${headroom.strongestConnectorSignalDbm.toFixed(1)} dBm · connector total ${headroom.connectorTotalPowerDbm.toFixed(1)} dBm → input attenuation ${headroom.inputAttenuationDb.toFixed(1)} dB → mixer total ${headroom.mixerTotalPowerDbm.toFixed(1)} dBm → station-verified mixer operating boundary ${headroom.stationVerifiedMixerOperatingLimitDbm.toFixed(1)} dBm (${headroom.operatingLimitEvidenceId}) · mixer headroom ${headroom.mixerHeadroomDb.toFixed(1)} dB · ${headroom.residualState.kind} ${headroom.residualState.status} (${headroom.residualState.evidenceId}) · reference level ${headroom.referenceLevelDbm.toFixed(1)} dBm is display/setup only; boundary is station verification, not a vendor accuracy claim`;
+}
+
 export function serializeDvtConclusion(
   fields: DvtConclusionFields,
   linkage: DvtConclusionEvidenceLinkage,
@@ -79,14 +98,18 @@ export function serializeDvtConclusion(
     `Accepted diagnostic evidence IDs: ${fields.acceptedDiagnosticEvidenceIds.join(', ')}`,
     `Station readiness: ${linkage.stationReadiness.state.toUpperCase()} · ${linkage.stationReadiness.evidence.join('; ')}`,
     `Measurement point validity: ${linkage.measurementValidation.validity.toUpperCase()} · ${linkage.measurementValidation.reasons.join('; ') || 'no open reason'}`,
+    `Three-axis summary: measurement validity=${linkage.measurementValidation.validity.toUpperCase()} · allocation decision=${linkage.decisions.map(({ metricId, verdict }) => `${metricId}:${verdict.toUpperCase()}`).join(', ')} · causal confidence=${causalConfidenceSummary(fields)}`,
+    `Provenance checksum contract: ${DVT_EVIDENCE_CHECKSUM_DESCRIPTION} · canonical payload ${DVT_EVIDENCE_CANONICAL_PAYLOAD_VERSION} · detects accidental educational-record drift only; not a security control`,
     `Guardband decisions: ${linkage.decisions.map(({ metricId, verdict, measured, expandedUncertainty }, index) => {
       const source = linkage.decisionSources[index];
-      return `${metricId}=${verdict.toUpperCase()} · measured ${formatQuantity(measured)} · U ${formatQuantity(expandedUncertainty)} · source point ${source?.sourceMeasurementPointId ?? 'missing'} · metric evidence ${source?.sourceMetricEvidenceIds.join('+') ?? 'missing'} · external evidence ${source?.sourceExternalEvidenceIds.join('+') ?? 'missing'} · uncertainty evidence ${source?.uncertaintySourceEvidenceIds.join('+') ?? 'missing'}`;
+      return `${metricId}=${verdict.toUpperCase()} · measured ${formatQuantity(measured)} · U ${formatQuantity(expandedUncertainty)} · source point ${source?.sourceMeasurementPointId ?? 'missing'} · metric evidence ${source?.sourceMetricEvidenceIds.join('+') ?? 'missing'} · external evidence ${source?.sourceExternalEvidenceIds.join('+') ?? 'missing'} · uncertainty evidence ${source?.uncertaintySourceEvidenceIds.join('+') ?? 'missing'} · value educational checksum ${source?.valueDigest ?? 'missing'} · source educational checksum ${source?.sourceDigest ?? 'missing'}`;
     }).join(' | ')}`,
-    `Diagnostic source mapping: ${linkage.diagnosticEvidenceSources.map((source) => `${source.caseId}/${source.evidenceId}=point:${source.sourceMeasurementPointId};metrics:${source.sourceMetricEvidenceIds.join('+') || 'none'};external:${source.sourceExternalEvidenceIds.join('+') || 'none'};decision:${source.decisionMetricId ?? 'none'}`).join(' | ')}`,
+    `Diagnostic source mapping: ${linkage.diagnosticEvidenceSources.map((source) => `${source.caseId}/${source.evidenceId}=point:${source.sourceMeasurementPointId};metrics:${source.sourceMetricEvidenceIds.join('+') || 'none'};external:${source.sourceExternalEvidenceIds.join('+') || 'none'};decision:${source.decisionMetricId ?? 'none'};observed-educational-checksum:${source.observedValueDigest ?? 'missing'};source-educational-checksum:${source.sourceDigest ?? 'missing'}`).join(' | ')}`,
     `Isolation measurement source: ${linkage.decisionSources.find(({ metricId }) => metricId.includes('desense-isolation'))?.sourceExternalEvidenceIds.join('+') || 'missing'} · risk supporting metric evidence: ${linkage.decisionSources.find(({ metricId }) => metricId.includes('desense-isolation'))?.sourceMetricEvidenceIds.join('+') || 'missing'}`,
     `Recorded N9020B RX-band noise setup: ${describeTxNoiseAnalyzerFrontEndSetup(sourceRecords)}`,
+    `N9020B connector-to-mixer level plan: ${describeAnalyzerHeadroomLevelPlan(sourceRecords)}`,
     `Desense evaluation: ${linkage.desenseEvaluation === undefined ? 'not linked' : `${linkage.desenseEvaluation.validity.toUpperCase()} · risk-budget-only · ${linkage.desenseEvaluation.reasons.join('; ') || 'all risk-evidence gates closed'}`}`,
+    'Isolation state-equivalence residual: small-signal passive-path, bias-OFF isolation is not state-equivalent to PA-ON TX-noise acquisition; bias/control-state dependence remains an explicit residual risk.',
     `Cleanup: RF=${fields.cleanup.rfOutput.status}@${fields.cleanup.rfOutput.atIso} (${fields.cleanup.rfOutput.evidenceId}) · acquisition=${fields.cleanup.acquisition.status}@${fields.cleanup.acquisition.atIso} (${fields.cleanup.acquisition.evidenceId}) · bias=${fields.cleanup.bias.status}@${fields.cleanup.bias.atIso} (${fields.cleanup.bias.evidenceId}) · DC=${fields.cleanup.dcOutput.status}@${fields.cleanup.dcOutput.atIso} (${fields.cleanup.dcOutput.evidenceId})`,
     `Next action: ${fields.nextAction}`,
     `Owner: ${fields.owner}`,
@@ -132,6 +155,9 @@ export function DvtConclusionReport({
       </header>
 
       <dl className="dvt-conclusion-report__metadata">
+        <div><dt>Measurement validity</dt><dd>{linkage.measurementValidation.validity.toUpperCase()}</dd></div>
+        <div><dt>Allocation decision</dt><dd>{linkage.decisions.map(({ metricId, verdict }) => `${metricId}: ${verdict.toUpperCase()}`).join(' · ')}</dd></div>
+        <div><dt>Causal confidence</dt><dd>{causalConfidenceSummary(fields)}</dd></div>
         <div><dt>Report ID</dt><dd>{fields.reportId}</dd></div>
         <div><dt>Station ID</dt><dd>{fields.stationId}</dd></div>
         <div><dt>Station revision ID</dt><dd>{linkage.stationRevisionId}</dd></div>
@@ -140,13 +166,16 @@ export function DvtConclusionReport({
         <div><dt>Accepted diagnostic evidence IDs</dt><dd>{fields.acceptedDiagnosticEvidenceIds.join(' · ')}</dd></div>
         <div><dt>Station linkage</dt><dd>{linkage.stationReadiness.state.toUpperCase()} · {linkage.stationReadiness.evidence.join(' · ')}</dd></div>
         <div><dt>Measurement point linkage</dt><dd>{linkage.measurementValidation.validity.toUpperCase()} · {linkage.measurementValidation.reasons.join(' · ') || 'all validity gates closed'}</dd></div>
+        <div><dt>Provenance checksum contract</dt><dd>{DVT_EVIDENCE_CHECKSUM_DESCRIPTION} · canonical payload {DVT_EVIDENCE_CANONICAL_PAYLOAD_VERSION} · non-security drift detector only</dd></div>
         <div><dt>Guardband decisions</dt><dd>{linkage.decisions.map(({ metricId, verdict, measured, expandedUncertainty }, index) => {
           const source = linkage.decisionSources[index];
-          return `${metricId}: ${verdict.toUpperCase()} · measured ${formatQuantity(measured)} · U ${formatQuantity(expandedUncertainty)} · ${source?.sourceMeasurementPointId ?? 'missing point'} / metric ${source?.sourceMetricEvidenceIds.join('+') ?? 'missing'} / external ${source?.sourceExternalEvidenceIds.join('+') ?? 'missing'}`;
+          return `${metricId}: ${verdict.toUpperCase()} · measured ${formatQuantity(measured)} · U ${formatQuantity(expandedUncertainty)} · ${source?.sourceMeasurementPointId ?? 'missing point'} / metric ${source?.sourceMetricEvidenceIds.join('+') ?? 'missing'} / external ${source?.sourceExternalEvidenceIds.join('+') ?? 'missing'} / value educational checksum ${source?.valueDigest ?? 'missing'} / source educational checksum ${source?.sourceDigest ?? 'missing'}`;
         }).join(' · ')}</dd></div>
-        <div><dt>9-step source mapping</dt><dd>{linkage.diagnosticEvidenceSources.map((source) => `${source.caseId}/${source.evidenceId} → ${source.sourceMeasurementPointId} · metric ${source.sourceMetricEvidenceIds.join('+') || 'none'} · external ${source.sourceExternalEvidenceIds.join('+') || 'none'} · decision ${source.decisionMetricId ?? 'none'}`).join(' · ')}</dd></div>
+        <div><dt>9-step source mapping</dt><dd>{linkage.diagnosticEvidenceSources.map((source) => `${source.caseId}/${source.evidenceId} → ${source.sourceMeasurementPointId} · metric ${source.sourceMetricEvidenceIds.join('+') || 'none'} · external ${source.sourceExternalEvidenceIds.join('+') || 'none'} · decision ${source.decisionMetricId ?? 'none'} · observed educational checksum ${source.observedValueDigest ?? 'missing'} · source educational checksum ${source.sourceDigest ?? 'missing'}`).join(' · ')}</dd></div>
         <div><dt>Isolation measurement source</dt><dd>{linkage.decisionSources.find(({ metricId }) => metricId.includes('desense-isolation'))?.sourceExternalEvidenceIds.join(' · ') || 'Missing'} · risk supporting metric evidence {linkage.decisionSources.find(({ metricId }) => metricId.includes('desense-isolation'))?.sourceMetricEvidenceIds.join(' · ') || 'Missing'}</dd></div>
+        <div><dt>Isolation state-equivalence residual</dt><dd>Small-signal passive-path, bias-OFF isolation is not state-equivalent to the PA-ON TX-noise point; control/bias dependence remains open.</dd></div>
         <div><dt>N9020B RX-band noise recorded setup</dt><dd>{describeTxNoiseAnalyzerFrontEndSetup(sourceRecords)}</dd></div>
+        <div><dt>N9020B connector → mixer level plan</dt><dd>{describeAnalyzerHeadroomLevelPlan(sourceRecords)}</dd></div>
         <div><dt>Desense source evaluation</dt><dd>{linkage.desenseEvaluation === undefined ? 'Not linked' : `${linkage.desenseEvaluation.validity.toUpperCase()} · risk-budget-only · ${linkage.desenseEvaluation.reasons.join(' · ') || 'all risk-evidence gates closed'}`}</dd></div>
         <div><dt>Cleanup</dt><dd>{([
           ['RF', fields.cleanup.rfOutput],

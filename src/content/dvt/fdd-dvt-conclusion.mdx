@@ -27,15 +27,15 @@ equipmentContext:
   analyzer: "N9020B spectrum/conditional EVM, E5080B path evidence, U2061XA power와 N6705C/N6752A DC evidence"
 standards:
   - "3GPP TS 36.101 V17.6.0 §6.2, §6.6"
-  - "3GPP TS 36.521-1 V17.7.0 §6"
+  - "3GPP TS 36.521-1 V17.6.1 §4, §6.2.2, §6.6.2.3"
 references:
   - title: "ETSI TS 136 101 V17.6.0 — E-UTRA UE radio transmission and reception"
     organization: "ETSI / 3GPP"
     url: "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/17.06.00_60/ts_136101v170600p.pdf"
     kind: "standard"
-  - title: "ETSI TS 136 521-1 V17.7.0 — E-UTRA UE conformance specification"
+  - title: "ETSI TS 136 521-1 V17.6.1 — E-UTRA UE conformance specification"
     organization: "ETSI / 3GPP"
-    url: "https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.07.00_60/ts_13652101v170700p.pdf"
+    url: "https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.06.01_60/ts_13652101v170601p.pdf"
     kind: "standard"
   - title: "Characterizing the Key Performance Indicators of Power Amplifiers"
     organization: "Keysight Technologies"
@@ -94,7 +94,11 @@ Evidence가 서로 충돌하거나 station capability/uncertainty 때문에 후�
 
 세 thread는 같은 point ID, waveform/checksum, corrected Pout, DUT mode, supply state와 acquisition group을 공유한다. 각 step은 source metric evidence와 별도 verification evidence를 연결하고, 마지막 decision은 그 thread에 연결된 원본에서 다시 계산한다. 독자가 화면의 evidence를 검토한 뒤 다른 fixture의 숫자로 결론을 받는 구조는 허용하지 않는다.
 
-## Case 1 · Gain·PAE fail
+Conclusion의 `fnv1a32:` 값은 canonical payload `dvt-evidence-canonical-v1`에 계산한 **결정론적 교육용 비보안 체크섬**이다. 실수로 source record가 달라진 것을 재현 가능하게 찾는 장치일 뿐, 암호학적 digest나 tamper-proof 보안 통제로 해석하지 않는다.
+
+## Case 1 · Gain·PAE suspected-fail history
+
+Preliminary symptom은 fail처럼 보였지만 requalified source point의 최종 allocation disposition은 **PAE PASS**다. 이 case는 수정 전 query-back mismatch가 어떻게 거짓 fail 이력을 만들었는지 조사한다.
 
 초기 후보는 path correction drift, generic gain-mode 적용 실패, supply CC와 thermal droop다. 가장 정보량이 큰 측정은 symptom에 따라 달라진다.
 
@@ -105,12 +109,16 @@ Evidence가 서로 충돌하거나 station capability/uncertainty 때문에 후�
 
 PAE fail은 PSU 숫자만으로 결론 내리지 않는다. 이 교육 fixture의 Pin, Pout, VDD, IDD는 한 acquisition group의 독립 record다. 공통 trigger·DUT state와 허용 trigger repeatability를 만족해야 같은 valid point로 결합할 수 있으며, 서로 겹친 aperture라고 표현하지 않는다.
 
-## Case 2 · EVM·ACLR fail
+## Case 2 · EVM·ACLR anomaly investigation
+
+Preliminary symptom은 EVM·ACLR fail 의심이었고, requalified point의 최종 ACLR disposition은 uncertainty interval이 limit에 겹치는 **INCONCLUSIVE**다. DUT fail로 확정하지 않는다.
 
 초기 후보는 source residual, PA peak compression·memory, analyzer ACLR input-range artifact와 EVM demodulation artifact다.
 
 - Passive through의 동일 waveform residual이 나쁘면 DUT 이전 문제를 우선한다.
 - Analyzer attenuation step의 현재 evidence는 corrected ACLR delta·repeatability·uncertainty·mixer/noise headroom만 검증한다. 이 step이 attenuation-invariant이면 ACLR input-range artifact 후보만 낮춘다.
+- N9020B level ledger는 strongest connector signal과 connector total을 먼저 기록하고 `mixer total = connector total − input attenuation`으로 계산한다. Mixer headroom은 station-verified operating boundary와 비교하며 0 dBm reference level은 display/setup record일 뿐 headroom 경계나 vendor accuracy claim이 아니다. Dominant off-screen TX carrier가 strongest connector signal 자체라면 별도 carrier로 다시 합산하지 않는다.
+- Analyzer headroom, station-qualified negative-dBm mixer boundary, IF/ADC 또는 attenuation-step residual은 서로 다른 typed evidence ID로 등록한다. ACLR·EVM·analyzer Pout conclusion source는 세 record를 모두 연결해야 하며, limit/residual ID가 point·asset·query-back·timestamp·applicability와 exact하게 맞지 않으면 결론을 만들지 않는다.
 - EVM demodulation artifact를 낮추려면 별도의 demod attenuation step, corrected EVM delta, application/license, reference/equalization/normalization, residual과 EVM uncertainty evidence가 필요하다.
 - Pout back-off에서 EVM·ACLR이 함께 회복되고 AM-AM/AM-PM signature가 있으면 PA 비선형 후보가 강해진다.
 - Tone spacing, record 시작/끝과 upper/lower regrowth 차이는 memory 후보를 좁힌다.

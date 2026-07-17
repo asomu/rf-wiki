@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 async function activateWithKeyboard(page: Page, target: Locator, key: 'Enter' | 'Space' = 'Enter') {
@@ -19,6 +20,24 @@ async function openLab(page: Page, path: string, progressId: string) {
   const island = lab.locator('xpath=ancestor::astro-island[1]');
   await expect(island).not.toHaveAttribute('ssr', '', { timeout: 15_000 });
   return lab;
+}
+
+async function expectNoPostInteractionAxeViolations(page: Page, progressId: string) {
+  const audit = await new AxeBuilder({ page })
+    .include(`[data-lab-id="${progressId}"]`)
+    .analyze();
+  expect(audit.violations, JSON.stringify(audit.violations, null, 2)).toEqual([]);
+}
+
+async function expectActualChoiceCarriersAtLeast44(lab: Locator) {
+  const undersized = await lab.locator('input[type="radio"], input[type="checkbox"]').evaluateAll((inputs) => (
+    inputs.flatMap((input) => {
+      const rect = input.getBoundingClientRect();
+      if (rect.width >= 44 && rect.height >= 44) return [];
+      return [{ type: input.getAttribute('type'), width: rect.width, height: rect.height }];
+    })
+  ));
+  expect(undersized).toEqual([]);
 }
 
 async function finishLabWithKeyboard(
@@ -52,7 +71,7 @@ const CASE_FLOWS = [
         ['Supply CC or thermal droop', '중립'],
       ],
       [
-        ['DUT gain-mode state mismatch', '지지'],
+        ['DUT gain-mode state mismatch', '중립'],
         ['RF path correction error', '중립'],
         ['RF/DC acquisition misalignment', '반증'],
         ['Supply CC or thermal droop', '중립'],
@@ -123,12 +142,17 @@ test('station qualification completes prediction, evidence review, report, and p
   const lab = await openLab(page, '/dvt/station-qualification/', 'dvt:station-qualification');
   await activateWithKeyboard(page, lab.getByRole('radio', { name: /검증 실패가 하나라도 있으면/ }), 'Space');
   await activateWithKeyboard(page, lab.getByRole('button', { name: '예측 고정' }));
-  for (const checkbox of await lab.getByRole('checkbox').all()) {
+  await expectActualChoiceCarriersAtLeast44(lab);
+  const stationCheckboxes = await lab.getByRole('checkbox').all();
+  await expect(stationCheckboxes[0]!).toBeFocused();
+  for (const checkbox of stationCheckboxes) {
     await activateWithKeyboard(page, checkbox, 'Space');
   }
+  await expect(lab.getByText(/현재 4\/4 검토/)).toBeVisible();
   await activateWithKeyboard(page, lab.getByRole('button', { name: 'Station 판정 확정' }));
   await expect(lab.getByRole('heading', { name: 'Station qualification 보고서' })).toBeVisible();
   await expect(lab.locator('[data-status="BLOCKED"]')).toBeVisible();
+  await expectNoPostInteractionAxeViolations(page, 'dvt:station-qualification');
   await finishLabWithKeyboard(
     page,
     lab,
@@ -141,16 +165,21 @@ test('synchronized point reviews all equipment, metric, and cleanup evidence wit
   const lab = await openLab(page, '/dvt/synchronized-test-point/', 'dvt:synchronized-test-point');
   await activateWithKeyboard(page, lab.getByRole('radio', { name: /INVALID로 보존하고 DUT KPI 계산에서 제외/ }), 'Space');
   await activateWithKeyboard(page, lab.getByRole('button', { name: '예측 고정' }));
+  await expectActualChoiceCarriersAtLeast44(lab);
   const evidenceButtons = lab.getByRole('button', { name: /^증거 확인:/ });
-  await expect(evidenceButtons).toHaveCount(13);
+  await expect(evidenceButtons).toHaveCount(14);
+  await expect(evidenceButtons.first()).toBeFocused();
   for (const button of await evidenceButtons.all()) {
     await activateWithKeyboard(page, button);
   }
+  await expect(lab.getByText(/현재 14\/14 확인/)).toBeVisible();
   await activateWithKeyboard(page, lab.getByRole('button', { name: 'Test point 유효성 확정' }));
   await expect(lab.getByRole('heading', { name: 'Synchronized test-point 보고서' })).toBeVisible();
   await expect(lab.locator('[data-status="INVALID"]')).toBeVisible();
   await expect(lab.getByText(/RF OFF · acquisition ABORTED · DUT safe bias-down/)).toBeVisible();
   await expect(lab.getByText(/n9020b-rx-noise-front-end-setup-1842/).first()).toBeVisible();
+  await expect(lab.getByText(/Connector total −4\.7 dBm → input attenuation 10\.0 dB → mixer total −14\.7 dBm → station-verified boundary −10\.0 dBm/)).toBeVisible();
+  await expectNoPostInteractionAxeViolations(page, 'dvt:synchronized-test-point');
   await finishLabWithKeyboard(
     page,
     lab,
@@ -163,11 +192,16 @@ test('uncertainty decision calculates and closes a guardband verdict with keyboa
   const lab = await openLab(page, '/dvt/uncertainty-guardband/', 'dvt:uncertainty-guardband');
   await activateWithKeyboard(page, lab.getByRole('radio', { name: /Raw ACLR은 통과하지만 uncertainty interval이 limit과 겹쳐 INCONCLUSIVE/ }), 'Space');
   await activateWithKeyboard(page, lab.getByRole('button', { name: '예측 고정' }));
-  await activateWithKeyboard(page, lab.getByRole('button', { name: '불확도 budget 계산' }));
+  await expectActualChoiceCarriersAtLeast44(lab);
+  const calculateBudget = lab.getByRole('button', { name: '불확도 budget 계산' });
+  await expect(calculateBudget).toBeFocused();
+  await activateWithKeyboard(page, calculateBudget);
   await expect(lab.getByText(/Expanded uncertainty 1.00 dB · k=2/)).toBeVisible();
+  await expect(lab.getByText(/계산된 interval −31\.8…−29\.8 dBc/)).toBeVisible();
   await activateWithKeyboard(page, lab.getByRole('button', { name: 'Guardband 판정 확정' }));
   await expect(lab.getByRole('heading', { name: 'Uncertainty decision 보고서' })).toBeVisible();
   await expect(lab.locator('[data-status="INCONCLUSIVE"]')).toBeVisible();
+  await expectNoPostInteractionAxeViolations(page, 'dvt:uncertainty-guardband');
   await finishLabWithKeyboard(
     page,
     lab,
@@ -186,6 +220,7 @@ test('blind FDD capstone completes all three evidence chains with keyboard-only 
     'Space',
   );
   await activateWithKeyboard(page, lab.getByRole('button', { name: '예측 고정' }));
+  await expectActualChoiceCarriersAtLeast44(lab);
 
   for (const [caseIndex, caseFlow] of CASE_FLOWS.entries()) {
     const initialGroup = lab.getByRole('group', { name: 'Initial hypothesis' });
@@ -221,6 +256,7 @@ test('blind FDD capstone completes all three evidence chains with keyboard-only 
 
   await typeWithKeyboard(page, lab.getByRole('textbox', { name: 'Conclusion' }), 'Gain-mode state and PA nonlinearity are evidence-bounded conclusions only.');
   await typeWithKeyboard(page, lab.getByRole('textbox', { name: 'Residual risk' }), 'Fixture temperature, radiated leakage, and receiver performance require follow-up tests.');
+  await expectActualChoiceCarriersAtLeast44(lab);
   await activateWithKeyboard(
     page,
     lab.getByRole('checkbox', { name: 'Linked measurement-point cleanup evidence를 검토했습니다' }),
@@ -241,6 +277,8 @@ test('blind FDD capstone completes all three evidence chains with keyboard-only 
   await expect(lab.getByText(/capstone-n9020b-rx-noise-front-end-setup/).first()).toBeVisible();
   await expect(lab.getByText(/input attenuation 10\.0 dB.*preamp OFF.*reference level 0\.0 dBm/i).first()).toBeVisible();
   await expect(lab.getByText(/recorded educational setup, not an instrument performance claim/i).first()).toBeVisible();
+  await expect(lab.getByText(/connector total -2\.7 dBm.*input attenuation 10\.0 dB.*mixer total -12\.7 dBm.*station-verified mixer operating boundary -10\.0 dBm/i).first()).toBeVisible();
+  await expectNoPostInteractionAxeViolations(page, 'dvt:fdd-dvt-conclusion');
 
   await finishLabWithKeyboard(
     page,

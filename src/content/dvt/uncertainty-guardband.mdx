@@ -26,7 +26,7 @@ equipmentContext:
   analyzer: "N9020B, E5080B, U2061XA, N6705C/N6752A의 calibration·path·repeatability evidence"
 standards:
   - "3GPP TS 36.101 V17.6.0 §6.2, §6.6 — UE requirement context"
-  - "3GPP TS 36.521-1 V17.7.0 §6 — conformance context"
+  - "3GPP TS 36.521-1 V17.6.1 §4 — test tolerance and measurement-uncertainty context"
 references:
   - title: "JCGM 100:2008 — Evaluation of measurement data, Guide to the expression of uncertainty in measurement"
     organization: "JCGM / BIPM"
@@ -39,6 +39,10 @@ references:
   - title: "ETSI TS 136 101 V17.6.0 — E-UTRA UE radio transmission and reception"
     organization: "ETSI / 3GPP"
     url: "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/17.06.00_60/ts_136101v170600p.pdf"
+    kind: "standard"
+  - title: "ETSI TS 136 521-1 V17.6.1 — common conformance and test-tolerance context"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.06.01_60/ts_13652101v170601p.pdf"
     kind: "standard"
 labId: "uncertainty-decision"
 progressId: "dvt:uncertainty-guardband"
@@ -140,6 +144,6 @@ PAE는 watt-domain의 `Pout`, `Pin`, `VDD`, `IDD` 함수다. 각 sensitivity가 
 
 ACLR에는 main/adjacent integration bandwidth, noise correction, analyzer linearity와 source residual이 중요하다. Native negative dBc와 positive ratio를 섞지 않는다. EVM에는 reference waveform, equalization, normalization, synchronization, application/license와 through residual을 함께 기록한다.
 
-TS 36.101과 TS 36.521-1은 완성 UE requirement와 conformance context다. 이 lesson의 가상 PAMiD allocation, uncertainty budget과 decision rule은 교육용 project contract이며 실제 certification judgement를 대신하지 않는다.
+TS 36.101은 완성 UE requirement의 context이고 TS 36.521-1 V17.6.1 clause 4는 minimum requirement에 measurement uncertainty를 직접 포함하지 않고 test tolerance를 별도로 다루는 conformance context다. 이 lesson의 가상 PAMiD allocation, uncertainty budget과 decision rule은 교육용 project contract이며 실제 certification judgement를 대신하지 않는다.
 
 </LessonLayer>

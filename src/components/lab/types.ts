@@ -36,6 +36,9 @@ export interface LabShellProps {
   ledger: readonly LedgerEntry[];
   prediction?: PredictionSpec;
   note?: string;
+  layoutVariant?: 'default' | 'prediction-first';
+  controlsTitle?: string;
+  controlsHint?: string;
 }
 
 export const defaultSignalStages: readonly SignalStage[] = [

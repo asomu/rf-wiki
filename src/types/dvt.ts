@@ -80,6 +80,8 @@ export interface DvtAccessoryEvidence {
   readonly maximumFrequencyHz?: number;
   readonly maximumInputPowerDbm?: number;
   readonly impedanceOhms?: number;
+  readonly role: 'forward-coupler' | 'output-attenuator' | 'dc-block' | 'termination' | 'rf-cable' | 'calibration-kit' | 'torque-tool';
+  readonly measurementPlane: 'dut-input-path' | 'dut-output-path' | 'source-output' | 'analyzer-input' | 'vna-reference-plane' | 'connector-interface';
   readonly ratingEvidenceId: string;
   readonly ratingState: 'verified' | 'unverified';
   readonly unverifiedConditions: readonly string[];
@@ -157,6 +159,33 @@ export interface DvtGenericDutState {
   readonly queryBackAtIso: string;
   readonly biasState: 'on' | 'off' | 'unknown';
   readonly fixtureTemperatureC?: number;
+}
+
+/**
+ * Analyzer level plan at the RF connector and behind the configured input
+ * attenuator. Reference level remains a display/setup field and is never used
+ * as the mixer operating boundary.
+ */
+export interface DvtAnalyzerHeadroomEvidence {
+  readonly strongestConnectorSignalDbm: number;
+  readonly strongestConnectorSignalSourceId: string;
+  readonly strongestConnectorSignalRole: 'dominant-off-screen-tx-carrier' | 'measured-channel-power';
+  readonly connectorTotalPowerDbm: number;
+  readonly inputAttenuationDb: number;
+  readonly mixerTotalPowerDbm: number;
+  /** A station-qualified working boundary, not a vendor accuracy specification. */
+  readonly stationVerifiedMixerOperatingLimitDbm: number;
+  /** Typed registry record that proves the station-qualified mixer boundary. */
+  readonly operatingLimitEvidenceId: string;
+  readonly mixerHeadroomDb: number;
+  readonly residualState: {
+    readonly kind: 'if-adc-status' | 'attenuation-step';
+    readonly status: 'verified-in-range' | 'overload' | 'unverified';
+    readonly evidenceId: string;
+    readonly observedAtIso: string;
+  };
+  readonly referenceLevelDbm: number;
+  readonly evidenceId: string;
 }
 
 export type DvtNoiseMeasurement =
@@ -346,6 +375,7 @@ export interface DvtMeasurementPoint {
   readonly triggerAlignment: 'aligned' | 'misaligned' | 'not-required' | 'unknown';
   readonly psuRegulationMode: 'CV' | 'CC' | 'TRIPPED' | 'OFF' | 'unknown';
   readonly instrumentErrors: readonly string[];
+  readonly analyzerHeadroom: DvtAnalyzerHeadroomEvidence;
   readonly cleanup: DvtCleanupEvidence;
 }
 
@@ -354,6 +384,7 @@ export interface DvtMeasurementValidationContext {
   readonly sourceAssetId: string;
   readonly requiredCapabilityIds: readonly string[];
   readonly asOfIso?: string;
+  readonly externalEvidenceRegistry?: readonly DvtExternalEvidenceRegistryRecord[];
 }
 
 export interface DvtMeasurementValidation {
@@ -491,12 +522,21 @@ export interface DvtDesenseRiskEvidence {
   readonly noiseExpandedUncertaintyDb: number;
   readonly isolationExpandedUncertaintyDb: number;
   readonly isolationEvidenceId: string;
+  readonly isolationDutPathState: 'small-signal-passive-path';
+  readonly isolationDutControlStateId: string;
+  readonly isolationDutBiasState: 'off';
+  readonly isolationAcquiredAtIso: string;
+  readonly isolationCalibrationEvidenceId: string;
+  readonly isolationExcitation: DvtIndependentIsolationEvidence['excitation'];
+  readonly isolationApplicability: DvtIndependentIsolationEvidence['applicability'];
   readonly analyzerFloorDensityDbmPerHz: number;
   readonly floorEvidenceId: string;
   readonly floorExpandedUncertaintyDb: number;
   readonly minimumFloorHeadroomDb: number;
   readonly terminatedBaselineEvidenceId: string;
+  readonly terminatedBaselineDensityDbmPerHz: number;
   readonly paOffLeakageEvidenceId: string;
+  readonly paOffLeakageDensityDbmPerHz: number;
   readonly noiseCorrectionId: string;
 }
 
@@ -542,27 +582,29 @@ export type DvtExpectedEvidence =
       readonly stateRepeatabilityEvidenceId: string;
       readonly expectedPaePercent: number;
       readonly tolerancePercent: number;
-      readonly observedSupplyRegulationMode: 'CV' | 'CC';
-      readonly gainDroopDbAcrossAperture: number;
-      readonly fixtureTemperatureEvidence: 'present' | 'absent';
-      readonly thermalMechanismClaimAllowed: boolean;
+      readonly requiredSupplyRegulationMode: 'CV';
+      readonly maximumGainDroopDbAcrossAperture: number;
+      readonly thermalMechanismClaimRequiresFixtureTemperatureEvidence: true;
     }
   | {
       readonly metric: 'analyzer-attenuation-step';
       readonly attenuationStepDeltaDb: number;
-      readonly correctedAclrDeltaDb: number;
-      readonly repeatabilityDb: number;
-      readonly expandedUncertaintyDb: number;
-      readonly mixerHeadroomBeforeDb: number;
-      readonly mixerHeadroomAfterDb: number;
-      readonly noiseFloorHeadroomBeforeDb: number;
-      readonly noiseFloorHeadroomAfterDb: number;
+      readonly maximumAbsoluteCorrectedAclrDeltaDb: number;
+      readonly maximumRepeatabilityDb: number;
+      readonly minimumMixerHeadroomDb: number;
+      readonly minimumNoiseFloorHeadroomDb: number;
     }
-  | ({
+  | {
       readonly metric: 'desense-risk-budget';
       readonly scope: 'risk-budget-only';
       readonly educationalIsolationTargetDb: number;
-    } & DvtDesenseRiskEvidence);
+      readonly requiredMeasurementPointId: string;
+      readonly requiredTxCarrierFrequencyHz: number;
+      readonly requiredNoiseMeasurementFrequencyHz: number;
+      readonly requiredIsolationMeasurementFrequencyHz: number;
+      readonly requiredIsolationApplicability: 'small-signal-path-isolation-only';
+      readonly requiresAnalyzerFloorResolution: true;
+    };
 
 export type DvtHypothesisEffect = 'support' | 'contradict' | 'neutral';
 
@@ -619,6 +661,51 @@ export interface DvtDiagnosticProgress {
   readonly complete: boolean;
 }
 
+export type DvtObservedEvidencePayload =
+  | { readonly metric: 'typed-signature'; readonly observedSignature: DvtEvidenceSignature; readonly observation: string }
+  | {
+      readonly metric: 'synchronized-kpi';
+      readonly requiredEvidenceIds: readonly ['pin', 'pout', 'dc'];
+      readonly acquisitionMode: 'repeatable-sequence';
+      readonly acquisitionGroupId: string;
+      readonly triggerReferenceId: string;
+      readonly maximumTriggerRepeatabilitySeconds: number;
+      readonly settlingEvidenceId: string;
+      readonly stateRepeatabilityEvidenceId: string;
+      readonly observedPaePercent: number;
+      readonly observedSupplyRegulationMode: 'CV' | 'CC';
+      readonly gainDroopDbAcrossAperture: number;
+      readonly fixtureTemperatureEvidence: 'present' | 'absent';
+      readonly thermalMechanismClaimAllowed: boolean;
+    }
+  | {
+      readonly metric: 'analyzer-attenuation-step';
+      readonly attenuationStepDeltaDb: number;
+      readonly correctedAclrDeltaDb: number;
+      readonly repeatabilityDb: number;
+      readonly expandedUncertaintyDb: number;
+      readonly mixerHeadroomBeforeDb: number;
+      readonly mixerHeadroomAfterDb: number;
+      readonly noiseFloorHeadroomBeforeDb: number;
+      readonly noiseFloorHeadroomAfterDb: number;
+    }
+  | ({ readonly metric: 'desense-risk-budget'; readonly scope: 'risk-budget-only'; readonly educationalIsolationTargetDb: number } & DvtDesenseRiskEvidence);
+
+/** Observation revealed only after the learner locks an expected signature. */
+export interface DvtObservedCaseEvidence {
+  readonly caseId: string;
+  readonly evidenceId: string;
+  readonly observedAtIso: string;
+  readonly availability: 'available' | 'unavailable';
+  readonly unavailableReason?: string;
+  readonly payload?: DvtObservedEvidencePayload;
+}
+
+export interface DvtObservedEvidenceComparison {
+  readonly state: 'match' | 'mismatch' | 'unavailable';
+  readonly reason: string;
+}
+
 export interface DvtConclusionSections {
   readonly scope: string;
   readonly station: string;
@@ -661,6 +748,10 @@ export interface DvtConclusionEvidenceLinkage {
     readonly sourceMetricEvidenceIds: readonly DvtMetricEvidenceId[];
     readonly sourceExternalEvidenceIds: readonly string[];
     readonly uncertaintySourceEvidenceIds: readonly string[];
+    /** Deterministic educational checksum; not a cryptographic or tamper-proof digest. */
+    readonly valueDigest: string;
+    /** Deterministic educational checksum; not a cryptographic or tamper-proof digest. */
+    readonly sourceDigest: string;
   }[];
   readonly diagnosticEvidenceSources: readonly DvtDiagnosticEvidenceSource[];
   readonly decisions: readonly DvtDecision[];
@@ -696,6 +787,34 @@ export interface DvtDiagnosticEvidenceSource {
   readonly sourceMetricEvidenceIds: readonly DvtMetricEvidenceId[];
   readonly sourceExternalEvidenceIds: readonly string[];
   readonly decisionMetricId?: string;
+  /** Deterministic educational checksum; not a cryptographic or tamper-proof digest. */
+  readonly observedValueDigest?: string;
+  /** Deterministic educational checksum; not a cryptographic or tamper-proof digest. */
+  readonly sourceDigest?: string;
+}
+
+export interface DvtIndependentIsolationEvidence {
+  readonly evidenceId: string;
+  readonly measurementPointId: string;
+  readonly valueDb: number;
+  readonly frequencyHz: number;
+  readonly txPlane: string;
+  readonly rxPlane: string;
+  readonly direction: 'tx-to-rx';
+  readonly dutPathState: 'small-signal-passive-path';
+  readonly dutControlStateId: string;
+  readonly dutBiasState: 'off';
+  readonly acquiredAtIso: string;
+  readonly calibrationEvidenceId: string;
+  readonly expandedUncertaintyDb: number;
+  readonly excitation: {
+    readonly kind: 'small-signal-cw';
+    readonly sourceAssetId: string;
+    readonly sourceRole: 'stimulus-source';
+    readonly sourceQueryBackEvidenceId: string;
+    readonly powerDbm: number;
+  };
+  readonly applicability: 'small-signal-path-isolation-only';
 }
 
 /** Immutable registry for non-metric source records referenced by conclusions. */
@@ -708,6 +827,9 @@ export interface DvtExternalEvidenceRegistryRecord {
     | 'accessory-rating'
     | 'calibration'
     | 'cleanup'
+    | 'analyzer-headroom'
+    | 'analyzer-operating-limit'
+    | 'analyzer-residual-status'
     | 'diagnostic-observation'
     | 'desense-isolation'
     | 'baseline'
@@ -715,6 +837,35 @@ export interface DvtExternalEvidenceRegistryRecord {
     | 'uncertainty';
   readonly sourceAssetId?: string;
   readonly sourceMeasurementPointId?: string;
+  readonly value?: number;
+  readonly unit?: 'dB' | 'dBm' | 'dBm/Hz' | 'percent' | 'state' | 'coefficient';
+  readonly metric?:
+    | 'evm-residual'
+    | 'aclr-residual'
+    | 'analyzer-floor'
+    | 'analyzer-operating-boundary'
+    | 'analyzer-residual-status'
+    | 'cleanup-state'
+    | 'uncertainty-source'
+    | 'correlation'
+    | 'noise-path-correction';
+  readonly observedAtIso?: string;
+  readonly cleanupStatus?: DvtCleanupEvidence[keyof DvtCleanupEvidence]['status'];
+  readonly analyzerHeadroom?: DvtAnalyzerHeadroomEvidence;
+  readonly verificationStatus?: 'verified' | 'unverified';
+  readonly validFromIso?: string;
+  readonly validThroughIso?: string;
+  readonly qualificationEvidenceId?: string;
+  readonly applicability?:
+    | 'mixer-operating-boundary'
+    | 'if-adc-input-range'
+    | 'attenuation-step-stability';
+  readonly analyzerResidualKind?: DvtAnalyzerHeadroomEvidence['residualState']['kind'];
+  readonly analyzerResidualStatus?: DvtAnalyzerHeadroomEvidence['residualState']['status'];
+  readonly instrumentQueryBackEvidenceId?: string;
+  readonly applicationEvidenceId?: string;
+  readonly waveformId?: string;
+  readonly relatedEvidenceIds?: readonly string[];
 }
 
 export interface DvtConclusionSourceRecords {
@@ -725,6 +876,8 @@ export interface DvtConclusionSourceRecords {
   readonly sourceAssetId: string;
   readonly decisionSources: readonly DvtDecisionSourceRecord[];
   readonly diagnosticEvidenceSources: readonly DvtDiagnosticEvidenceSource[];
+  readonly observedCaseEvidence: readonly DvtObservedCaseEvidence[];
   readonly externalEvidenceRegistry: readonly DvtExternalEvidenceRegistryRecord[];
+  readonly independentIsolationEvidence: readonly DvtIndependentIsolationEvidence[];
   readonly desenseEvidence?: DvtDesenseRiskEvidence;
 }

@@ -62,6 +62,8 @@ for (const name of [
 ]) {
   expected.set(name, viewports[390]);
 }
+expected.set('dvt-blind-capstone-completed-390-chromium-darwin.png', viewports[390]);
+expected.set('dvt-blind-capstone-completed-1440-chromium-darwin.png', viewports[1440]);
 
 const actual = (await readdir(snapshotDirectory))
   .filter((name) => name.endsWith('.png'))
