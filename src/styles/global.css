@@ -1639,7 +1639,7 @@ a:visited:not(.button-primary):not(.wordmark) {
 }
 
 .glossary-tools {
-  max-width: calc(var(--layout-prose) + var(--layout-learning-map));
+  max-width: calc(var(--layout-learning-map) + var(--space-12) + var(--layout-lesson-reading));
   padding-block: var(--space-6);
   border-block: var(--stroke-hairline) solid var(--color-rule-strong);
 }
@@ -1653,7 +1653,7 @@ a:visited:not(.button-primary):not(.wordmark) {
 
 .glossary-filter-row {
   display: flex;
-  max-width: var(--layout-prose);
+  max-width: var(--layout-lesson-reading);
 }
 
 .glossary-filter-row input {
@@ -1715,10 +1715,15 @@ a:visited:not(.button-primary):not(.wordmark) {
 
 .glossary-layout {
   display: grid;
-  grid-template-columns: var(--layout-learning-map) minmax(0, var(--layout-prose));
+  grid-template-columns: var(--layout-learning-map) minmax(0, var(--layout-lesson-reading));
   align-items: start;
+  max-width: calc(var(--layout-learning-map) + var(--space-12) + var(--layout-lesson-reading));
   margin-block-start: var(--space-12);
   gap: var(--space-12);
+}
+
+.glossary-list {
+  min-width: 0;
 }
 
 .glossary-reading-guide {
@@ -1967,8 +1972,13 @@ a:visited:not(.button-primary):not(.wordmark) {
   }
 
   .glossary-layout {
-    grid-template-columns: minmax(0, var(--layout-prose));
+    grid-template-columns: minmax(0, var(--layout-lesson-reading));
+    max-width: var(--layout-lesson-reading);
     gap: var(--space-6);
+  }
+
+  .glossary-tools {
+    max-width: var(--layout-lesson-reading);
   }
 
   .glossary-reading-guide {
