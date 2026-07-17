@@ -118,8 +118,7 @@ npm run build:sites
 - 코드, 디자인·접근성, RF·계측 콘텐츠 reviewer는 여러 `NO-GO` finding의 수정·재검증 뒤 모두 `GO`; P0–P3 잔여 finding 없음
 - `npm test`, Sites static client·Pagefind·Worker·hosting metadata build와 `git diff --check` 통과
 
-<!-- VERIFY: OpenAI Sites v8의 commit 427bf26 매핑과 현재 공개 version을 배포 플랫폼에서 재확인한다. -->
-`fa4427d`의 새 Sites version은 아직 저장하거나 게시하지 않았다. 이전 작업에서 개선 전 commit `427bf26`용 Sites v8을 저장했지만 공개 전환은 수행하지 않았으므로, v8이나 현재 공개본을 최신 구현으로 취급하지 않는다. 새 version 저장과 공개 전환은 사용자 승인 대기 상태다.
+2026-07-18에 구현 commit `fa4427d`와 문서 동기화를 포함한 exact source `eeafb36`으로 Sites version 9를 공개 배포했다. 공개 홈, `/dvt/`, `/dvt/fdd-dvt-conclusion/`의 제목·링크·interactive control을 실제 URL에서 확인했고 browser console error는 0건이었다. 이후 배포는 이 version을 현재 공개 기준선으로 사용한다.
 
 ### 다음 변경에서 다시 열어야 하는 QA
 

@@ -37,8 +37,8 @@
 | LTE | 11 pages | 구현·grid/PAMiD 흐름 감사 완료 | 없음 |
 | NR FR1 | 11 pages | 구현·numerology/BWP/RB100/TDD 감사 완료 | 없음 |
 | Diagnostics | 10 pages | 구현·PvT violation 연결 완료 | 없음 |
-| PAMiD/TxM DVT | 6 lessons | 구현·3축 전문 리뷰·전체 회귀 완료 | Sites version 저장·공개 승인 |
-| 검색·용어·진도·문서 | 공통 | 전체 연결·회귀 완료 | 공개본 검증 |
+| PAMiD/TxM DVT | 6 lessons | 구현·3축 전문 리뷰·전체 회귀·Sites v9 공개 완료 | 없음 |
+| 검색·용어·진도·문서 | 공통 | 전체 연결·회귀·공개본 검증 완료 | 없음 |
 
 현재 학습 계약은 RF 기초 6개, 계측기 25개, Cellular/PAMiD 59개와 DVT 6개, 총 96개다. DVT는 기존 설명을 복제하지 않고 `capability → station validity → synchronized point → uncertainty/guardband → stimulus comparison → blind conclusion`으로 연결한다.
 
@@ -159,8 +159,8 @@
 - [x] 1440/1024/390px, 200% zoom, reduced motion와 axe를 확인한다.
 - [x] 코드, 디자인·접근성, RF·계측 콘텐츠 3축 전문 리뷰의 `NO-GO` finding을 반복 수정하고 최종 `GO`를 받는다.
 - [x] 최종 구현 commit을 `fa4427d` (`fix: harden DVT evidence workflow`)로 고정하고 전체 gate를 재실행한다.
-- [ ] 검증된 exact commit `fa4427d`로 Sites version을 저장한다.
-- [ ] 사용자 승인 후 공개 version을 전환하고 공개본을 재검증한다.
+- [x] 구현 commit `fa4427d`와 문서 동기화를 포함한 exact source `eeafb36`으로 Sites version 9를 저장한다.
+- [x] 사용자 승인 후 공개 version을 전환하고 홈·DVT hub·blind capstone 공개본을 재검증한다.
 
 최종 구현·품질 증거(2026-07-17): content contract `6 + 25 + 59 + 6 = 96`, Astro typecheck 234 files/0 diagnostics, Vitest 44 files/336 tests, Python 5 packages/114 tests, hosting 3 tests, production build 118 pages, Pagefind 117 pages/18,844 words, Playwright 665/665, visual baselines 107/107, DVT 집중 E2E와 완료 후 axe 4/4, Lighthouse 19 routes Performance 98–100/Accessibility 100/CLS 약 0.0020–0.0038을 통과했다. `npm test`, 정적 client·Pagefind·Worker·hosting metadata를 만드는 Sites build와 `git diff --check`도 통과했다. 3축 reviewer는 모두 최종 `GO`이며 P0–P3 잔여 finding은 없다.
 
@@ -172,8 +172,7 @@
 - Historical PAE false-fail 원인과 현재 requalified PAE `PASS`를 분리하고, prediction-first·focus/process state·session draft를 유지한다. Nested draft와 `sessionStorage` `SecurityError`, 실제 44×44px choice carrier, 완료 report의 390/1440px 기준선을 검증했다.
 - TS 36.521-1은 V17.6.1의 실질 clause 4, 6.2.2, 6.6.2.3을 사용한다. N9020B `−145 dBm/Hz`는 source-terminated 교육용 station baseline일 뿐 vendor specification으로 확대하지 않는다.
 
-<!-- VERIFY: OpenAI Sites v8의 commit 427bf26 매핑과 현재 공개 version을 배포 플랫폼에서 재확인한다. -->
-배포는 아직 Phase 7 완료가 아니다. `fa4427d`의 Sites version은 저장·게시되지 않았다. 이전 작업에서 개선 전 commit `427bf26`용 Sites v8을 저장했지만 공개 전환은 수행하지 않았으므로, v8이나 현재 공개본을 최신 구현으로 취급하지 않는다. 새 version 저장과 공개 전환은 사용자 승인을 기다린다.
+2026-07-18 배포 게이트도 완료했다. 구현 commit `fa4427d`와 문서 동기화 commit을 포함한 exact source `eeafb36`으로 Sites version 9를 공개 전환했고, `https://rf-wiki-precision-lab.mark-jang.chatgpt.site/`, `/dvt/`, `/dvt/fdd-dvt-conclusion/`을 실제 공개본에서 확인했다. 세 경로의 제목·DVT 링크·interactive control이 정상이며 브라우저 console error는 없었다.
 
 #### DVT 범위 경계
 
