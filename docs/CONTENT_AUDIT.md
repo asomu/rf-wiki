@@ -74,15 +74,19 @@ RF 핵심 본문은 `직관 → 실습 → bench → 이론/규격 → 자기 �
 | Lesson | 닫는 판단 | 핵심 경계 |
 |---|---|---|
 | Bench capability | READY / CONDITIONAL / BLOCKED | Option·application·accessory 보유를 가정하지 않음 |
-| Station qualification | Known path로 residual·drift 검증 | Calibration 성공과 independent verification을 구분 |
-| Synchronized test point | VALID / INVALID / INCONCLUSIVE | 값과 instrument state·timestamp·correction을 함께 commit |
+| Station qualification | Known path로 residual·drift 검증 | Connector·attenuation·mixer boundary와 display/IF-ADC residual을 분리 |
+| Synchronized test point | VALID / INVALID / INCONCLUSIVE | 값·단위·instrument state·timestamp·correction provenance를 함께 commit |
 | Uncertainty·guardband | PASS / FAIL / INCONCLUSIVE | Upper/lower/range comparator와 ACLR native sign을 명시 |
 | CW·Two-tone·LTE | Compression·IM3·memory·modulated quality | Tone/composite, same Pin/Pout와 residual을 구분 |
-| Blind conclusion | Confirmed / Strongly indicated / Unresolved | Tx noise 결과를 실제 Rx desense가 아닌 risk budget으로 제한 |
+| Blind conclusion | Confirmed / Strongly indicated / Unresolved | Historical false-fail과 current allocation, Tx-noise risk budget을 분리 |
 
 대표 profile은 LTE FDD Band 3 계열 1.7 GHz UE uplink다. Page target은 가상 project allocation이며 TS 36.101/36.521-1의 완성 UE requirement를 개별 PAMiD target으로 바꾸지 않는다. NR FDD와 NR TDD TxM은 후속 milestone로 분리한다.
 
-RF/PA와 계측·불확도 전문 리뷰는 모두 `GO`로 종료됐다. TX-noise analyzer front-end 설정 provenance까지 typed evidence로 보강했으며 BLOCKER/HIGH/MEDIUM finding은 남아 있지 않다.
+사용자에게 보이는 evidence 흐름도 함께 보강했다. Expected signature와 observed payload가 어긋나면 진행을 막고, ACLR·EVM·Pout·PAE·Tx-noise/desense를 원본 source record에 연결한다. Independent isolation은 calibration certificate와 VNA query-back까지 확인하며, registry는 값·단위·상태·timestamp를 보존한다. Historical PAE false-fail 원인과 현재 requalified `PASS`를 한 결론으로 합치지 않는다.
+
+Analyzer 화면의 reference level과 IF/ADC residual은 mixer operating boundary와 분리한다. N9020B `−145 dBm/Hz`는 source-terminated built-in case의 교육용 station baseline이며 vendor specification이 아니다. Evidence의 `canonical-v1` checksum도 결정론적 교육용 non-security checksum일 뿐 tamper-proof digest가 아니다. TS 36.521-1 인용은 V17.6.1 clause 4, 6.2.2, 6.6.2.3의 실제 conformance context로 고정했다.
+
+코드, 디자인·접근성, RF·계측 콘텐츠의 3축 전문 리뷰는 여러 `NO-GO` finding을 반복 수정한 뒤 모두 `GO`로 종료됐다. P0–P3 잔여 finding은 없다. Prediction-first 순서, focus/process state, session draft 오류 복구, 실제 44×44px choice carrier와 완료 report의 390/1440px 화면도 자동 검증했다.
 
 ## 유지해야 할 경계
 

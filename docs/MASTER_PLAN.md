@@ -37,7 +37,7 @@
 | LTE | 11 pages | 구현·grid/PAMiD 흐름 감사 완료 | 없음 |
 | NR FR1 | 11 pages | 구현·numerology/BWP/RB100/TDD 감사 완료 | 없음 |
 | Diagnostics | 10 pages | 구현·PvT violation 연결 완료 | 없음 |
-| PAMiD/TxM DVT | 6 lessons | LTE FDD 1차 구현 | 전체 품질·전문 리뷰·배포 게이트 |
+| PAMiD/TxM DVT | 6 lessons | 구현·3축 전문 리뷰·전체 회귀 완료 | Sites version 저장·공개 승인 |
 | 검색·용어·진도·문서 | 공통 | 전체 연결·회귀 완료 | 공개본 검증 |
 
 현재 학습 계약은 RF 기초 6개, 계측기 25개, Cellular/PAMiD 59개와 DVT 6개, 총 96개다. DVT는 기존 설명을 복제하지 않고 `capability → station validity → synchronized point → uncertainty/guardband → stimulus comparison → blind conclusion`으로 연결한다.
@@ -157,10 +157,23 @@
 - [x] Four React lab의 prediction lock, keyboard completion, evidence 공개와 report completion을 검증한다.
 - [x] Content/design, typecheck, unit/Python, build/Pagefind와 Playwright 회귀를 통과한다.
 - [x] 1440/1024/390px, 200% zoom, reduced motion와 axe를 확인한다.
-- [x] RF/PA와 계측·불확도 전문 리뷰 후 severity별 수정과 전체 gate 재실행을 완료한다.
-- [ ] 검증된 exact commit으로 Sites version을 저장하고 공개 게시 전 사용자 승인을 받는다.
+- [x] 코드, 디자인·접근성, RF·계측 콘텐츠 3축 전문 리뷰의 `NO-GO` finding을 반복 수정하고 최종 `GO`를 받는다.
+- [x] 최종 구현 commit을 `fa4427d` (`fix: harden DVT evidence workflow`)로 고정하고 전체 gate를 재실행한다.
+- [ ] 검증된 exact commit `fa4427d`로 Sites version을 저장한다.
+- [ ] 사용자 승인 후 공개 version을 전환하고 공개본을 재검증한다.
 
-최종 구현·품질 증거(2026-07-17): content contract `6 + 25 + 59 + 6 = 96`, Astro typecheck 234 files/0 diagnostics, Vitest 44 files/324 tests, Python 5 packages/114 tests, hosting 3 tests, production build 118 pages, Pagefind 117 pages/18,765 words, Playwright 663 tests, 105 visual baselines, Lighthouse 19 routes Performance 97–100/Accessibility 100/CLS ≤ 0.0038. RF/PA와 계측·불확도 reviewer는 모두 `GO`로 판정했고 BLOCKER/HIGH/MEDIUM finding은 없다.
+최종 구현·품질 증거(2026-07-17): content contract `6 + 25 + 59 + 6 = 96`, Astro typecheck 234 files/0 diagnostics, Vitest 44 files/336 tests, Python 5 packages/114 tests, hosting 3 tests, production build 118 pages, Pagefind 117 pages/18,844 words, Playwright 665/665, visual baselines 107/107, DVT 집중 E2E와 완료 후 axe 4/4, Lighthouse 19 routes Performance 98–100/Accessibility 100/CLS 약 0.0020–0.0038을 통과했다. `npm test`, 정적 client·Pagefind·Worker·hosting metadata를 만드는 Sites build와 `git diff --check`도 통과했다. 3축 reviewer는 모두 최종 `GO`이며 P0–P3 잔여 finding은 없다.
+
+#### `fa4427d` evidence hardening 요약
+
+- Expected evidence와 observed payload가 다르면 진행을 막고, ACLR·EVM·Pout·Tx-noise/desense 및 PAE를 원본 measurement·external evidence에 연결한다.
+- Analyzer evidence는 `connector → input attenuation → mixer → station-verified operating boundary`와 reference-level display·IF/ADC residual을 분리한다. Headroom, operating limit와 residual provenance는 typed record와 registry의 값·단위·상태·timestamp로 검증한다.
+- Independent isolation은 calibration certificate와 VNA excitation query-back을 포함한 canonical payload로 검증한다. `canonical-v1` checksum은 결정론적 교육용 non-security checksum이며 tamper-proof digest가 아니다.
+- Historical PAE false-fail 원인과 현재 requalified PAE `PASS`를 분리하고, prediction-first·focus/process state·session draft를 유지한다. Nested draft와 `sessionStorage` `SecurityError`, 실제 44×44px choice carrier, 완료 report의 390/1440px 기준선을 검증했다.
+- TS 36.521-1은 V17.6.1의 실질 clause 4, 6.2.2, 6.6.2.3을 사용한다. N9020B `−145 dBm/Hz`는 source-terminated 교육용 station baseline일 뿐 vendor specification으로 확대하지 않는다.
+
+<!-- VERIFY: OpenAI Sites v8의 commit 427bf26 매핑과 현재 공개 version을 배포 플랫폼에서 재확인한다. -->
+배포는 아직 Phase 7 완료가 아니다. `fa4427d`의 Sites version은 저장·게시되지 않았다. 이전 작업에서 개선 전 commit `427bf26`용 Sites v8을 저장했지만 공개 전환은 수행하지 않았으므로, v8이나 현재 공개본을 최신 구현으로 취급하지 않는다. 새 version 저장과 공개 전환은 사용자 승인을 기다린다.
 
 #### DVT 범위 경계
 

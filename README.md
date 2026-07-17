@@ -49,17 +49,21 @@ npm run test:all
 
 ### 2026-07-17 DVT 시니어 경로 최종 검증
 
+- 최종 구현 commit: `fa4427d` (`fix: harden DVT evidence workflow`)
 - Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·59개 ready question, DVT 6개 lesson으로 총 96개
 - Astro typecheck: 234 files, 0 errors·warnings·hints
-- TypeScript/React unit: 44 files, 324 tests 통과
+- TypeScript/React unit: 44 files, 336 tests 통과
 - Python safety suite: 5개 package, 총 114 tests 통과
-- Production build: 118 pages, Pagefind 117 pages·18,765 words index 통과
-- Browser E2E: 663 tests 통과. 전체 route, 1440/1024/390px overflow·visual, 200% zoom, keyboard, reduced motion, axe와 `dvt:` 진도 포함
-- Visual baselines: 105개 PNG 무결성 검사와 DVT 핵심 3페이지의 1440/1024/390px 비교 통과
-- Lighthouse: 19개 경로 모두 Performance 97–100, Accessibility 100, CLS 0.0038 이하
-- 전문 리뷰: RF/PA와 계측·불확도 reviewer 모두 `GO`, BLOCKER/HIGH/MEDIUM finding 없음
+- Production build: 118 pages, Pagefind 117 pages·18,844 words index 통과
+- Browser E2E: 665/665 통과. 전체 route, 1440/1024/390px overflow·visual, 200% zoom, keyboard, reduced motion, axe와 `dvt:` 진도 포함
+- Visual baselines: 107/107 PNG 무결성 검사와 완료된 DVT report의 390/1440px 기준선 포함
+- DVT 집중 E2E와 완료 후 axe: 4/4 통과
+- Lighthouse: 19개 경로 모두 Performance 98–100, Accessibility 100, CLS 약 0.0020–0.0038
+- 전문 리뷰: 코드, 디자인·접근성, RF·계측 콘텐츠의 3축에서 여러 `NO-GO` finding을 반복 수정한 뒤 모두 `GO`; P0–P3 잔여 finding 없음
+- Release artifact: `npm test`, 정적 client·Pagefind·Worker·hosting metadata를 만드는 `npm run build:sites`, `git diff --check` 통과
 
-공개 사이트는 검증된 exact commit으로 새 Sites version을 저장한 뒤 사용자 승인 전까지 기존 공개 version을 유지합니다.
+<!-- VERIFY: OpenAI Sites v8의 commit 427bf26 매핑과 현재 공개 version을 배포 플랫폼에서 재확인한다. -->
+`fa4427d`용 새 Sites version은 아직 저장하거나 게시하지 않았습니다. 이전 작업에서 개선 전 commit `427bf26`용 Sites v8을 저장했지만 공개 전환은 수행하지 않았으므로, v8이나 현재 공개본을 최신 구현으로 부르지 않습니다. 새 version 저장과 공개 전환은 사용자 승인 대기 상태입니다.
 
 ### OpenAI Sites 배포 빌드
 

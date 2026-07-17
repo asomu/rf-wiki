@@ -54,6 +54,17 @@
 
 N9020B·E5080B·U2061XA·N6705C는 `INSTRUMENT_PYVISA_PACKAGES` registry와 공용 dynamic route를 사용한다. N5182B는 먼저 만들어진 전용 builder·route를 유지하지만, `build:sites`에서는 다섯 package를 같은 checksum·manifest·추출 후 dry-run·fake-transport 절차로 검증한다.
 
+## DVT evidence hardening 기준선
+
+현재 기준 구현은 exact commit `fa4427d` (`fix: harden DVT evidence workflow`)다. 다음 변경은 아래 계약을 약화시키지 않는다.
+
+- Expected signature와 observed payload가 일치하지 않으면 evidence 진행을 막는다. Pout·ACLR·EVM·PAE·Tx-noise/desense 결론은 source measurement와 external evidence ID에 연결한다.
+- N9020B level plan은 `connector total → input attenuation → mixer total → station-verified mixer operating boundary`를 계산한다. Reference level은 display 경계이고 IF/ADC 상태는 별도 residual evidence다. Headroom·operating limit·residual은 typed provenance와 registry의 값·단위·verification state·timestamp를 함께 검증한다.
+- Independent isolation record는 calibration certificate, 동일 reference plane/frequency와 E5080B VNA excitation query-back을 canonical payload에 포함한다. `canonical-v1`의 FNV-1a checksum은 결정론적 교육용 non-security checksum이며 cryptographic 또는 tamper-proof digest가 아니다.
+- Built-in capstone은 historical PAE false-fail root-cause와 requalified current PAE `PASS`를 분리한다. Prediction-first, focus·process state, nested session draft 복원/초기화와 `sessionStorage` `SecurityError` fallback을 유지한다.
+- 실제 choice carrier가 44×44px 이상이어야 한다. 완료된 report의 390/1440px visual baseline과 DVT flow 완료 후 axe를 유지한다.
+- TS 36.521-1은 V17.6.1 clause 4, 6.2.2, 6.6.2.3의 실제 conformance context를 사용한다. N9020B `−145 dBm/Hz`는 source-terminated built-in case의 교육용 station baseline일 뿐 vendor specification이 아니다.
+
 ## 변경하면 안 되는 안전 계약
 
 1. 웹은 실제 장비에 연결하지 않는다. 임의 Python과 사용자 waveform도 실행하지 않는다.
@@ -96,14 +107,19 @@ npm run build:sites
 
 ### 2026-07-17 DVT 확장 검증 체크포인트
 
+- Exact implementation commit: `fa4427d`
 - Content contract: RF 6개, Keysight 장비 25개, Cellular 59개, DVT 6개로 총 96개 통과
 - Astro typecheck: 234 files, 0 errors, 0 warnings, 0 hints 통과
-- Vitest: 44 files, 324 tests; Python safety: 5 packages, 114 tests; hosting: 3 tests 통과
-- Production build: 118 pages, Pagefind 117 pages·18,765 words index 통과
-- Browser E2E: 663 tests, 105 visual baselines, 1440/1024/390px, 200% zoom, keyboard, reduced motion와 axe 통과
-- Lighthouse: 19 routes, Performance 97–100, Accessibility 100, CLS 0.0038 이하 통과
-- RF/PA와 계측·불확도 전문 reviewer 모두 `GO`; BLOCKER/HIGH/MEDIUM finding 없음
-- Sites는 검증된 exact commit으로 새 version을 저장하되 공개 version 전환은 사용자 승인 전까지 보류한다.
+- Vitest: 44 files, 336 tests; Python safety: 5 packages, 114 tests; hosting: 3 tests 통과
+- Production build: 118 pages, Pagefind 117 pages·18,844 words index 통과
+- Browser E2E: 665/665, visual baselines 107/107, 1440/1024/390px, 200% zoom, keyboard와 reduced motion 통과
+- DVT 집중 E2E와 완료 후 axe: 4/4 통과
+- Lighthouse: 19 routes, Performance 98–100, Accessibility 100, CLS 약 0.0020–0.0038 통과
+- 코드, 디자인·접근성, RF·계측 콘텐츠 reviewer는 여러 `NO-GO` finding의 수정·재검증 뒤 모두 `GO`; P0–P3 잔여 finding 없음
+- `npm test`, Sites static client·Pagefind·Worker·hosting metadata build와 `git diff --check` 통과
+
+<!-- VERIFY: OpenAI Sites v8의 commit 427bf26 매핑과 현재 공개 version을 배포 플랫폼에서 재확인한다. -->
+`fa4427d`의 새 Sites version은 아직 저장하거나 게시하지 않았다. 이전 작업에서 개선 전 commit `427bf26`용 Sites v8을 저장했지만 공개 전환은 수행하지 않았으므로, v8이나 현재 공개본을 최신 구현으로 취급하지 않는다. 새 version 저장과 공개 전환은 사용자 승인 대기 상태다.
 
 ### 다음 변경에서 다시 열어야 하는 QA
 
