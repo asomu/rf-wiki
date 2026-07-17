@@ -1,0 +1,96 @@
+---
+const groups = [
+  {
+    index: '01',
+    label: 'Data protection',
+    artifact: 'payload bit → protected coded bit',
+    stages: [
+      { label: 'Application data · binary bits', href: '/cellular/foundations/bits-to-iq-rf/' },
+      { label: 'CRC · channel coding · rate matching', href: '/cellular/foundations/coding-rate-matching-scrambling/' },
+      { label: 'Scrambling', href: '/cellular/foundations/coding-rate-matching-scrambling/' },
+    ],
+  },
+  {
+    index: '02',
+    label: 'Digital waveform',
+    artifact: 'coded bit → complex IQ sample',
+    stages: [
+      { label: 'QPSK/QAM mapping', href: '/cellular/lte/qam-modulations/' },
+      { label: 'Resource mapping · OFDM/DFT-s-OFDM', href: '/learn/ofdm-lte-nr/' },
+      { label: 'Digital I+jQ samples', href: '/cellular/foundations/iq-magnitude-phase-psd-papr/' },
+    ],
+  },
+  {
+    index: '03',
+    label: 'RF transmission',
+    artifact: 'complex envelope → radiated RF',
+    stages: [
+      { label: 'DAC · reconstruction · upconversion', href: '/instruments/sg-mxg/waveform-iq/' },
+      { label: 'PA · front-end · antenna', href: '/learn/pa-pull/' },
+      { label: 'Wireless channel', href: '/cellular/foundations/receiver-iq-to-bits/' },
+    ],
+  },
+  {
+    index: '04',
+    label: 'Receiver recovery',
+    artifact: 'received RF → recovered data',
+    stages: [
+      { label: 'LNA · downconversion · ADC', href: '/instruments/sa-mxa/iq-capture-trigger/' },
+      { label: 'Sync · FFT · channel estimate · equalization', href: '/cellular/foundations/receiver-iq-to-bits/' },
+      { label: 'Demap · descramble · decode · CRC', href: '/cellular/foundations/receiver-iq-to-bits/' },
+    ],
+  },
+] as const;
+---
+
+<section class="cellular-visual signal-journey" aria-labelledby="signal-journey-title">
+  <header class="cellular-visual__header">
+    <div>
+      <p>Bit → IQ → OFDM → RF → IQ → Bit</p>
+      <h3 id="signal-journey-title">각 경계에서 신호의 표현과 책임 주체가 바뀝니다.</h3>
+    </div>
+    <p class="cellular-model-note">각 block은 해당 상세 질문으로 이동합니다.</p>
+  </header>
+
+  <ol class="signal-journey__groups">
+    {groups.map((group) => (
+      <li>
+        <header>
+          <span>{group.index}</span>
+          <div><strong>{group.label}</strong><small>{group.artifact}</small></div>
+        </header>
+        <ol>
+          {group.stages.map((stage, stageIndex) => (
+            <li>
+              <a href={stage.href}>
+                <span>{group.index}.{stageIndex + 1}</span>
+                <strong>{stage.label}</strong>
+                <span aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </li>
+    ))}
+  </ol>
+
+  <dl class="cellular-ledger signal-journey__ledger">
+    <div><dt>변경</dt><dd>한 stage의 bit·symbol·sample·RF 상태 또는 기준면</dd></div>
+    <div><dt>직접 효과</dt><dd>그 stage가 소유한 표현과 다음 interface가 바뀜</dd></div>
+    <div><dt>화면 결과</dt><dd>bit table, constellation, grid, envelope, spectrum, EVM/CRC 중 해당 view에 나타남</dd></div>
+    <div><dt>비용·한계</dt><dd>coding gain, overhead, PAPR, PA headroom, noise와 receiver 추정 오차를 함께 지불</dd></div>
+  </dl>
+
+  <details class="cellular-data-alternative">
+    <summary>전체 경로를 표로 보기</summary>
+    <table>
+      <thead><tr><th>경계</th><th>입력</th><th>출력</th><th>대표 관찰</th></tr></thead>
+      <tbody>
+        <tr><th>Modem protection</th><td>payload bit</td><td>scrambled coded bit</td><td>block length · code rate · RV</td></tr>
+        <tr><th>Waveform DSP</th><td>coded bit</td><td>time-domain I+jQ</td><td>constellation · resource grid · PAPR</td></tr>
+        <tr><th>RF chain</th><td>analog I/Q</td><td>antenna-port RF</td><td>Pout · EVM · ACLR · current</td></tr>
+        <tr><th>Receiver DSP</th><td>captured I+jQ</td><td>soft bit · decoded block</td><td>sync · channel estimate · LLR · CRC</td></tr>
+      </tbody>
+    </table>
+  </details>
+</section>

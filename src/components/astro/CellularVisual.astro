@@ -4,10 +4,29 @@ import GsmTimeExplorer from '../cellular/GsmTimeExplorer';
 import GsmPvtLab from '../cellular/GsmPvtLab';
 import CellularResourceExplorer from '../cellular/CellularResourceExplorer';
 import ModulePathDiagram from '../cellular/ModulePathDiagram';
+import ReceiverRecoveryLab from '../simulators/ReceiverRecoveryLab';
 import DiagnosticFingerprint from './DiagnosticFingerprint.astro';
+import CodingTransformDiagram from './CodingTransformDiagram.astro';
+import ConstellationGuideDiagram from './ConstellationGuideDiagram.astro';
+import DpdFlowDiagram from './DpdFlowDiagram.astro';
+import EnvelopePaprDiagram from './EnvelopePaprDiagram.astro';
+import SignalJourneyDiagram from './SignalJourneyDiagram.astro';
 
 export interface Props {
-  visual: 'atlas' | 'gsm-time' | 'gsm-pvt' | 'resource-lte' | 'resource-nr' | 'module-path' | 'diagnostic';
+  visual:
+    | 'atlas'
+    | 'gsm-time'
+    | 'gsm-pvt'
+    | 'resource-lte'
+    | 'resource-nr'
+    | 'module-path'
+    | 'diagnostic'
+    | 'signal-chain'
+    | 'coding-chain'
+    | 'constellation-guide'
+    | 'envelope-papr'
+    | 'receiver-recovery'
+    | 'dpd-flow';
   preset?: string;
   title?: string;
 }
@@ -22,4 +41,10 @@ const { visual, preset = '' } = Astro.props;
   {visual === 'resource-nr' && <CellularResourceExplorer client:visible initialRat="NR" preset={preset} />}
   {visual === 'module-path' && <ModulePathDiagram client:visible preset={preset} />}
   {visual === 'diagnostic' && <DiagnosticFingerprint preset={preset} />}
+  {visual === 'signal-chain' && <SignalJourneyDiagram />}
+  {visual === 'coding-chain' && <CodingTransformDiagram />}
+  {visual === 'constellation-guide' && <ConstellationGuideDiagram preset={preset} />}
+  {visual === 'envelope-papr' && <EnvelopePaprDiagram />}
+  {visual === 'receiver-recovery' && <ReceiverRecoveryLab client:visible />}
+  {visual === 'dpd-flow' && <DpdFlowDiagram />}
 </div>

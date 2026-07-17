@@ -1,5 +1,6 @@
-import type { PaOperatingPoint } from '../../types';
+import type { Complex, Decibels, Degrees, PaOperatingPoint } from '../../types';
 import { dbm, decibels, degrees, watts } from '../../types';
+import { fromPolarDegrees, magnitude, multiply } from './complex';
 import { dbmToWatts, wattsToDbm } from './units';
 
 export interface PaModel {
@@ -30,7 +31,23 @@ export const DEFAULT_EDUCATIONAL_PA: PaModel = Object.freeze({
   baselineAclrDbc: -50,
 });
 
+export interface NormalizedPaSampleResult {
+  /** Ideal linear-output complex envelope, normalized to saturation amplitude = 1. */
+  readonly inputSampleNormalized: Complex;
+  /** Memoryless PA output complex envelope on the same normalized amplitude scale. */
+  readonly outputSampleNormalized: Complex;
+  readonly inputMagnitudeNormalized: number;
+  readonly outputMagnitudeNormalized: number;
+  readonly compressionDb: Decibels;
+  readonly phaseShiftDegrees: Degrees;
+}
+
 function validatePaModel(model: PaModel): void {
+  for (const [field, value] of Object.entries(model)) {
+    if (!Number.isFinite(value)) {
+      throw new RangeError(`PA model ${field} must be finite`);
+    }
+  }
   if (model.smoothness <= 0 || !Number.isFinite(model.smoothness)) {
     throw new RangeError('PA smoothness must be finite and positive');
   }
@@ -49,6 +66,55 @@ function validatePaModel(model: PaModel): void {
   if (!Number.isFinite(model.baselineAclrDbc) || model.baselineAclrDbc > 0) {
     throw new RangeError('Baseline ACLR must be a finite non-positive dBc value');
   }
+}
+
+/**
+ * Applies the same memoryless Rapp AM-AM and saturating AM-PM laws used by
+ * evaluatePa to one ideal linear-output complex-envelope sample. A normalized
+ * magnitude of 1 is the model's saturation-amplitude reference.
+ */
+export function transformNormalizedPaSample(
+  inputSampleNormalized: Complex,
+  model: PaModel = DEFAULT_EDUCATIONAL_PA,
+): NormalizedPaSampleResult {
+  validatePaModel(model);
+  if (!Number.isFinite(inputSampleNormalized.re) || !Number.isFinite(inputSampleNormalized.im)) {
+    throw new RangeError('Normalized PA sample must contain finite I and Q values');
+  }
+
+  const inputMagnitudeNormalized = magnitude(inputSampleNormalized);
+  if (inputMagnitudeNormalized === 0) {
+    return {
+      inputSampleNormalized: { ...inputSampleNormalized },
+      outputSampleNormalized: { re: 0, im: 0 },
+      inputMagnitudeNormalized: 0,
+      outputMagnitudeNormalized: 0,
+      compressionDb: decibels(0),
+      phaseShiftDegrees: degrees(0),
+    };
+  }
+
+  const normalizedDrivePower = inputMagnitudeNormalized ** 2;
+  const rappPowerDenominator = (
+    1 + normalizedDrivePower ** model.smoothness
+  ) ** (1 / model.smoothness);
+  const amplitudeRatioToIdeal = 1 / Math.sqrt(rappPowerDenominator);
+  const phaseWeight = normalizedDrivePower ** model.amPmExponent /
+    (1 + normalizedDrivePower ** model.amPmExponent);
+  const phaseShiftDegrees = model.phaseAtSaturationDegrees * phaseWeight;
+  const outputSampleNormalized = multiply(
+    inputSampleNormalized,
+    fromPolarDegrees(amplitudeRatioToIdeal, phaseShiftDegrees),
+  );
+
+  return {
+    inputSampleNormalized: { ...inputSampleNormalized },
+    outputSampleNormalized,
+    inputMagnitudeNormalized,
+    outputMagnitudeNormalized: magnitude(outputSampleNormalized),
+    compressionDb: decibels(-20 * Math.log10(amplitudeRatioToIdeal)),
+    phaseShiftDegrees: degrees(phaseShiftDegrees),
+  };
 }
 
 /**

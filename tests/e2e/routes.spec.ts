@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
 
-test.describe('all 57 cellular lesson routes', () => {
+test.describe(`all ${cellularRoutes.length} cellular lesson routes`, () => {
   test.use({ viewport: { width: 1280, height: 900 } });
   for (const route of cellularRoutes) {
     test(`${route.path} is generated and readable`, async ({ page }) => {
@@ -15,6 +15,36 @@ test.describe('all 57 cellular lesson routes', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         await page.evaluate(() => document.documentElement.clientWidth + 1),
       );
+    });
+  }
+});
+
+const staticEducationalVisuals = [
+  { path: '/cellular/foundations/bits-to-iq-rf/', selector: '.signal-journey' },
+  { path: '/cellular/foundations/coding-rate-matching-scrambling/', selector: '.coding-transform' },
+  { path: '/cellular/foundations/iq-magnitude-phase-psd-papr/', selector: '.envelope-papr' },
+  { path: '/cellular/pamid/dpd-cfr/', selector: '.dpd-flow' },
+  { path: '/cellular/lte/qam-modulations/', selector: '.constellation-guide' },
+  { path: '/cellular/nr/pi2-bpsk-qam/', selector: '.constellation-guide' },
+] as const;
+
+test.describe('static educational visuals', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  for (const scenario of staticEducationalVisuals) {
+    test(`${scenario.path} keeps its visual static, linked and table-backed`, async ({ page, request }) => {
+      await page.goto(scenario.path);
+      const visual = page.locator(scenario.selector);
+      await expect(visual).toBeVisible();
+      await expect(visual.locator('table')).toHaveCount(1);
+      await expect(visual.locator('astro-island')).toHaveCount(0);
+
+      const internalLinks = await visual.locator('a[href^="/"]').evaluateAll((anchors) => (
+        anchors.map((anchor) => (anchor as HTMLAnchorElement).getAttribute('href')).filter(Boolean) as string[]
+      ));
+      for (const href of internalLinks) {
+        expect((await request.get(href)).ok(), `${href} should resolve from ${scenario.path}`).toBe(true);
+      }
     });
   }
 });

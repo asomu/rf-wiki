@@ -39,14 +39,30 @@ const representativeCellularRoutes: readonly AppRoute[] = [
   ...cellularSections.map((section) => ({ path: `/cellular/${section.id}/`, heading: exactHeading(section.question) })),
   ...[
     'foundations-modulation-waveform-multiple-access-duplex',
+    'foundations-bits-to-iq-rf',
+    'foundations-coding-rate-matching-scrambling',
+    'foundations-time-frequency-reading',
+    'foundations-iq-magnitude-phase-psd-papr',
+    'foundations-receiver-iq-to-bits',
+    'foundations-ue-reference-planes-power',
+    'foundations-reading-3gpp-requirements',
     'pamid-three-dut-topologies',
+    'pamid-dpd-cfr',
     'gsm-tdma-frame-timeslots',
     'lte-bandwidth-rb-location',
+    'lte-qam-modulations',
     'nr-100mhz-rb100-location0',
+    'nr-pi2-bpsk-qam',
     'diagnostics-evm-fail',
   ].map((id) => {
     const lesson = cellularLessons.find((candidate) => candidate.id === id)!;
-    return { path: `/cellular/${lesson.section}/${lesson.slug}/`, heading: exactHeading(lesson.title) };
+    return {
+      path: `/cellular/${lesson.section}/${lesson.slug}/`,
+      heading: exactHeading(lesson.title),
+      ...(id === 'foundations-receiver-iq-to-bits'
+        ? { labId: 'cellular:foundations:receiver-iq-to-bits' }
+        : {}),
+    };
   }),
 ];
 

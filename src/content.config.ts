@@ -137,7 +137,21 @@ const cellularLesson = defineCollection({
     theory: lessonLayerSchema.extend({
       formula: z.string().optional(),
     }),
-    visual: z.enum(['atlas', 'gsm-time', 'gsm-pvt', 'resource-lte', 'resource-nr', 'module-path', 'diagnostic']).optional(),
+    visual: z.enum([
+      'atlas',
+      'gsm-time',
+      'gsm-pvt',
+      'resource-lte',
+      'resource-nr',
+      'module-path',
+      'diagnostic',
+      'signal-chain',
+      'coding-chain',
+      'constellation-guide',
+      'envelope-papr',
+      'receiver-recovery',
+      'dpd-flow',
+    ]).optional(),
     visualPreset: z.string().optional(),
     check: z.object({
       question: z.string(),

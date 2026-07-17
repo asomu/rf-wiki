@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  DEFAULT_EDUCATIONAL_PA,
   evaluatePa,
   generateLoadPullSweep,
   generatePaTransferCurve,
@@ -7,6 +8,7 @@ import {
   getNetworkScenario,
   nearestPullPoint,
   stabilityMetrics,
+  transformNormalizedPaSample,
   terminatedStability
 } from '@/lib/rf';
 import type { PullInputPowerCondition, PullMetric, PullMetricOptima } from '@/types';
@@ -16,6 +18,7 @@ import { Readout } from '../lab/Readout';
 import type { LedgerEntry } from '../lab/types';
 import { ContourPlot, createContourAccessibilityModel } from '../plots/ContourPlot';
 import { LinePlot } from '../plots/LinePlot';
+import { PaConstellationPlot } from '../plots/PaConstellationPlot';
 import { PlotFrame } from '../plots/PlotFrame';
 
 type PullKind = 'load' | 'source';
@@ -101,6 +104,37 @@ export default function LoadPullLab() {
   const curve = useMemo(() => generatePaTransferCurve(-18, 10, 1), []);
   const actualCurve = curve.map((point) => ({ x: Number(point.inputPowerDbm), y: Number(point.outputPowerDbm) }));
   const idealCurve = curve.map((point) => ({ x: Number(point.inputPowerDbm), y: Number(point.idealOutputPowerDbm) }));
+  const phaseCurve = curve.map((point) => ({ x: Number(point.inputPowerDbm), y: Number(point.phaseShiftDegrees) }));
+  const averageDriveNormalized = Math.sqrt(10 ** (
+    (driveDbm + DEFAULT_EDUCATIONAL_PA.smallSignalGainDb - DEFAULT_EDUCATIONAL_PA.saturationOutputPowerDbm) / 10
+  ));
+  const constellationPairs = useMemo(() => {
+    const scale = Math.sqrt(10);
+    const levels = [-3, -1, 1, 3] as const;
+    return levels.flatMap((q) => levels.map((i) => {
+      const ideal = {
+        re: i * averageDriveNormalized / scale,
+        im: q * averageDriveNormalized / scale,
+      };
+      const transformed = transformNormalizedPaSample(ideal);
+      return {
+        label: `I${i >= 0 ? '+' : ''}${i} Q${q >= 0 ? '+' : ''}${q}`,
+        ideal,
+        output: transformed.outputSampleNormalized,
+        compressionDb: Number(transformed.compressionDb),
+        phaseShiftDegrees: Number(transformed.phaseShiftDegrees),
+      };
+    }));
+  }, [averageDriveNormalized]);
+  const constellationAxisExtent = Math.max(
+    0.5,
+    ...constellationPairs.flatMap((point) => [
+      Math.abs(point.ideal.re),
+      Math.abs(point.ideal.im),
+      Math.abs(point.output.re),
+      Math.abs(point.output.im),
+    ]),
+  ) * 1.18;
   const impedanceValue = selected.impedance;
   const inputCondition = kind === 'load'
     ? 'DUT accepted Pin 고정'
@@ -165,6 +199,14 @@ export default function LoadPullLab() {
         </PlotFrame>
         <PlotFrame title="AM-AM compression" observation="S-parameter의 작은 신호 gain은 drive가 커지면 그대로 유지되지 않습니다." table={<table><tbody><tr><th>Pin</th><td>{Number(pa.inputPowerDbm).toFixed(2)} dBm</td></tr><tr><th>Ideal Pout</th><td>{Number(pa.idealOutputPowerDbm).toFixed(2)} dBm</td></tr><tr><th>Actual Pout</th><td>{Number(pa.outputPowerDbm).toFixed(2)} dBm</td></tr><tr><th>Compression</th><td>{Number(pa.compressionDb).toFixed(3)} dB</td></tr><tr><th>AM-PM</th><td>{Number(pa.phaseShiftDegrees).toFixed(2)}°</td></tr></tbody></table>}>
           <LinePlot title="PA transfer curve" description="Educational Rapp output compared with small-signal extrapolation." series={[{ label: 'ideal small-signal', points: idealCurve, tone: 'secondary', dash: '6 5' }, { label: 'Rapp AM-AM', points: actualCurve, tone: 'forward' }]} xDomain={[-18, 10]} yDomain={[6, 38]} xLabel="Pin (dBm)" yLabel="Pout (dBm)" markerX={driveDbm} markerLabel={`Pin ${driveDbm.toFixed(1)}`} />
+        </PlotFrame>
+      </div>
+      <div className="linked-view-grid linked-view-grid--equal" data-visual-target="pa-linearity">
+        <PlotFrame title="AM-PM phase transfer" observation="같은 drive sweep에서 amplitude compression과 함께 증가하는 memoryless phase rotation을 직접 비교합니다." table={<table><tbody><tr><th>Pin</th><td>{driveDbm.toFixed(2)} dBm</td></tr><tr><th>AM-PM</th><td>{Number(pa.phaseShiftDegrees).toFixed(3)}°</td></tr><tr><th>Model limit</th><td>memoryless saturating phase law · measured PA 아님</td></tr></tbody></table>}>
+          <LinePlot title="PA AM-PM curve" description="Educational saturating phase shift versus PA input drive." series={[{ label: 'AM-PM phase', points: phaseCurve, tone: 'forward' }]} xDomain={[-18, 10]} yDomain={[DEFAULT_EDUCATIONAL_PA.phaseAtSaturationDegrees, 0]} xLabel="Pin (dBm)" yLabel="Phase shift (degree)" markerX={driveDbm} markerLabel={`Pin ${driveDbm.toFixed(1)}`} />
+        </PlotFrame>
+        <PlotFrame title="16QAM compression 전후" observation="Square는 ideal linear output, circle은 같은 sample에 Rapp AM-AM/AM-PM을 적용한 결과입니다. M1 error vector는 amplitude와 phase가 함께 바뀜을 보여줍니다." table={<table><thead><tr><th>Symbol</th><th>Ideal I+jQ / Asat</th><th>PA output I+jQ / Asat</th><th>Comp. / AM-PM</th></tr></thead><tbody>{constellationPairs.map((point) => <tr key={point.label}><th>{point.label}</th><td>{point.ideal.re.toFixed(3)} {point.ideal.im >= 0 ? '+' : '−'} j{Math.abs(point.ideal.im).toFixed(3)}</td><td>{point.output.re.toFixed(3)} {point.output.im >= 0 ? '+' : '−'} j{Math.abs(point.output.im).toFixed(3)}</td><td>{point.compressionDb.toFixed(3)} dB / {point.phaseShiftDegrees.toFixed(3)}°</td></tr>)}</tbody></table>}>
+          <PaConstellationPlot points={constellationPairs} driveDbm={driveDbm} averageDriveNormalized={averageDriveNormalized} axisExtent={constellationAxisExtent} />
         </PlotFrame>
       </div>
       <PlotFrame title="한 marker에서 닫히는 power·linearity 관계" observation="source-pull에서는 고정한 power 정의에 따라 gain 분모와 accepted drive가 달라집니다." table={<table><thead><tr><th>Metric</th><th>Selected</th><th>Meaning</th></tr></thead><tbody><tr><td>Gain</td><td>{Number(selected.gainDb).toFixed(2)} dB</td><td>{sweep.inputPowerCondition === 'constant-available' ? 'Pout/Pavs transducer-style' : 'Pout/Paccepted operating-style'}</td></tr><tr><td>PAE</td><td>{selected.paePercent.toFixed(2)}%</td><td>Independent synthetic efficiency contour</td></tr><tr><td>EVM</td><td>{selected.evmPercent.toFixed(2)}%</td><td>Lower is better; own Γ optimum</td></tr><tr><td>ACLR</td><td>{Number(selected.aclrDbc).toFixed(2)} dBc</td><td>More negative is better; own Γ optimum</td></tr></tbody></table>}>

@@ -247,7 +247,7 @@ RF 개념 여섯 축과 계측장비 트랙의 진도는 합치지 않는다. �
 
 ### 3GPP·PAMiD Study
 
-Cellular 트랙도 permanent lab rail 없이 `compact 학습 지도 → 하나의 질문 → 직관 → 실무 → 수식·규격 → 예측·설명`의 단일 읽기 흐름을 사용한다. 전체 57개 질문을 sidebar에 한꺼번에 펼치지 않고 현재 section의 질문만 보인다. 진도는 `cellular:*` namespace로 RF 개념·계측장비와 시각적으로도 분리한다.
+Cellular 트랙도 permanent lab rail 없이 `compact 학습 지도 → 하나의 질문 → 직관 → 실무 → 수식·규격 → 예측·설명`의 단일 읽기 흐름을 사용한다. 전체 59개 질문을 sidebar에 한꺼번에 펼치지 않고 현재 section의 질문만 보인다. 진도는 `cellular:*` namespace로 RF 개념·계측장비와 시각적으로도 분리한다.
 
 - Cross-RAT atlas는 GSM `carrier → frame → timeslot → burst`, LTE `carrier → subframe/slot → RB → RE`, NR `carrier → BWP → slot/symbol → PRB/RE`를 같은 문법으로 비교한다.
 - GSM timeline은 실제 시간 비율을 유지하고 burst field, envelope/current, IQ/phase와 ORFS 관찰 지점을 직접 라벨한다.

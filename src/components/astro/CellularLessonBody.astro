@@ -57,11 +57,13 @@ const references = resolveCellularSpecReferences(data.referenceIds);
   </aside>
 )}
 
-<CellularLessonCheck
-  client:idle
-  labId={data.progressId}
-  question={data.check.question}
-  options={data.check.options}
-  correctIndex={data.check.correctIndex}
-  explanation={data.check.explanation}
-/>
+{data.visual !== 'receiver-recovery' && (
+  <CellularLessonCheck
+    client:idle
+    labId={data.progressId}
+    question={data.check.question}
+    options={data.check.options}
+    correctIndex={data.check.correctIndex}
+    explanation={data.check.explanation}
+  />
+)}

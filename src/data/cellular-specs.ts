@@ -29,9 +29,17 @@ export const cellularSpecRegistry = {
     specification: '3GPP TS 36.211', version: '17.4.0', clause: '5', title: 'Uplink physical channels, SC-FDMA baseband and reference signals',
     url: 'https://www.etsi.org/deliver/etsi_TS/136200_136299/136211/17.04.00_60/ts_136211v170400p.pdf', applicability: 'LTE UE uplink PUSCH, PUCCH, PRACH, SRS and DM-RS', kind: 'normative',
   },
+  'lte-36-211-5-3-1': {
+    specification: '3GPP TS 36.211', version: '17.4.0', clause: '5.3.1', title: 'PUSCH scrambling',
+    url: 'https://www.etsi.org/deliver/etsi_TS/136200_136299/136211/17.04.00_60/ts_136211v170400p.pdf', applicability: 'LTE UE PUSCH codeword scrambling before modulation', kind: 'normative',
+  },
   'lte-36-211-6': {
     specification: '3GPP TS 36.211', version: '17.4.0', clause: '6', title: 'Downlink OFDM and physical channels',
     url: 'https://www.etsi.org/deliver/etsi_TS/136200_136299/136211/17.04.00_60/ts_136211v170400p.pdf', applicability: 'LTE downlink OFDMA context needed to read UL grants', kind: 'normative',
+  },
+  'lte-36-212-5': {
+    specification: '3GPP TS 36.212', version: '17.1.0', clause: '5.2.1–5.2.4', title: 'UL-SCH CRC, code-block segmentation, Turbo coding and rate matching',
+    url: 'https://www.etsi.org/deliver/etsi_ts/136200_136299/136212/17.01.00_60/ts_136212v170100p.pdf', applicability: 'LTE UE uplink shared-channel transport-block processing; excludes a full encoder/decoder implementation here', kind: 'normative',
   },
   'lte-36-101-6-2': {
     specification: '3GPP TS 36.101', version: '17.6.0', clause: '6.2', title: 'UE transmitter output power and MPR',
@@ -56,6 +64,22 @@ export const cellularSpecRegistry = {
   'nr-38-211-6': {
     specification: '3GPP TS 38.211', version: '17.7.0', clause: '6', title: 'Uplink physical channels and signals',
     url: 'https://www.etsi.org/deliver/etsi_ts/138200_138299/138211/17.07.00_60/ts_138211v170700p.pdf', applicability: 'NR UE PUSCH, PUCCH, PRACH, SRS, DM-RS and PT-RS', kind: 'normative',
+  },
+  'nr-38-211-6-3-1-1': {
+    specification: '3GPP TS 38.211', version: '17.7.0', clause: '6.3.1.1', title: 'PUSCH scrambling',
+    url: 'https://www.etsi.org/deliver/etsi_ts/138200_138299/138211/17.07.00_60/ts_138211v170700p.pdf', applicability: 'NR UE PUSCH codeword scrambling before modulation', kind: 'normative',
+  },
+  'nr-38-212-5': {
+    specification: '3GPP TS 38.212', version: '17.7.0', clause: '5.1–5.4', title: 'CRC, code-block segmentation, LDPC/Polar coding and rate matching',
+    url: 'https://www.etsi.org/deliver/etsi_ts/138200_138299/138212/17.07.00_60/ts_138212v170700p.pdf', applicability: 'NR generic channel-coding functions and code-family applicability; not a complete codec implementation', kind: 'normative',
+  },
+  'nr-38-212-6': {
+    specification: '3GPP TS 38.212', version: '17.7.0', clause: '6.2', title: 'UL-SCH transport-channel processing',
+    url: 'https://www.etsi.org/deliver/etsi_ts/138200_138299/138212/17.07.00_60/ts_138212v170700p.pdf', applicability: 'NR UE PUSCH data path, including UL-SCH LDPC processing and codeword generation', kind: 'normative',
+  },
+  'nr-38-212-7': {
+    specification: '3GPP TS 38.212', version: '17.7.0', clause: '6.3.1 and 7.3.3', title: 'UCI and DCI coding paths using Polar coding when applicable',
+    url: 'https://www.etsi.org/deliver/etsi_ts/138200_138299/138212/17.07.00_60/ts_138212v170700p.pdf', applicability: 'NR control-information context; Polar is not presented as the UL-SCH data codec', kind: 'normative',
   },
   'nr-38-213-11': {
     specification: '3GPP TS 38.213', version: '17.7.0', clause: '11.1', title: 'Slot configuration',

@@ -253,13 +253,14 @@ if (!configuredRoot) {
   }
 
   const cellularCounts = new Map([
-    ['foundations', 6],
+    ['foundations', 8],
     ['pamid', 10],
     ['gsm', 9],
     ['lte', 11],
     ['nr', 11],
     ['diagnostics', 10],
   ]);
+  const expectedCellularTotal = [...cellularCounts.values()].reduce((sum, count) => sum + count, 0);
   let cellularLessons = [];
   try {
     cellularLessons = JSON.parse(await readFile(new URL('../src/content/cellular-lessons.json', import.meta.url), 'utf8'));
@@ -310,9 +311,23 @@ if (!configuredRoot) {
         if (!knownReferenceIds.has(referenceId)) errors.push(`${label} uses unknown reference id ${referenceId}.`);
       }
     }
+    if (lesson.concepts?.includes('scrambling')) {
+      const requiredScramblingReferences = lesson.section === 'lte'
+        ? ['lte-36-211-5-3-1']
+        : lesson.section === 'nr'
+          ? ['nr-38-211-6-3-1-1']
+          : ['lte-36-211-5-3-1', 'nr-38-211-6-3-1-1'];
+      for (const referenceId of requiredScramblingReferences) {
+        if (!lesson.referenceIds.includes(referenceId)) {
+          errors.push(`${label} discusses scrambling but is missing physical-channel reference ${referenceId}.`);
+        }
+      }
+    }
     if (/\bTODO\b/i.test(JSON.stringify(lesson))) errors.push(`${label} is ready but still contains TODO content.`);
   }
-  if (cellularLessons.length !== 57) errors.push(`Expected exactly 57 cellular lessons, found ${cellularLessons.length}.`);
+  if (cellularLessons.length !== expectedCellularTotal) {
+    errors.push(`Expected exactly ${expectedCellularTotal} cellular lessons, found ${cellularLessons.length}.`);
+  }
 }
 
 if (readyCount < minimumReady) {

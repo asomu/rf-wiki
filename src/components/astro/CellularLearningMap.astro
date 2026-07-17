@@ -1,7 +1,7 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { getCollection } from 'astro:content';
-import { cellularLessonHref, cellularSections } from '../../data/cellular';
+import { cellularLessonCount, cellularLessonHref, cellularSections } from '../../data/cellular';
 import type { CellularSectionId } from '../../types';
 
 export interface Props {
@@ -26,7 +26,7 @@ const currentLesson = lessons.find(({ data }) => data.section === currentSection
     <div class="learning-map__body">
       <div class="learning-map__heading">
         <p>Module DVT track</p>
-        <span>57 pages</span>
+        <span>{cellularLessonCount} pages</span>
       </div>
       <nav aria-label="Cellular 학습 섹션">
         <ol class="cellular-learning-map__sections">

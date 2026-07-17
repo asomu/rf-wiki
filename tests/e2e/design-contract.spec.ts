@@ -112,6 +112,46 @@ for (const route of appRoutes.filter((entry) => entry.labId !== undefined)) {
   });
 }
 
+for (const scenario of [
+  {
+    name: 'receiver decision',
+    path: '/cellular/foundations/receiver-iq-to-bits/',
+    labId: 'cellular:foundations:receiver-iq-to-bits',
+    selector: '.receiver-decision-plot',
+  },
+  {
+    name: 'PA constellation',
+    path: '/learn/pa-pull/',
+    labId: 'load-pull',
+    selector: '.pa-constellation',
+  },
+] as const) {
+  for (const viewport of [
+    { name: '390px mobile', width: 390, height: 844 },
+    { name: '1440px at 200% effective width', width: 720, height: 900 },
+  ] as const) {
+    test(`${scenario.name} SVG labels stay legible at ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(scenario.path);
+      const lab = page.locator(`[data-lab-id="${scenario.labId}"]`);
+      await expect(lab).toBeAttached({ timeout: 15_000 });
+      const plot = lab.locator(scenario.selector);
+      await plot.scrollIntoViewIfNeeded();
+      await expect(plot).toBeVisible({ timeout: 15_000 });
+
+      const failures = await plot.locator('text').evaluateAll((labels) => labels.flatMap((label) => {
+        const rect = label.getBoundingClientRect();
+        const style = getComputedStyle(label);
+        if (style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) return [];
+        if (rect.height >= 10) return [];
+        return [{ text: label.textContent?.trim(), height: Number(rect.height.toFixed(2)) }];
+      }));
+
+      expect(failures, JSON.stringify(failures, null, 2)).toEqual([]);
+    });
+  }
+}
+
 test('mobile breadcrumb and reference links expose 44 px touch height', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/learn/vna-smith/');

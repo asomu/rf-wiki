@@ -38,9 +38,9 @@ test('home exposes all 88 learning items and PvT is discoverable from search and
   const trackIndex = page.locator('.home-track-index');
   await expect(trackIndex).toContainText('6 RF');
   await expect(trackIndex).toContainText('25 장비');
-  await expect(trackIndex).toContainText('57 Cellular');
+  await expect(trackIndex).toContainText('59 Cellular');
   await expect(trackIndex.getByRole('link', { name: /RF 6축 전체 보기/ })).toHaveAttribute('href', '#curriculum');
-  await expect(trackIndex.getByRole('link', { name: /Cellular 57개 전체 보기/ })).toHaveAttribute('href', '/cellular/');
+  await expect(trackIndex.getByRole('link', { name: /Cellular 59개 전체 보기/ })).toHaveAttribute('href', '/cellular/');
   await expect(trackIndex.getByRole('link', { name: /장비 25개 전체 보기/ })).toHaveAttribute('href', '/instruments/');
 
   await page.goto('/search/?q=PvT');
@@ -512,6 +512,60 @@ test('cellular completion keeps RF and instrument progress intact', async ({ pag
   expect(progress.frequency?.completed).toBe(true);
   expect(progress['instrument:sg:mxg-safe-cw']?.completed).toBe(true);
   expect(progress['cellular:gsm:tdma-frame-timeslots']?.completed).toBe(true);
+});
+
+test('receiver recovery completes prediction, keyboard control, ledger and explanation flow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/cellular/foundations/receiver-iq-to-bits/');
+  await page.locator('.lesson-lab-block').scrollIntoViewIfNeeded();
+
+  const lab = page.locator('[data-lab-id="cellular:foundations:receiver-iq-to-bits"]');
+  await expect(lab).toBeAttached({ timeout: 15_000 });
+  const island = lab.locator('xpath=ancestor::astro-island[1]');
+  await expect(island).not.toHaveAttribute('ssr', '', { timeout: 15_000 });
+
+  const frequencyOffset = lab.getByRole('slider', { name: 'Residual frequency offset' });
+  await expect(frequencyOffset).toBeDisabled();
+
+  const prediction = lab.getByRole('radio', { name: /고정 gain·phase는 보정되고 residual rotation·noise는 남는다/ });
+  await prediction.focus();
+  await page.keyboard.press('Space');
+  const lockPrediction = lab.getByRole('button', { name: '예측 고정' });
+  await lockPrediction.focus();
+  await page.keyboard.press('Enter');
+
+  const firstControl = lab.getByRole('combobox', { name: 'QPSK transmitted dibit' });
+  await expect(firstControl).toBeFocused();
+  await lab.getByRole('slider', { name: 'Channel magnitude |H|' }).fill('1.1');
+  await lab.getByRole('slider', { name: 'Channel phase' }).fill('45');
+  await lab.getByRole('slider', { name: 'Deterministic noise-vector magnitude' }).fill('0.12');
+  await frequencyOffset.focus();
+  await page.keyboard.press('End');
+
+  await expect(frequencyOffset).toHaveValue('200');
+  await expect(lab.getByText('Decided dibit').locator('..')).toContainText('01');
+  await expect(lab.getByText('Bit errors').locator('..')).toContainText('1 bit');
+  await expect(lab.locator('.cause-ledger')).toContainText('72.0° phase drift');
+  const decisionPlane = lab.locator('.plot-frame').filter({ hasText: 'QPSK decision plane' });
+  await expect(decisionPlane).toContainText('|H| 1.10 V/V · phase 45°');
+  await expect(decisionPlane).toContainText('200 Hz · known common H equalization');
+  await expect(decisionPlane).toContainText('|n| 0.12 normalized · direction -32°');
+  for (const tick of ['-1.0', '-0.5', '0.5', '1.0']) {
+    await expect(decisionPlane.locator('svg').getByText(tick, { exact: true })).toHaveCount(2);
+  }
+  await expect(lab.locator('.signal-spine__flow-indicator').first()).toHaveCSS('animation-duration', '0s');
+
+  const explanation = lab.getByRole('textbox', { name: '내 원인 설명' });
+  await explanation.fill('frequency offset을 바꿨기 때문에 acquisition DSP의 phase drift가 72도로 늘어 decision 화면이 01로 바뀌었지만 noise와 scalar channel 모델 한계가 있다.');
+  const finish = lab.getByRole('button', { name: '설명으로 완료하기' });
+  await expect(finish).toBeEnabled();
+  await finish.focus();
+  await page.keyboard.press('Enter');
+  await expect(lab.locator('.lab-explain__done')).toContainText('완료가 저장되었습니다.');
+
+  const completion = await page.evaluate(() => JSON.parse(localStorage.getItem('rf-wiki:v1:progress') ?? '{}'));
+  expect(completion['cellular:foundations:receiver-iq-to-bits']?.completed).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 test('mobile primary navigation keeps one current track label and reveals four destinations', async ({ page }) => {

@@ -9,7 +9,7 @@ import { cellularLessonHref, cellularSections, cellularLessonCount } from '../..
 const lessons = await getCollection('cellularLesson', ({ data }) => data.status === 'ready');
 ---
 
-<BaseLayout title="3GPP·PAMiD 학습 지도" description="GSM·LTE·NR uplink waveform에서 PAMiD state와 DVT 진단까지 연결하는 57개 질문" currentPath="/cellular/">
+<BaseLayout title="3GPP·PAMiD 학습 지도" description={`GSM·LTE·NR uplink waveform에서 PAMiD state와 DVT 진단까지 연결하는 ${cellularLessonCount}개 질문`} currentPath="/cellular/">
   <main class="page-shell cellular-hub" data-pagefind-body>
     <Breadcrumbs items={[{ label: 'RF Wiki', href: '/' }, { label: '3GPP·PAMiD' }]} />
     <header class="page-heading cellular-hub__heading">
@@ -26,7 +26,7 @@ const lessons = await getCollection('cellularLesson', ({ data }) => data.status 
     </section>
 
     <section class="cellular-section-index" aria-labelledby="cellular-section-index-title">
-      <header><p class="data-label">6 sections · 57 questions</p><h2 id="cellular-section-index-title">먼저 구조를 그리고, 마지막에 증상에서 거꾸로 올라갑니다.</h2></header>
+      <header><p class="data-label">6 sections · {cellularLessonCount} questions</p><h2 id="cellular-section-index-title">먼저 구조를 그리고, 마지막에 증상에서 거꾸로 올라갑니다.</h2></header>
       <ol>
         {cellularSections.map((section) => {
           const sectionLessons = lessons.filter(({ data }) => data.section === section.id).sort((a, b) => a.data.order - b.data.order);

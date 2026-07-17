@@ -27,7 +27,7 @@ RF 개념 트랙의 완성 범위는 다음 여섯 학습 축이다.
 
 별도의 계측장비 스터디 트랙은 `SG → SA → NA(VNA) → Power Sensor → Power Supply` 순서를 따른다. 현재 활성 기준 장비는 Keysight `N5182B-506 + 656`, `N9020B-526 + B1X + MPB + P26`, `E5080B-2K0`, `U2061XA`, `N6705C + N6752A-761`이다. 각 장비는 기본 동작과 내부 신호·전력 경로, SCPI·PyVISA, PA bench capstone을 독립된 namespaced 진도로 다룬다.
 
-`3GPP·PAMiD` 트랙은 GSM/GPRS/EDGE, LTE single-carrier와 NR FR1 single-carrier의 UE uplink를 완성 module nominal DVT 관점에서 연결한다. 공통 기초 6개, PAMiD 구조·제어 10개, GSM 9개, LTE 11개, NR 11개, 증상별 진단 10개의 짧은 질문형 페이지로 구성한다. 사용자는 time/frequency 구조와 modulation을 외우는 데서 끝나지 않고, 해당 waveform이 GSM PA+ASM, FDD PAMiD 또는 TDD TxM의 어느 경로와 상태를 통과하며 측정 fail을 어느 stage에서 분리해야 하는지 설명한다.
+`3GPP·PAMiD` 트랙은 GSM/GPRS/EDGE, LTE single-carrier와 NR FR1 single-carrier의 UE uplink를 완성 module nominal DVT 관점에서 연결한다. 공통 기초 8개, PAMiD 구조·제어 10개, GSM 9개, LTE 11개, NR 11개, 증상별 진단 10개의 짧은 질문형 페이지로 구성한다. 사용자는 time/frequency 구조와 modulation을 외우는 데서 끝나지 않고, 해당 waveform이 GSM PA+ASM, FDD PAMiD 또는 TDD TxM의 어느 경로와 상태를 통과하며 측정 fail을 어느 stage에서 분리해야 하는지 설명한다.
 
 Cellular 본문 기준은 3GPP Release 17이다. 표준 숫자는 exact minor version과 clause/table, RAT·direction·band·bandwidth·modulation 조건, UE minimum/conformance/계산값 구분을 함께 기록한다. Generic MIPI RFFE, APT/ET, DPD와 CFR은 공개된 역할과 실무 원리를 설명하되 제조사 register map이나 compliance transmitter를 흉내 내지 않는다. WCDMA, CA/EN-DC 상세, UL MIMO, FR2/OTA, propagation·fading, production test와 실제 DVT report는 현재 범위 밖이다.
 

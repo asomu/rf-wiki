@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import cellularLessons from '../../src/content/cellular-lessons.json';
-import { cellularSections } from '../../src/data/cellular';
+import { cellularLessonCount, cellularSections } from '../../src/data/cellular';
 import { resolveCellularSpecReferences } from '../../src/data/cellular-specs';
 import {
   DIAGNOSTIC_SIGNATURES,
@@ -59,10 +61,11 @@ describe('PAMiD and diagnostic contracts', () => {
 });
 
 describe('cellular content registry', () => {
-  it('contains exactly 57 unique ready lessons in the approved section counts', () => {
-    expect(cellularLessons).toHaveLength(57);
-    expect(new Set(cellularLessons.map(({ id }) => id)).size).toBe(57);
-    expect(new Set(cellularLessons.map(({ progressId }) => progressId)).size).toBe(57);
+  it('contains exactly 59 unique ready lessons in the approved section counts', () => {
+    expect(cellularLessonCount).toBe(59);
+    expect(cellularLessons).toHaveLength(cellularLessonCount);
+    expect(new Set(cellularLessons.map(({ id }) => id)).size).toBe(cellularLessonCount);
+    expect(new Set(cellularLessons.map(({ progressId }) => progressId)).size).toBe(cellularLessonCount);
     for (const section of cellularSections) {
       const lessons = cellularLessons.filter(({ section: candidate }) => candidate === section.id);
       expect(lessons).toHaveLength(section.count);
@@ -70,6 +73,91 @@ describe('cellular content registry', () => {
         Array.from({ length: section.count }, (_, index) => index + 1),
       );
     }
+  });
+
+  it('keeps the six established foundation progress IDs while inserting the two new questions', () => {
+    const foundations = cellularLessons
+      .filter(({ section }) => section === 'foundations')
+      .sort((a, b) => a.order - b.order);
+
+    expect(foundations.map(({ slug }) => slug)).toEqual([
+      'modulation-waveform-multiple-access-duplex',
+      'bits-to-iq-rf',
+      'coding-rate-matching-scrambling',
+      'time-frequency-reading',
+      'iq-magnitude-phase-psd-papr',
+      'receiver-iq-to-bits',
+      'ue-reference-planes-power',
+      'reading-3gpp-requirements',
+    ]);
+
+    for (const slug of [
+      'modulation-waveform-multiple-access-duplex',
+      'bits-to-iq-rf',
+      'time-frequency-reading',
+      'iq-magnitude-phase-psd-papr',
+      'ue-reference-planes-power',
+      'reading-3gpp-requirements',
+    ]) {
+      expect(foundations.find((lesson) => lesson.slug === slug)?.progressId)
+        .toBe(`cellular:foundations:${slug}`);
+    }
+  });
+
+  it('traces the new coding question to Release 17 coding and PUSCH scrambling clauses', () => {
+    const codingLesson = cellularLessons.find(({ slug }) => slug === 'coding-rate-matching-scrambling');
+    expect(codingLesson?.referenceIds).toEqual(expect.arrayContaining([
+      'lte-36-212-5',
+      'lte-36-211-5-3-1',
+      'nr-38-212-5',
+      'nr-38-212-6',
+      'nr-38-212-7',
+      'nr-38-211-6-3-1-1',
+    ]));
+    const references = resolveCellularSpecReferences(codingLesson?.referenceIds ?? []);
+    expect(references).toHaveLength(6);
+    expect(references).toEqual(expect.arrayContaining([
+      expect.objectContaining({ specification: '3GPP TS 36.211', version: '17.4.0', clause: '5.3.1' }),
+      expect.objectContaining({ specification: '3GPP TS 38.211', version: '17.7.0', clause: '6.3.1.1' }),
+    ]));
+  });
+
+  it('keeps segmented rate-matching notation explicit before scrambling', () => {
+    const codingLesson = cellularLessons.find(({ slug }) => slug === 'coding-rate-matching-scrambling');
+    const lessonText = JSON.stringify(codingLesson);
+    const diagram = readFileSync(
+      resolve(process.cwd(), 'src/components/astro/CodingTransformDiagram.astro'),
+      'utf8',
+    );
+
+    expect(codingLesson?.theory.formula).toContain('E_r per code block');
+    expect(codingLesson?.theory.formula).toContain('G = Σ_r E_r');
+    expect(codingLesson?.theory.formula).toContain('C=2이면 G = E_0 + E_1');
+    expect(diagram).toContain('Code-block concatenation');
+    expect(diagram).toContain('G = Σ_r E_r bit');
+    expect(lessonText).not.toContain('일반적으로 G = E');
+    expect(diagram).not.toContain('G = E bit');
+  });
+
+  it('uses the clause-native normalized pi-over-two BPSK coordinates and exposes every point in the table', () => {
+    const diagram = readFileSync(
+      resolve(process.cwd(), 'src/components/astro/ConstellationGuideDiagram.astro'),
+      'utf8',
+    );
+    const expectedCoordinateRows = [
+      '{ n: 0, bit: 0, i: piOverTwoScale, q: piOverTwoScale, phaseDegrees: 45',
+      '{ n: 1, bit: 0, i: -piOverTwoScale, q: piOverTwoScale, phaseDegrees: 135',
+      '{ n: 2, bit: 1, i: -piOverTwoScale, q: -piOverTwoScale, phaseDegrees: -135',
+      '{ n: 3, bit: 1, i: piOverTwoScale, q: -piOverTwoScale, phaseDegrees: -45',
+    ];
+
+    expect(diagram).toContain('const piOverTwoScale = Math.SQRT1_2');
+    for (const row of expectedCoordinateRows) expect(diagram).toContain(row);
+    expect(diagram).toContain('piOverTwoPoints.map((point)');
+    expect(diagram).toContain('data-pi2-point={`n${point.n}`}');
+    expect(diagram).toContain('<th>normalized I</th>');
+    expect(diagram).toContain('<th>normalized Q</th>');
+    expect(diagram).toContain('<th>phase</th>');
   });
 
   it('resolves every clause-trace source and keeps the progress namespace independent', () => {

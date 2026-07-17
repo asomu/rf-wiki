@@ -14,7 +14,7 @@ RF Wiki는 RF 엔지니어가 장비 설정, 물리 신호, 계산 모델과 화
 - Power flow, coupling, insertion, isolation과 directivity
 - PA 비선형성, stability, source/load-pull
 - 계측장비 스터디: Keysight N5182B MXG, N9020B MXA, E5080B ENA, U2061XA power sensor, N6705C + N6752A power system의 장비별 5개 챕터, 총 25개 챕터에서 기본 동작·SCPI·PyVISA와 PA bench workflow 제공
-- 3GPP·PAMiD: Release 17 기준 공통 기초, PAMiD anatomy/control, GSM/GPRS/EDGE와 PvT 실습, LTE PUSCH, NR FR1 PUSCH와 증상별 진단을 57개 질문형 페이지로 제공
+- 3GPP·PAMiD: Release 17 기준 Bit→IQ→RF→IQ→Bit 공통 기초, PAMiD anatomy/control, GSM/GPRS/EDGE와 PvT 실습, LTE PUSCH, NR FR1 PUSCH와 증상별 진단을 59개 질문형 페이지로 제공
 
 웹은 내장된 결정론적 RF·SCPI 시나리오만 실행합니다. 서버, 로그인, telemetry, 실측 파일 import, 브라우저 직접 장비 제어와 라이브 AI는 범위가 아닙니다. 실제 장비 제어는 `examples/` 아래 장비별 로컬 Python package로 분리되어 있으며 기본 실행은 모두 dry-run입니다.
 
@@ -46,11 +46,11 @@ npm run test:all
 
 ### 2026-07-17 구현 체크포인트
 
-- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·57개 ready question
+- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·59개 ready question
 - TypeScript/React unit: 39 files, 279 tests 통과
 - Python safety suite: 5개 package, 총 114 tests 통과
 - Production build: 109 pages, Pagefind 108 pages·16,950 words index 통과
-- Browser E2E: 510 tests 통과. 57개 Cellular route, 4개 viewport overflow, axe, keyboard·진도와 72개 visual baseline 포함
+- Browser E2E: 59개 Cellular route, 4개 viewport overflow, axe, keyboard·진도와 visual baseline 포함
 - Lighthouse: 16개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0038 이하
 
 ### OpenAI Sites 배포 빌드
@@ -67,7 +67,7 @@ npm run build:sites
 - `src/pages/` — Astro 정적 route
 - `src/content/lessons/` — MDX lesson과 frontmatter
 - `src/content/instruments/` — 장비별 MDX chapter
-- `src/content/cellular-lessons.json` — 57개 Cellular 질문형 lesson registry
+- `src/content/cellular-lessons.json` — 59개 Cellular 질문형 lesson registry
 - `src/components/astro/` — 정적 학습·문서 컴포넌트
 - `src/components/simulators/` — React simulator island
 - `src/components/plots/` — 반응형 SVG view

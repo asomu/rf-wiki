@@ -386,8 +386,60 @@
 .plot-marker circle { fill: var(--color-reference-bright); }
 .plot-marker text { fill: var(--color-reference-bright); }
 .plot-direct-label { font-weight: var(--font-weight-medium); }
+.plot-label--narrow { display: none; }
 .plot-label-strong { fill: var(--color-instrument-ink) !important; font-weight: var(--font-weight-medium) !important; }
 .plot-label-reference { fill: var(--color-reference-bright) !important; }
+
+.pa-constellation__axis line {
+  stroke: var(--color-instrument-muted);
+  stroke-width: var(--stroke-hairline);
+  vector-effect: non-scaling-stroke;
+}
+
+.pa-constellation__axis text,
+.pa-constellation__ideal-label,
+.pa-constellation__output-label {
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.pa-constellation__axis text {
+  fill: var(--color-instrument-muted);
+}
+
+.pa-constellation__ideal {
+  fill: none;
+  stroke: var(--color-reference-bright);
+  stroke-width: calc(var(--stroke-hairline) * 2);
+  vector-effect: non-scaling-stroke;
+}
+
+.pa-constellation__output {
+  fill: var(--color-forward-bright);
+  stroke: var(--color-instrument);
+  stroke-width: calc(var(--stroke-hairline) * 2);
+  vector-effect: non-scaling-stroke;
+}
+
+.pa-constellation__error-vector {
+  stroke: var(--color-reverse-bright);
+  stroke-width: calc(var(--stroke-hairline) * 2);
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.pa-constellation__ideal-label {
+  fill: var(--color-reference-bright);
+}
+
+.pa-constellation__output-label {
+  fill: var(--color-forward-bright);
+}
+
+.receiver-decision-plot__boundary line {
+  stroke: var(--color-instrument-muted);
+  stroke-width: var(--stroke-hairline);
+  vector-effect: non-scaling-stroke;
+}
 
 .resource-carrier { fill: var(--color-instrument-raised); stroke: var(--color-instrument-grid); }
 .resource-tick { stroke: var(--color-instrument-grid); stroke-opacity: 0.24; }
@@ -567,8 +619,17 @@
   .cause-ledger dl > div { padding: var(--space-3) 0 0; border-top: var(--stroke-hairline) solid var(--color-rule); border-left: 0; }
   .cause-ledger dl > div:first-child { padding-top: 0; border-top: 0; }
   .plot-frame__canvas { padding-inline: var(--space-2); }
+  .receiver-decision-plot text,
+  .pa-constellation text { font-size: var(--font-size-title); }
   .power-balance { grid-template-columns: minmax(0, 1fr); }
   .power-balance > span { text-align: center; }
+}
+
+@container lesson-lab (max-width: 360px) {
+  .plot-label--wide,
+  .receiver-decision-plot__ticks--inner,
+  .pa-constellation__ticks--inner { display: none; }
+  .plot-label--narrow { display: inline; }
 }
 
 .lab-shell button,

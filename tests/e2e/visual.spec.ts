@@ -51,6 +51,13 @@ const visualScenarios: readonly VisualScenario[] = [
     labId: 'load-pull',
   },
   {
+    name: 'pa-load-pull-linearity',
+    path: '/learn/pa-pull/',
+    readySelector: '[data-lab-id="load-pull"] [data-visual-target="pa-linearity"]',
+    labId: 'load-pull',
+    captureSelector: '[data-lab-id="load-pull"] [data-visual-target="pa-linearity"]',
+  },
+  {
     name: 'search-glossary',
     path: '/glossary/',
     readySelector: '.glossary-page .glossary-list',
@@ -59,6 +66,49 @@ const visualScenarios: readonly VisualScenario[] = [
     name: 'cellular-hub',
     path: '/cellular/',
     readySelector: '.cellular-atlas',
+  },
+  {
+    name: 'cellular-signal-journey',
+    path: '/cellular/foundations/bits-to-iq-rf/',
+    readySelector: '.signal-journey',
+    captureSelector: '.signal-journey',
+  },
+  {
+    name: 'cellular-coding-chain',
+    path: '/cellular/foundations/coding-rate-matching-scrambling/',
+    readySelector: '.coding-transform',
+    captureSelector: '.coding-transform',
+  },
+  {
+    name: 'cellular-envelope-papr',
+    path: '/cellular/foundations/iq-magnitude-phase-psd-papr/',
+    readySelector: '.envelope-papr',
+    captureSelector: '.envelope-papr',
+  },
+  {
+    name: 'cellular-dpd-flow',
+    path: '/cellular/pamid/dpd-cfr/',
+    readySelector: '.dpd-flow',
+    captureSelector: '.dpd-flow',
+  },
+  {
+    name: 'cellular-lte-constellation',
+    path: '/cellular/lte/qam-modulations/',
+    readySelector: '.constellation-guide',
+    captureSelector: '.constellation-guide',
+  },
+  {
+    name: 'cellular-nr-pi2-bpsk',
+    path: '/cellular/nr/pi2-bpsk-qam/',
+    readySelector: '.constellation-guide',
+    captureSelector: '.constellation-guide',
+  },
+  {
+    name: 'cellular-receiver-recovery',
+    path: '/cellular/foundations/receiver-iq-to-bits/',
+    readySelector: '[data-lab-id="cellular:foundations:receiver-iq-to-bits"] .plot-frame',
+    labId: 'cellular:foundations:receiver-iq-to-bits',
+    captureSelector: '[data-lab-id="cellular:foundations:receiver-iq-to-bits"] .receiver-recovery__views',
   },
   {
     name: 'cellular-gsm-timeslot',

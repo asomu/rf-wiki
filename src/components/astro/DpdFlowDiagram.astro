@@ -1,0 +1,43 @@
+<section class="cellular-visual dpd-flow" aria-labelledby="dpd-flow-title">
+  <header class="cellular-visual__header">
+    <div>
+      <p>CFR → DPD → PA → observation</p>
+      <h3 id="dpd-flow-title">입력 IQ가 바뀐 개선과 PA 자체의 물리 특성은 분리해서 기록합니다.</h3>
+    </div>
+    <p class="cellular-model-note">Static responsibility map · DPD training/coefficients 계산 안 함</p>
+  </header>
+
+  <ol class="dpd-flow__path" aria-label="CFR, DPD, PA와 feedback observation 경로">
+    <li><span>01</span><strong>Reference IQ</strong><small>원본 envelope·EVM·CCDF</small></li>
+    <li><span>02</span><strong>CFR</strong><small>rare peak 제한·filter</small></li>
+    <li><span>03</span><strong>DPD pre-inverse</strong><small>AM-AM·AM-PM·memory의 반대 방향</small></li>
+    <li><span>04</span><strong>DAC / RF</strong><small>source baseline 기준면</small></li>
+    <li><span>05</span><strong>PA / PAMiD</strong><small>compression·memory·spectral regrowth</small></li>
+    <li><span>06</span><strong>Observation RX</strong><small>output IQ를 training/검증 경로로 관찰</small></li>
+  </ol>
+
+  <div class="dpd-flow__feedback" aria-label="관찰 feedback 설명">
+    <span>Feedback observation · dashed reverse evidence path</span>
+    <p>PA output을 입력 reference와 비교해 현재 operating point에서만 유효한 계수를 학습·검증합니다. 이 페이지는 그 경계만 보여줍니다.</p>
+  </div>
+
+  <dl class="cellular-ledger">
+    <div><dt>변경</dt><dd>CFR 또는 DPD state와 source IQ</dd></div>
+    <div><dt>직접 효과</dt><dd>peak 통계 또는 PA에 들어가는 amplitude·phase가 변함</dd></div>
+    <div><dt>화면 결과</dt><dd>source/output CCDF·EVM·ACLR·AM-AM/AM-PM이 함께 움직임</dd></div>
+    <div><dt>비용·한계</dt><dd>clipping noise, training validity, bandwidth·memory와 operating-point 의존성</dd></div>
+  </dl>
+
+  <details class="cellular-data-alternative">
+    <summary>네 상태 비교를 표로 보기</summary>
+    <table>
+      <thead><tr><th>CFR</th><th>DPD</th><th>Source plane에서 먼저 볼 것</th><th>PA output에서 추가로 볼 것</th></tr></thead>
+      <tbody>
+        <tr><th>Off</th><td>Off</td><td>원본 CCDF·EVM·ACLR</td><td>baseline AM-AM·AM-PM·EVM·ACLR</td></tr>
+        <tr><th>On</th><td>Off</td><td>peak 감소와 clipping/filter error</td><td>headroom·EVM·ACLR tradeoff</td></tr>
+        <tr><th>Off</th><td>On</td><td>pre-distorted EVM·spectrum</td><td>보상 후 AM-AM·AM-PM·ACLR</td></tr>
+        <tr><th>On</th><td>On</td><td>두 처리가 합쳐진 source baseline</td><td>동일 Pout·조건의 최종 tradeoff</td></tr>
+      </tbody>
+    </table>
+  </details>
+</section>

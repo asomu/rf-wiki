@@ -1,0 +1,37 @@
+<section class="cellular-visual coding-transform" aria-labelledby="coding-transform-title">
+  <header class="cellular-visual__header">
+    <div>
+      <p>Protected bit pipeline</p>
+      <h3 id="coding-transform-title">CRC·coding·rate matching·scrambling은 서로 다른 문제를 해결합니다.</h3>
+    </div>
+    <p class="cellular-model-note">크기 관계와 XOR은 교육 예이며 표준 test vector가 아닙니다.</p>
+  </header>
+
+  <ol class="coding-transform__steps">
+    <li><span>01</span><strong>Payload + CRC attachment</strong><code>A → B = A + L bit</code><p>원본 transport block에 남은 block error를 검출할 check bit 추가</p></li>
+    <li><span>02</span><strong>Channel coding</strong><code>N_r bit / code block</code><p>decoder가 오류를 추정할 수 있는 구조적 중복 생성</p></li>
+    <li><span>03</span><strong>Rate matching</strong><code>E_r bit / code block</code><p>각 code block r에서 할당 resource와 redundancy version에 맞게 선택·반복·puncture</p></li>
+    <li><span>04</span><strong>Code-block concatenation</strong><code>G = Σ_r E_r bit</code><p>rate-matched code block들을 순서대로 이어 physical-channel bit sequence를 구성</p></li>
+    <li><span>05</span><strong>Scrambling</strong><code>G bit → G bit</code><p>길이 G의 pseudo-random sequence와 XOR; scrambling 전후 bit 수는 유지</p></li>
+  </ol>
+
+  <div class="coding-transform__xor" aria-label="스크램블링 XOR 예시">
+    <p><span>G input bits</span><code>11110000</code></p>
+    <p><span>Sequence c(n)</span><code>10100110</code></p>
+    <p><span>XOR output</span><code>01010110</code></p>
+    <p><span>Receiver XOR</span><code>01010110 ⊕ 10100110 = 11110000</code></p>
+  </div>
+
+  <div class="cellular-table-scroll" tabindex="0" role="region" aria-label="CRC, channel coding, rate matching과 scrambling 비교">
+    <table>
+      <thead><tr><th>과정</th><th>주목적</th><th>길이 변화</th><th>수신기 역과정</th><th>오해하면 안 되는 점</th></tr></thead>
+      <tbody>
+        <tr><th>CRC</th><td>잔여 block error 검출</td><td>check bit 추가</td><td>재계산·비교</td><td>오류를 직접 복구하는 code가 아님</td></tr>
+        <tr><th>Channel coding</th><td>오류 복구 능력</td><td>중복 증가</td><td>soft-input decoding</td><td>단순 bit 복제와 동일하지 않음</td></tr>
+        <tr><th>Rate matching</th><td>할당 자원과 code rate 정합</td><td>code block마다 E_r에 맞춤</td><td>de-rate matching</td><td>HARQ RV에 따라 선택 위치가 달라질 수 있음</td></tr>
+        <tr><th>Code-block concatenation</th><td>rate-matched block을 codeword 순서로 결합</td><td>C=2이면 G=E_0+E_1</td><td>code block별 분리</td><td>한 block의 E_r를 전체 G와 같다고 둘 수 없음</td></tr>
+        <tr><th>Scrambling</th><td>sequence randomization·구분</td><td>G input → G output</td><td>같은 sequence로 XOR</td><td>암호화나 FEC가 아님</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,140 @@
+---
+export interface Props {
+  preset?: string;
+}
+
+const { preset = 'lte-qam' } = Astro.props;
+const isPiOverTwo = preset === 'nr-pi2-bpsk';
+const qamScale = Math.sqrt(10);
+const qamLevels = [-3, -1, 1, 3] as const;
+const qamPoints = qamLevels.flatMap((q) => qamLevels.map((i) => ({
+  i: i / qamScale,
+  q: q / qamScale,
+})));
+const piOverTwoScale = Math.SQRT1_2;
+const piOverTwoPoints = [
+  { n: 0, bit: 0, i: piOverTwoScale, q: piOverTwoScale, phaseDegrees: 45, label: 'n0 · bit 0' },
+  { n: 1, bit: 0, i: -piOverTwoScale, q: piOverTwoScale, phaseDegrees: 135, label: 'n1 · bit 0' },
+  { n: 2, bit: 1, i: -piOverTwoScale, q: -piOverTwoScale, phaseDegrees: -135, label: 'n2 · bit 1' },
+  { n: 3, bit: 1, i: piOverTwoScale, q: -piOverTwoScale, phaseDegrees: -45, label: 'n3 · bit 1' },
+] as const;
+const plotPoints = isPiOverTwo ? piOverTwoPoints : qamPoints;
+const x = (value: number) => 300 + value * 176;
+const y = (value: number) => 220 - value * 176;
+---
+
+<section class="cellular-visual constellation-guide" aria-labelledby="constellation-guide-title">
+  <header class="cellular-visual__header">
+    <div>
+      <p>{isPiOverTwo ? 'NR π/2-BPSK phase sequence' : 'LTE square-QAM decision spacing'}</p>
+      <h3 id="constellation-guide-title">
+        {isPiOverTwo
+          ? 'π/2 회전은 한 장의 BPSK 점보다 symbol 순서로 읽어야 합니다.'
+          : '같은 평균 전력에서 QAM 차수가 커질수록 점 사이 여유가 줄어듭니다.'}
+      </h3>
+    </div>
+    <p class="cellular-model-note">Unit-average-power ideal points · 교육용 mapping · compliance waveform 아님</p>
+  </header>
+
+  <div class="constellation-guide__settings" aria-label="현재 도표 설정">
+    <span>축: normalized I / Q</span>
+    <span>reference: average symbol power = 1</span>
+    <span>{isPiOverTwo ? 'sequence: 0, 0, 1, 1 · clause-native coordinates' : 'view: ideal 16QAM'}</span>
+  </div>
+
+  <svg viewBox="0 0 600 440" role="img" aria-labelledby="constellation-svg-title constellation-svg-desc">
+    <title id="constellation-svg-title">{isPiOverTwo ? 'π/2-BPSK symbol phase sequence' : '정규화 16QAM constellation'}</title>
+    <desc id="constellation-svg-desc">
+      {isPiOverTwo
+        ? 'TS 38.211 clause 5.1.1의 정규화 대각선 좌표에서 연속 네 symbol이 90도씩 회전합니다. 별도 global display rotation은 적용하지 않습니다.'
+        : '평균 symbol power를 1로 정규화한 16QAM ideal point와 선택 marker를 표시합니다.'}
+    </desc>
+    <rect width="600" height="440" class="plot-surface" />
+    <g class="plot-grid" aria-hidden="true">
+      {[-1, -0.5, 0.5, 1].map((tick) => (
+        <>
+          <line x1={x(tick)} x2={x(tick)} y1="36" y2="388" />
+          <line x1="124" x2="476" y1={y(tick)} y2={y(tick)} />
+        </>
+      ))}
+    </g>
+    <g class="constellation-guide__axes" aria-hidden="true">
+      <line x1="124" x2="476" y1="220" y2="220" />
+      <line x1="300" x2="300" y1="36" y2="388" />
+      <text x="474" y="208" text-anchor="end">I / normalized</text>
+      <text x="312" y="52">Q / normalized</text>
+      <text x="132" y="24">setting · Pavg = 1</text>
+    </g>
+
+    {isPiOverTwo && (
+      <polyline
+        points={piOverTwoPoints.map((point) => `${x(point.i)},${y(point.q)}`).join(' ')}
+        class="plot-reference constellation-guide__sequence"
+      />
+    )}
+
+    {plotPoints.map((point, index) => (
+      <g>
+        <circle
+          cx={x(point.i)}
+          cy={y(point.q)}
+          r={index === 0 ? 9 : 6}
+          class:list={{
+            'constellation-guide__point': true,
+            'constellation-guide__point--marker': index === 0,
+          }}
+        />
+        {'label' in point && (
+          <text
+            x={x(point.i) + (point.i > 0 ? -12 : 12)}
+            y={y(point.q) + (point.q > 0 ? 24 : -12)}
+            text-anchor={point.i > 0 ? 'end' : 'start'}
+            class="plot-label"
+          >{point.label}</text>
+        )}
+      </g>
+    ))}
+    <line x1={x(plotPoints[0].i)} x2={x(plotPoints[0].i)} y1={y(plotPoints[0].q)} y2="392" class="plot-marker" />
+    <text
+      x={x(plotPoints[0].i) + (plotPoints[0].i > 0 ? -12 : 12)}
+      y={y(plotPoints[0].q) - 12}
+      text-anchor={plotPoints[0].i > 0 ? 'end' : 'start'}
+      class="plot-marker-label"
+    >M1 · ideal symbol</text>
+    <text x="466" y={isPiOverTwo ? 376 : 344} text-anchor="end" class="constellation-guide__trace-label">
+      {isPiOverTwo ? 'sequence · dashed path' : 'ideal 16QAM · circle points'}
+    </text>
+  </svg>
+
+  <p class="cellular-visual-summary">
+    {isPiOverTwo
+      ? '관찰: binary symbol은 1 bit/symbol이지만 π/2 rotation 때문에 point가 실수축에만 머물지 않습니다. 실제 사용 가능 조건은 channel·transform precoding·capability와 함께 확인합니다.'
+      : '관찰: square-QAM의 정규화 최소 인접 거리는 QPSK 약 1.414에서 256QAM 약 0.153으로 줄어, 같은 error vector가 decision boundary를 넘기 쉬워집니다.'}
+  </p>
+
+  <details class="cellular-data-alternative">
+    <summary>도표 데이터를 표로 보기</summary>
+    {isPiOverTwo ? (
+      <table>
+        <caption>TS 38.211 clause 5.1.1 좌표 · bit sequence 0, 0, 1, 1 · 별도 global rotation 없음</caption>
+        <thead><tr><th>n</th><th>입력 bit</th><th>normalized I</th><th>normalized Q</th><th>phase</th></tr></thead>
+        <tbody>
+          {piOverTwoPoints.map((point) => (
+            <tr data-pi2-point={`n${point.n}`}><th>{point.n}</th><td>{point.bit}</td><td>{point.i.toFixed(4)}</td><td>{point.q.toFixed(4)}</td><td>{point.phaseDegrees}°</td></tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      <table>
+        <thead><tr><th>Modulation</th><th>Bits/symbol</th><th>정규화 최소 인접 거리</th><th>해석 조건</th></tr></thead>
+        <tbody>
+          <tr><th>π/2-BPSK</th><td>1</td><td>2.000</td><td>NR uplink의 channel·transform precoding·capability 조건부</td></tr>
+          <tr><th>QPSK</th><td>2</td><td>1.414</td><td>unit average symbol power</td></tr>
+          <tr><th>16QAM</th><td>4</td><td>0.632</td><td>unit average symbol power</td></tr>
+          <tr><th>64QAM</th><td>6</td><td>0.309</td><td>unit average symbol power</td></tr>
+          <tr><th>256QAM</th><td>8</td><td>0.153</td><td>unit average symbol power</td></tr>
+        </tbody>
+      </table>
+    )}
+  </details>
+</section>

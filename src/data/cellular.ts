@@ -15,7 +15,7 @@ export const cellularSections: readonly CellularSectionDefinition[] = Object.fre
   {
     id: 'foundations', index: '01', title: '공통 기초', shortTitle: '신호를 같은 좌표로 읽기',
     question: 'bit, IQ, 시간·주파수 자원과 RF 기준면은 어떻게 이어질까?',
-    description: 'GSM·LTE·NR을 비교하기 전에 서로 다른 분류와 기준면을 하나의 신호 흐름으로 묶습니다.', count: 6,
+    description: 'GSM·LTE·NR을 비교하기 전에 서로 다른 분류와 기준면을 하나의 신호 흐름으로 묶습니다.', count: 8,
     context: 'Cross-RAT · UE uplink · reference plane',
   },
   {

@@ -638,6 +638,7 @@
 
 .cellular-data-alternative table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--font-size-data);
 }
@@ -648,6 +649,256 @@
   border-top: var(--stroke-hairline) solid var(--color-rule);
   text-align: start;
   vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.cellular-visual-summary {
+  margin: var(--space-4) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.signal-journey__groups,
+.coding-transform__steps,
+.dpd-flow__path {
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signal-journey__groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-block: var(--stroke-hairline) solid var(--color-rule-strong);
+}
+
+.signal-journey__groups > li {
+  min-width: 0;
+  padding: var(--space-4);
+  border-inline-end: var(--stroke-hairline) solid var(--color-rule);
+}
+
+.signal-journey__groups > li:last-child {
+  border-inline-end: 0;
+}
+
+.signal-journey__groups > li > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  align-items: start;
+}
+
+.signal-journey__groups > li > header > span,
+.coding-transform__steps > li > span,
+.dpd-flow__path > li > span {
+  color: var(--color-active);
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.signal-journey__groups strong,
+.signal-journey__groups small,
+.coding-transform__steps strong,
+.coding-transform__steps code,
+.dpd-flow__path strong,
+.dpd-flow__path small {
+  display: block;
+}
+
+.signal-journey__groups small,
+.dpd-flow__path small {
+  margin-block-start: var(--space-1);
+  color: var(--color-muted);
+  font-size: var(--font-size-data);
+  line-height: var(--line-height-data);
+}
+
+.signal-journey__groups ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signal-journey__groups ol a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  align-items: center;
+  padding: var(--space-2);
+  border-top: var(--stroke-hairline) solid var(--color-rule);
+  color: var(--color-ink);
+  text-decoration-color: var(--color-active);
+}
+
+.signal-journey__groups ol a span {
+  color: var(--color-muted);
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.coding-transform__steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-block: var(--stroke-hairline) solid var(--color-rule-strong);
+}
+
+.coding-transform__steps > li {
+  min-width: 0;
+  padding: var(--space-4);
+  border-inline-end: var(--stroke-hairline) solid var(--color-rule);
+}
+
+.coding-transform__steps > li:last-child {
+  border-inline-end: 0;
+}
+
+.coding-transform__steps code {
+  margin-block-start: var(--space-2);
+  color: var(--color-reference);
+  font-size: var(--font-size-data);
+}
+
+.coding-transform__steps p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-data);
+  line-height: var(--line-height-data);
+}
+
+.coding-transform__xor {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-block: var(--space-6);
+  border-block: var(--stroke-hairline) solid var(--color-rule);
+}
+
+.coding-transform__xor p {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border-inline-end: var(--stroke-hairline) solid var(--color-rule);
+}
+
+.coding-transform__xor p:last-child {
+  border-inline-end: 0;
+}
+
+.coding-transform__xor span,
+.coding-transform__xor code {
+  display: block;
+}
+
+.coding-transform__xor span {
+  color: var(--color-muted);
+  font-size: var(--font-size-data);
+}
+
+.coding-transform__xor code {
+  margin-block-start: var(--space-2);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.constellation-guide__settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-block: var(--space-4);
+}
+
+.constellation-guide__settings span {
+  padding-block: var(--space-2);
+  border-top: var(--stroke-hairline) solid var(--color-rule);
+  color: var(--color-muted);
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.cellular-visual svg .plot-surface {
+  fill: var(--color-instrument);
+}
+
+.constellation-guide__axes line,
+.envelope-papr__axes line {
+  stroke: var(--color-instrument-muted);
+  stroke-width: var(--stroke-hairline);
+  vector-effect: non-scaling-stroke;
+}
+
+.constellation-guide__axes text,
+.envelope-papr__axes text {
+  fill: var(--color-instrument-muted);
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.constellation-guide__point {
+  fill: var(--color-instrument);
+  stroke: var(--color-forward-bright);
+  stroke-width: calc(var(--stroke-hairline) * 2);
+  vector-effect: non-scaling-stroke;
+}
+
+.constellation-guide__point--marker {
+  fill: var(--color-reference-bright);
+  stroke: var(--color-instrument);
+}
+
+.constellation-guide__trace-label,
+.envelope-papr__ofdm-label,
+.envelope-papr__cw-label {
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.constellation-guide__trace-label,
+.envelope-papr__ofdm-label {
+  fill: var(--color-forward-bright);
+}
+
+.envelope-papr__cw-label {
+  fill: var(--color-reference-bright);
+}
+
+.envelope-papr__marker {
+  fill: var(--color-reference-bright);
+  stroke: var(--color-instrument);
+  stroke-width: calc(var(--stroke-hairline) * 2);
+}
+
+.dpd-flow__path {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-block: var(--stroke-hairline) solid var(--color-rule-strong);
+}
+
+.dpd-flow__path > li {
+  min-width: 0;
+  padding: var(--space-4);
+  border-inline-end: var(--stroke-hairline) solid var(--color-rule);
+}
+
+.dpd-flow__path > li:last-child {
+  border-inline-end: 0;
+}
+
+.dpd-flow__feedback {
+  margin-block-start: var(--space-4);
+  padding: var(--space-3);
+  border-block: var(--stroke-hairline) dashed var(--color-reverse);
+}
+
+.dpd-flow__feedback span {
+  color: var(--color-reverse);
+  font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+}
+
+.dpd-flow__feedback p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-data);
+  line-height: var(--line-height-data);
 }
 
 .gsm-pvt__scenarios,
@@ -1445,6 +1696,21 @@
     border-top: var(--stroke-hairline) solid var(--color-rule);
   }
 
+  .signal-journey__groups,
+  .coding-transform__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dpd-flow__path {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .signal-journey__groups > li,
+  .coding-transform__steps > li,
+  .dpd-flow__path > li {
+    border-block-end: var(--stroke-hairline) solid var(--color-rule);
+  }
+
   .gsm-linked-views {
     grid-template-columns: 1fr;
   }
@@ -1500,9 +1766,32 @@
   .cellular-atlas__linked,
   .resource-readouts,
   .module-path__state,
-  .cellular-ledger {
+  .cellular-ledger,
+  .signal-journey__groups,
+  .coding-transform__steps,
+  .coding-transform__xor,
+  .constellation-guide__settings,
+  .dpd-flow__path {
     grid-template-columns: 1fr;
   }
+
+  .signal-journey__groups > li,
+  .coding-transform__steps > li,
+  .coding-transform__xor p,
+  .dpd-flow__path > li {
+    border-inline-end: 0;
+    border-block-end: var(--stroke-hairline) solid var(--color-rule);
+  }
+
+  .signal-journey__groups > li:last-child,
+  .coding-transform__steps > li:last-child,
+  .coding-transform__xor p:last-child,
+  .dpd-flow__path > li:last-child {
+    border-block-end: 0;
+  }
+
+  .constellation-guide svg text { font-size: var(--font-size-title); }
+  .envelope-papr svg text { font-size: var(--font-size-headline); }
 
   .cellular-atlas__axis {
     grid-template-columns: 1fr;
