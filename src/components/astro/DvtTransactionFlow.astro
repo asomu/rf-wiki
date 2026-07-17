@@ -1,0 +1,98 @@
+---
+const stages = [
+  ['01', 'Preflight', 'RF·bias Off, identity와 안전 envelope 확인'],
+  ['02', 'Capability', '필요 option·application·accessory의 READY 판정'],
+  ['03', 'Calibration', 'DUT plane correction·verification evidence 연결'],
+  ['04', 'Safe bias', '승인된 DUT별 sequence와 protection 적용'],
+  ['05', 'Stimulus', 'waveform·frequency·power를 설정하고 query-back'],
+  ['06', 'Settle', 'RF·DC·thermal·trigger 안정 시간을 기다림'],
+  ['07', 'Acquire', 'Pin·Pout·V/I·spectrum evidence를 같은 point로 수집'],
+  ['08', 'Validate', 'overload·unlevel·stale data·trigger miss를 검사'],
+  ['09', 'Correct', '승인된 correction ID와 uncertainty 적용'],
+  ['10', 'Commit', '결과와 장비 상태가 함께 유효할 때만 한 행 저장'],
+] as const;
+---
+
+<figure class="dvt-transaction">
+  <figcaption>
+    <span>Measurement transaction</span>
+    <strong>한 숫자가 아니라 검증된 상태 묶음을 commit합니다.</strong>
+  </figcaption>
+  <ol>
+    {stages.map(([index, label, detail]) => (
+      <li>
+        <span>{index}</span>
+        <strong>{label}</strong>
+        <p>{detail}</p>
+      </li>
+    ))}
+  </ol>
+</figure>
+
+<style>
+  .dvt-transaction {
+    width: 100%;
+    margin: var(--space-12) 0;
+    padding: var(--space-6);
+    border: var(--stroke-hairline) solid var(--color-rule-strong);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+  }
+
+  .dvt-transaction figcaption span,
+  .dvt-transaction figcaption strong {
+    display: block;
+  }
+
+  .dvt-transaction figcaption span {
+    color: var(--color-active);
+    font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+  }
+
+  .dvt-transaction figcaption strong {
+    margin-block-start: var(--space-1);
+    font-size: var(--font-size-title);
+  }
+
+  .dvt-transaction ol {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: var(--space-6) 0 0;
+    padding: 0;
+    border-block: var(--stroke-hairline) solid var(--color-rule);
+    list-style: none;
+  }
+
+  .dvt-transaction li {
+    min-width: 0;
+    padding: var(--space-3);
+    border-inline-start: var(--stroke-hairline) solid var(--color-rule);
+  }
+
+  .dvt-transaction li span,
+  .dvt-transaction li strong {
+    display: block;
+  }
+
+  .dvt-transaction li span {
+    color: var(--color-active);
+    font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+  }
+
+  .dvt-transaction li p {
+    margin: var(--space-2) 0 0;
+    color: var(--color-muted);
+    font-size: var(--font-size-data);
+    line-height: var(--line-height-data);
+  }
+
+  @media (max-width: 1000px) {
+    .dvt-transaction ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 520px) {
+    .dvt-transaction { padding: var(--space-4); }
+    .dvt-transaction ol { grid-template-columns: minmax(0, 1fr); }
+    .dvt-transaction li { border-block-start: var(--stroke-hairline) solid var(--color-rule); }
+  }
+</style>

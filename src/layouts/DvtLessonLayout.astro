@@ -1,0 +1,79 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from './BaseLayout.astro';
+import Breadcrumbs from '../components/astro/Breadcrumbs.astro';
+import DvtLearningMap from '../components/astro/DvtLearningMap.astro';
+
+export interface Props {
+  lesson: CollectionEntry<'dvtLesson'>;
+  lessons: readonly CollectionEntry<'dvtLesson'>[];
+}
+
+const { lesson, lessons } = Astro.props;
+const { data } = lesson;
+const ordered = [...lessons].sort((a, b) => a.data.order - b.data.order);
+const lessonIndex = ordered.findIndex(({ id }) => id === lesson.id);
+const previousLesson = lessonIndex > 0 ? ordered[lessonIndex - 1] : undefined;
+const nextLesson = lessonIndex >= 0 ? ordered[lessonIndex + 1] : undefined;
+const layerItems = [
+  { id: 'intuition', label: '직관', question: '어떤 판단인가?' },
+  { id: 'bench', label: '조작·진단', question: '어떤 증거가 필요한가?' },
+  { id: 'theory', label: '수식·규격', question: '어디까지 말할 수 있나?' },
+] as const;
+---
+
+<BaseLayout title={data.title} description={data.description} currentPath={Astro.url.pathname} bodyClass="lesson-page cellular-lesson-page dvt-lesson-page">
+  <main class="lesson-shell">
+    <DvtLearningMap currentSlug={lesson.id} />
+
+    <div class="lesson-intro" data-pagefind-body>
+      <Breadcrumbs items={[
+        { label: 'PAMiD DVT 시니어 경로', href: '/dvt/' },
+        { label: data.shortTitle },
+      ]} />
+      <header class="lesson-heading">
+        <p class="context-line">
+          <span>LTE FDD PAMiD</span>
+          <span>Band 3 계열 교육 프로필</span>
+          <span>{data.estimatedMinutes}분</span>
+          <span>내장 결정론적 사례</span>
+        </p>
+        <h1>{data.title}</h1>
+        <p>{data.description}</p>
+      </header>
+    </div>
+
+    <nav class="layer-rail" aria-label="학습 깊이">
+      <ol>
+        {layerItems.map((item, index) => (
+          <li>
+            <a href={`#${item.id}`} aria-current={index === 0 ? 'step' : undefined}>
+              <span class="layer-index">{index + 1}</span>
+              <span><strong>{item.label}</strong><small>{item.question}</small></span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <article class="lesson-article" data-pagefind-body>
+      <div class="lesson-content"><slot /></div>
+      <nav class="cellular-chapter-nav" aria-label="DVT lesson 이동">
+        {previousLesson ? (
+          <a href={`/dvt/${previousLesson.id}/`}>
+            <small>이전 판단</small><strong>← {previousLesson.data.shortTitle}</strong>
+          </a>
+        ) : <a href="/dvt/"><small>DVT 전체 지도</small><strong>← 시니어 경로</strong></a>}
+        {nextLesson ? (
+          <a class="cellular-chapter-nav__next" href={`/dvt/${nextLesson.id}/`}>
+            <small>다음 판단 · {nextLesson.data.order}/{ordered.length}</small><strong>{nextLesson.data.shortTitle} →</strong>
+          </a>
+        ) : (
+          <a class="cellular-chapter-nav__next" href="/dvt/">
+            <small>경로 정리</small><strong>DVT 허브로 →</strong>
+          </a>
+        )}
+      </nav>
+    </article>
+  </main>
+</BaseLayout>

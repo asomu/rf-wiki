@@ -406,7 +406,7 @@ npm run new:instrument-lesson -- \
 
 | section | 질문 수 | 공개 route |
 |---|---:|---|
-| `foundations` | 6 | `/cellular/foundations/` |
+| `foundations` | 8 | `/cellular/foundations/` |
 | `pamid` | 10 | `/cellular/pamid/` |
 | `gsm` | 9 | `/cellular/gsm/` |
 | `lte` | 11 | `/cellular/lte/` |
@@ -421,11 +421,46 @@ npm run new:instrument-lesson -- \
 
 PAMiD 설명은 세 topology를 분리합니다: `gsm-pa-asm`, `fdd-pamid`, `tdd-txm`. Generic MIPI 페이지에는 공개된 역할과 trigger/state 개념만 쓰며 proprietary USID/register/bit field를 만들거나 추정하지 않습니다. Diagnostic 항목에는 observation, 우선순위가 있는 likely stage, control check, 가장 빠른 discriminating measurement, false positive와 관련 단원이 모두 필요합니다.
 
-작성 후 다음 검사로 57개 canonical 구조와 출처 연결을 확인합니다.
+작성 후 다음 검사로 59개 canonical 구조와 출처 연결을 확인합니다.
 
 ~~~bash
 npm run check:content
 npx vitest run tests/unit/cellular.test.ts tests/components/CellularVisuals.test.tsx
 npm run typecheck
 npm run build:site
+~~~
+
+## 16. DVT 시니어 lesson 작성
+
+PAMiD/TxM DVT 콘텐츠는 `dvtLesson` collection이 읽는 `src/content/dvt/*.mdx`이며 canonical route는 `/dvt/<slug>/`입니다. 1차 LTE FDD 경로는 다음 6개 slug와 order를 유지합니다.
+
+| order | slug | progressId |
+|---:|---|---|
+| 1 | `bench-capability` | `dvt:bench-capability` |
+| 2 | `station-qualification` | `dvt:station-qualification` |
+| 3 | `synchronized-test-point` | `dvt:synchronized-test-point` |
+| 4 | `uncertainty-guardband` | `dvt:uncertainty-guardband` |
+| 5 | `cw-two-tone-lte` | `dvt:cw-two-tone-lte` |
+| 6 | `fdd-dvt-conclusion` | `dvt:fdd-dvt-conclusion` |
+
+모든 MDX는 `intuition → bench → theory` `LessonLayer`를 정확히 한 번씩 둡니다. 네 interactive lesson은 intuition 핵심 설명 뒤에 frontmatter와 일치하는 `<DvtLab labId="…" progressId="…" />`를 정확히 한 번 배치합니다. `bench-capability`과 `cw-two-tone-lte`는 React island를 추가하지 않고 `<DvtStaticCompletion>`으로 자기 설명을 저장합니다.
+
+DVT model과 unit-bearing public type은 `src/lib/rf/dvt.ts`, `src/types/dvt.ts`가 소유합니다. MDX와 Astro view에서 readiness, validity, uncertainty·guardband, P1dB·PAE·IM3 공식을 다시 구현하지 않습니다. 정적 Linked Views도 shared deterministic API를 호출하고 title, axes, units, settings, marker, 직접 label, text summary와 semantic data table을 제공합니다.
+
+작성 경계는 다음과 같습니다.
+
+- Representative profile은 LTE FDD Band 3 계열 1.7 GHz UE uplink이며 page target은 가상 project allocation입니다.
+- 3GPP Release 17의 완성 UE requirement/conformance를 개별 PAMiD target으로 표현하지 않습니다.
+- FDD duplexer와 TDD TxM switch path를 섞지 않습니다.
+- LTE/NR EVM·SEM과 E5080B GCA는 option/application/license·residual 확인 전 CONDITIONAL입니다.
+- Tx noise/isolation case는 `desense risk budget`만 제공하며 actual sensitivity·BLER/desense를 주장하지 않습니다.
+- File import/export, backend, live instrument bridge와 proprietary register를 추가하지 않습니다.
+
+작성 후 최소 검사는 다음과 같습니다.
+
+~~~bash
+npm run check:content
+npx vitest run tests/unit/dvt.test.ts tests/components/DvtLabs.test.tsx
+npm run typecheck
+npm run build
 ~~~

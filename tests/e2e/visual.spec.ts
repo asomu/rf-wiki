@@ -133,6 +133,27 @@ const visualScenarios: readonly VisualScenario[] = [
     readySelector: '.diagnostic-fingerprint',
   },
   {
+    name: 'dvt-station-qualification',
+    path: '/dvt/station-qualification/',
+    readySelector: '[data-lab-id="dvt:station-qualification"]',
+    labId: 'dvt:station-qualification',
+    captureSelector: '[data-lab-id="dvt:station-qualification"]',
+  },
+  {
+    name: 'dvt-uncertainty-decision',
+    path: '/dvt/uncertainty-guardband/',
+    readySelector: '[data-lab-id="dvt:uncertainty-guardband"]',
+    labId: 'dvt:uncertainty-guardband',
+    captureSelector: '[data-lab-id="dvt:uncertainty-guardband"]',
+  },
+  {
+    name: 'dvt-blind-capstone',
+    path: '/dvt/fdd-dvt-conclusion/',
+    readySelector: '[data-lab-id="dvt:fdd-dvt-conclusion"]',
+    labId: 'dvt:fdd-dvt-conclusion',
+    captureSelector: '[data-lab-id="dvt:fdd-dvt-conclusion"]',
+  },
+  {
     name: 'instrument-mxg',
     path: '/instruments/sg-mxg/',
     readySelector: '.mxg-chapters',

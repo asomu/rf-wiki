@@ -1,0 +1,676 @@
+import type {
+  DvtConclusionSourceRecords,
+  DvtDesenseRiskEvidence,
+  DvtMetricEvidence,
+  DvtMetricEvidenceBase,
+  DvtMetricEvidenceId,
+  DvtMeasurementPoint,
+  DvtStationAsset,
+  DvtStationManifest,
+  DvtUncertaintyComponent,
+} from '@/types/dvt';
+import { DVT_CAPSTONE_OPERATING_PROFILE } from '@/lib/rf/dvt';
+
+const FIXTURE_TIME = '2026-07-17T08:00:00.000Z';
+const QUERY_BACK_TIME = '2026-07-17T07:59:50.000Z';
+const VALID_FROM = '2026-01-01T00:00:00.000Z';
+const VALID_THROUGH = '2026-12-31T23:59:59.000Z';
+const RX_NOISE_FRONT_END_SETUP_ID = 'capstone-n9020b-rx-noise-front-end-setup';
+
+function makeAsset({
+  assetId,
+  role,
+  model,
+  options = [],
+  installedModules,
+}: {
+  assetId: string;
+  role: DvtStationAsset['role'];
+  model: string;
+  options?: readonly string[];
+  installedModules?: DvtStationAsset['installedModules'];
+}): DvtStationAsset {
+  const evidenceId = `${assetId}-query-back-2026-07-r2`;
+  return {
+    assetId,
+    role,
+    manufacturer: 'Keysight',
+    model,
+    serialOrRedactedId: `EDU-${model}-CAPSTONE`,
+    firmwareVersion: 'EDU-VERIFIED-2026-07-R2',
+    installedOptionIds: options,
+    ...(installedModules === undefined ? {} : { installedModules }),
+    queryBack: {
+      evidenceId,
+      acquiredAtIso: QUERY_BACK_TIME,
+      model,
+      serialOrRedactedId: `EDU-${model}-CAPSTONE`,
+      firmwareVersion: 'EDU-VERIFIED-2026-07-R2',
+      optionIds: options,
+      status: 'verified',
+    },
+    unverifiedConditions: [],
+  };
+}
+
+export const CAPSTONE_STATION_MANIFEST: DvtStationManifest = {
+  stationId: 'pa-bench-a',
+  revisionId: 'requalified-ready-2026-07-r2',
+  assets: [
+    makeAsset({
+      assetId: 'capstone-source-n5182b',
+      role: 'signal-source',
+      model: 'N5182B',
+      options: ['506', '656'],
+    }),
+    makeAsset({
+      assetId: 'capstone-analyzer-n9020b',
+      role: 'analyzer',
+      model: 'N9020B',
+      options: ['526', 'B1X', 'MPB', 'P26'],
+    }),
+    makeAsset({ assetId: 'capstone-sensor-u2061xa', role: 'power-sensor', model: 'U2061XA' }),
+    makeAsset({
+      assetId: 'capstone-psu-n6705c',
+      role: 'power-supply',
+      model: 'N6705C',
+      installedModules: [{
+        moduleAssetId: 'capstone-module-n6752a',
+        model: 'N6752A',
+        serialOrRedactedId: 'EDU-N6752A-CAPSTONE',
+        firmwareVersion: 'EDU-VERIFIED-2026-07-R2',
+        installedOptionIds: ['761'],
+        queryBackModel: 'N6752A',
+        queryBackSerialOrRedactedId: 'EDU-N6752A-CAPSTONE',
+        queryBackFirmwareVersion: 'EDU-VERIFIED-2026-07-R2',
+        queryBackOptionIds: ['761'],
+        queryBackEvidenceId: 'capstone-n6752a-query-back-2026-07-r2',
+        queryBackStatus: 'verified',
+        unverifiedConditions: [],
+      }],
+    }),
+    makeAsset({
+      assetId: 'capstone-vna-e5080b',
+      role: 'network-analyzer',
+      model: 'E5080B',
+      options: ['2K0'],
+    }),
+  ],
+  applications: [{
+    applicationEvidenceId: 'capstone-lte-fdd-analysis-app',
+    assetId: 'capstone-analyzer-n9020b',
+    applicationName: 'LTE FDD analysis application',
+    version: 'EDU-VERIFIED-2026-07-R2',
+    licenseState: 'verified',
+    queryBackEvidenceId: 'capstone-analyzer-n9020b-query-back-2026-07-r2',
+    acquiredAtIso: QUERY_BACK_TIME,
+    unverifiedConditions: [],
+  }],
+  accessories: [
+    {
+      accessoryEvidenceId: 'capstone-forward-coupler',
+      assetId: 'capstone-sensor-u2061xa',
+      label: '30 dB forward directional coupler',
+      model: 'EDU-COUPLER-30',
+      serialOrRedactedId: 'EDU-COUPLER-CAPSTONE',
+      maximumFrequencyHz: 6_000_000_000,
+      maximumInputPowerDbm: 47,
+      impedanceOhms: 50,
+      ratingEvidenceId: 'capstone-coupler-rating',
+      ratingState: 'verified',
+      unverifiedConditions: [],
+    },
+    {
+      accessoryEvidenceId: 'capstone-output-attenuator',
+      assetId: 'capstone-analyzer-n9020b',
+      label: '30 dB analyzer protection attenuator',
+      model: 'EDU-ATT-30',
+      serialOrRedactedId: 'EDU-ATT-CAPSTONE',
+      maximumFrequencyHz: 6_000_000_000,
+      maximumInputPowerDbm: 47,
+      impedanceOhms: 50,
+      ratingEvidenceId: 'capstone-attenuator-rating',
+      ratingState: 'verified',
+      unverifiedConditions: [],
+    },
+  ],
+  calibrations: [
+    ['capstone-source-cal', 'capstone-source-n5182b', 'capstone-source-level-verification'],
+    ['capstone-sensor-cal', 'capstone-sensor-u2061xa', 'capstone-input-path-verification'],
+    ['capstone-analyzer-cal', 'capstone-analyzer-n9020b', 'capstone-output-path-verification'],
+    ['capstone-psu-cal', 'capstone-psu-n6705c', 'capstone-dc-readback-verification'],
+    ['capstone-vna-cal', 'capstone-vna-e5080b', 'capstone-path-correction-verification'],
+  ].map(([calibrationEvidenceId, assetId, verificationId]) => ({
+    calibrationEvidenceId: calibrationEvidenceId!,
+    assetId: assetId!,
+    certificateOrEducationalId: `EDU-${calibrationEvidenceId}`,
+    validFromIso: VALID_FROM,
+    validThroughIso: VALID_THROUGH,
+    scope: 'Built-in educational LTE Band 3 FDD capstone fixture only',
+    state: 'valid' as const,
+    verificationId: verificationId!,
+    unverifiedConditions: [],
+  })),
+  verificationIds: [
+    'capstone-source-level-verification',
+    'capstone-input-path-verification',
+    'capstone-output-path-verification',
+    'capstone-dc-readback-verification',
+    'capstone-path-correction-verification',
+    'capstone-rx-noise-path-verification',
+    RX_NOISE_FRONT_END_SETUP_ID,
+    'capstone-state-repeatability-2026-07-r2',
+    'capstone-settling-verification-2026-07-r2',
+    'capstone-dut-mode-query-back',
+    'capstone-passive-through-aclr-residual',
+    'capstone-through-evm-residual',
+    'capstone-aclr-attenuation-step',
+    'capstone-pout-backoff-recovery',
+    'capstone-source-terminated-floor',
+    'capstone-source-terminated-baseline',
+    'capstone-pa-off-leakage',
+    'capstone-independent-isolation',
+    'capstone-rx-noise-path-correction',
+  ],
+  unverifiedConditions: [],
+  capabilities: [{
+    id: 'capstone-lte-b3-fdd-sequence',
+    label: 'LTE Band 3 FDD repeatable DVT sequence',
+    state: 'ready',
+    evidence: 'Verified source/analyzer options, N6752A module, LTE application, accessories and calibrations',
+    requiredAssetIds: [
+      'capstone-source-n5182b',
+      'capstone-analyzer-n9020b',
+      'capstone-sensor-u2061xa',
+      'capstone-psu-n6705c',
+      'capstone-vna-e5080b',
+    ],
+    requiredAssetConfigurations: [
+      { assetId: 'capstone-source-n5182b', requiredModel: 'N5182B', requiredOptionIds: ['506', '656'], requiredModules: [] },
+      { assetId: 'capstone-analyzer-n9020b', requiredModel: 'N9020B', requiredOptionIds: ['526', 'B1X', 'MPB', 'P26'], requiredModules: [] },
+      { assetId: 'capstone-sensor-u2061xa', requiredModel: 'U2061XA', requiredOptionIds: [], requiredModules: [] },
+      {
+        assetId: 'capstone-psu-n6705c',
+        requiredModel: 'N6705C',
+        requiredOptionIds: [],
+        requiredModules: [{ moduleAssetId: 'capstone-module-n6752a', model: 'N6752A', requiredOptionIds: ['761'] }],
+      },
+      { assetId: 'capstone-vna-e5080b', requiredModel: 'E5080B', requiredOptionIds: ['2K0'], requiredModules: [] },
+    ],
+    requiredAccessoryIds: ['capstone-forward-coupler', 'capstone-output-attenuator'],
+    requiredApplicationIds: ['capstone-lte-fdd-analysis-app'],
+    requiredCalibrationIds: [
+      'capstone-source-cal',
+      'capstone-sensor-cal',
+      'capstone-analyzer-cal',
+      'capstone-psu-cal',
+      'capstone-vna-cal',
+    ],
+  }],
+};
+
+function evidenceBase<T extends DvtMetricEvidenceId>({
+  evidenceId,
+  index,
+  instrumentAssetId,
+  calibrationEvidenceId,
+  correctionId,
+  correctionProviderAssetId,
+  correctionCalibrationEvidenceId,
+  correctionVerificationId,
+  referencePlane,
+}: {
+  evidenceId: T;
+  index: number;
+  instrumentAssetId: string;
+  calibrationEvidenceId: string;
+  correctionId: string;
+  correctionProviderAssetId: string;
+  correctionCalibrationEvidenceId: string;
+  correctionVerificationId: string;
+  referencePlane: string;
+}): DvtMetricEvidenceBase & { readonly evidenceId: T } {
+  return {
+    evidenceId,
+    instrumentAssetId,
+    instrumentQueryBackEvidenceId: `${instrumentAssetId}-query-back-2026-07-r2`,
+    measurementCalibrationEvidenceId: calibrationEvidenceId,
+    acquisitionId: `capstone-record-${index}-${evidenceId}`,
+    acquisitionGroupId: 'capstone-lte-b3-sequence-2026-07-r2',
+    acquisitionSequenceIndex: index,
+    triggerReferenceId: 'capstone-rf-burst-marker-1',
+    triggerRepeatabilitySeconds: 0.4e-6,
+    settlingSeconds: 0.1,
+    referencePlane,
+    correctionId,
+    correctionProviderAssetId,
+    correctionCalibrationEvidenceId,
+    correctionVerificationId,
+    apertureSeconds: 0.02,
+    acquiredAtIso: `2026-07-17T08:00:01.${(index * 100).toString().padStart(3, '0')}Z`,
+    status: 'valid',
+    overload: false,
+    errors: [],
+  };
+}
+
+const CAPSTONE_METRIC_EVIDENCE: readonly DvtMetricEvidence[] = [
+  {
+    ...evidenceBase({
+      evidenceId: 'pin', index: 1, instrumentAssetId: 'capstone-sensor-u2061xa',
+      calibrationEvidenceId: 'capstone-sensor-cal', correctionId: 'capstone-forward-coupler-correction',
+      correctionProviderAssetId: 'capstone-vna-e5080b', correctionCalibrationEvidenceId: 'capstone-vna-cal',
+      correctionVerificationId: 'capstone-input-path-verification', referencePlane: 'DUT input',
+    }),
+    metric: 'pin',
+    measurementMethod: 'forward-coupled-power-sensor',
+    rawPowerDbm: -37,
+    correctedPowerDbm: -7,
+    coupler: {
+      accessoryEvidenceId: 'capstone-forward-coupler',
+      direction: 'forward',
+      inputPort: 'source-input',
+      throughPort: 'dut-input-through',
+      coupledPort: 'forward-coupled-sensor',
+      couplingFactorDb: 30,
+      signedCorrectionDb: 30,
+      expandedUncertaintyDb: 0.35,
+      verificationId: 'capstone-input-path-verification',
+    },
+  },
+  {
+    ...evidenceBase({
+      evidenceId: 'pout', index: 2, instrumentAssetId: 'capstone-analyzer-n9020b',
+      calibrationEvidenceId: 'capstone-analyzer-cal', correctionId: 'capstone-output-path-correction',
+      correctionProviderAssetId: 'capstone-vna-e5080b', correctionCalibrationEvidenceId: 'capstone-vna-cal',
+      correctionVerificationId: 'capstone-output-path-verification', referencePlane: 'DUT output',
+    }),
+    metric: 'pout',
+    measurementMethod: 'analyzer-channel-power',
+    rawPowerDbm: DVT_CAPSTONE_OPERATING_PROFILE.txOutputPowerDbm - 30,
+    correctedPowerDbm: DVT_CAPSTONE_OPERATING_PROFILE.txOutputPowerDbm,
+    channelPowerBandwidthHz: 18_000_000,
+    outputPath: {
+      accessoryEvidenceIds: ['capstone-output-attenuator'],
+      signedCorrectionDb: 30,
+      expandedUncertaintyDb: 0.4,
+      verificationId: 'capstone-output-path-verification',
+    },
+  },
+  {
+    ...evidenceBase({
+      evidenceId: 'dc', index: 3, instrumentAssetId: 'capstone-psu-n6705c',
+      calibrationEvidenceId: 'capstone-psu-cal', correctionId: 'capstone-dc-readback-correction',
+      correctionProviderAssetId: 'capstone-psu-n6705c', correctionCalibrationEvidenceId: 'capstone-psu-cal',
+      correctionVerificationId: 'capstone-dc-readback-verification', referencePlane: 'DUT supply/sense terminals',
+    }),
+    metric: 'dc',
+    rawVoltageV: 4.19,
+    rawCurrentA: 0.264,
+    correctedVoltageV: DVT_CAPSTONE_OPERATING_PROFILE.supplyVoltageV,
+    correctedCurrentA: DVT_CAPSTONE_OPERATING_PROFILE.supplyCurrentA,
+  },
+  {
+    ...evidenceBase({
+      evidenceId: 'aclr', index: 4, instrumentAssetId: 'capstone-analyzer-n9020b',
+      calibrationEvidenceId: 'capstone-analyzer-cal', correctionId: 'capstone-aclr-path-correction',
+      correctionProviderAssetId: 'capstone-vna-e5080b', correctionCalibrationEvidenceId: 'capstone-vna-cal',
+      correctionVerificationId: 'capstone-output-path-verification', referencePlane: 'DUT output',
+    }),
+    metric: 'aclr',
+    rawAclrDbc: -30.1,
+    correctedAclrDbc: -30.3,
+    rawPositiveAclrDb: 30.1,
+    correctedPositiveAclrDb: 30.3,
+    integrationConditions: {
+      mainChannelBandwidthHz: 18_000_000,
+      adjacentChannelBandwidthHz: 18_000_000,
+      channelSpacingHz: 20_000_000,
+      detector: 'rms',
+      filterId: 'capstone-lte-aclr-filter',
+    },
+  },
+  {
+    ...evidenceBase({
+      evidenceId: 'evm', index: 5, instrumentAssetId: 'capstone-analyzer-n9020b',
+      calibrationEvidenceId: 'capstone-analyzer-cal', correctionId: 'capstone-evm-path-correction',
+      correctionProviderAssetId: 'capstone-vna-e5080b', correctionCalibrationEvidenceId: 'capstone-vna-cal',
+      correctionVerificationId: 'capstone-output-path-verification', referencePlane: 'DUT output',
+    }),
+    metric: 'evm',
+    rawEvmPercent: 3.2,
+    correctedEvmPercent: 3.1,
+    applicationEvidenceId: 'capstone-lte-fdd-analysis-app',
+    licenseState: 'verified',
+    referenceWaveformId: DVT_CAPSTONE_OPERATING_PROFILE.txWaveformId,
+    equalizationMode: 'pilot-based',
+    normalizationReference: 'equalized reference RMS',
+    residualEvmPercent: 0.6,
+    residualEvidenceId: 'capstone-through-evm-residual',
+  },
+  {
+    ...evidenceBase({
+      evidenceId: 'tx-noise', index: 6, instrumentAssetId: 'capstone-analyzer-n9020b',
+      calibrationEvidenceId: 'capstone-analyzer-cal', correctionId: 'capstone-rx-noise-path-correction',
+      correctionProviderAssetId: 'capstone-vna-e5080b', correctionCalibrationEvidenceId: 'capstone-vna-cal',
+      correctionVerificationId: 'capstone-rx-noise-path-verification', referencePlane: 'PAMiD TX output',
+    }),
+    metric: 'tx-noise',
+    rawNoise: { convention: 'density', densityDbmPerHz: -125.4 },
+    correctedNoise: {
+      convention: 'density',
+      densityDbmPerHz: DVT_CAPSTONE_OPERATING_PROFILE.txNoiseDensityDbmPerHz,
+    },
+    resolutionBandwidthHz: 100_000,
+    equivalentNoiseBandwidthHz: 100_000,
+    analyzerFloorDensityDbmPerHz: -165,
+    floorEvidenceId: 'capstone-source-terminated-floor',
+    analyzerFrontEndSetup: {
+      setupEvidenceId: RX_NOISE_FRONT_END_SETUP_ID,
+      inputAttenuationDb: 10,
+      preamplifierEnabled: false,
+      referenceLevelDbm: 0,
+      detector: 'rms',
+      measurementMode: 'swept-spectrum',
+    },
+  },
+];
+
+export const CAPSTONE_MEASUREMENT_POINT: DvtMeasurementPoint = {
+  pointId: DVT_CAPSTONE_OPERATING_PROFILE.measurementPointId,
+  waveform: {
+    waveformId: DVT_CAPSTONE_OPERATING_PROFILE.txWaveformId,
+    waveformSha256: 'c'.repeat(64),
+    rat: 'LTE',
+    bandId: '3',
+    duplexMode: 'FDD',
+    direction: 'UL',
+    centerFrequencyHz: DVT_CAPSTONE_OPERATING_PROFILE.txCarrierFrequencyHz,
+    channelBandwidthHz: 20_000_000,
+    allocationId: 'full-rb-qpsk-capstone',
+    resourceBlockStart: 0,
+    resourceBlockCount: 100,
+    modulation: 'QPSK',
+    sourceSetpointDbm: -6.6,
+  },
+  dutState: {
+    stateId: DVT_CAPSTONE_OPERATING_PROFILE.txModeId,
+    intendedMode: 'generic-high-gain',
+    queriedMode: 'generic-high-gain',
+    queryBackAtIso: '2026-07-17T08:00:00.400Z',
+    biasState: 'on',
+  },
+  supplyStateId: DVT_CAPSTONE_OPERATING_PROFILE.supplyStateId,
+  requiredEvidenceIds: ['pin', 'pout', 'dc', 'aclr', 'evm', 'tx-noise'],
+  metricEvidence: CAPSTONE_METRIC_EVIDENCE,
+  acquisitionPolicy: {
+    mode: 'repeatable-sequence',
+    requiredAcquisitionGroupId: 'capstone-lte-b3-sequence-2026-07-r2',
+    maximumTriggerRepeatabilitySeconds: 1e-6,
+    minimumSettlingSeconds: 0.05,
+    settlingEvidenceId: 'capstone-settling-verification-2026-07-r2',
+    stateRepeatabilityEvidenceId: 'capstone-state-repeatability-2026-07-r2',
+  },
+  configuredAtIso: FIXTURE_TIME,
+  acquiredAtIso: '2026-07-17T08:00:01.600Z',
+  triggerId: 'capstone-rf-burst-marker-1',
+  triggerDelaySeconds: 0.4e-6,
+  dwellSeconds: 1.6,
+  sourceState: 'leveled',
+  analyzerState: 'in-range',
+  acquisitionState: 'fresh',
+  calibrationState: 'valid',
+  triggerAlignment: 'aligned',
+  psuRegulationMode: 'CV',
+  instrumentErrors: [],
+  cleanup: {
+    rfOutput: { status: 'off', atIso: '2026-07-17T08:00:02.100Z', evidenceId: 'capstone-source-rf-off' },
+    acquisition: { status: 'aborted', atIso: '2026-07-17T08:00:02.100Z', evidenceId: 'capstone-analyzer-abort' },
+    bias: { status: 'safe-down', atIso: '2026-07-17T08:00:02.500Z', evidenceId: 'capstone-dut-safe-down' },
+    dcOutput: { status: 'off', atIso: '2026-07-17T08:00:02.500Z', evidenceId: 'capstone-psu-output-off' },
+  },
+};
+
+function uncertaintyComponent(
+  id: string,
+  label: string,
+  value: number,
+  unit: 'dB' | 'percent',
+  sourceEvidenceId: string,
+  sourceType: DvtUncertaintyComponent['sourceType'],
+): DvtUncertaintyComponent {
+  return {
+    id,
+    label,
+    evaluationType: sourceType === 'repeatability-study' ? 'A' : 'B',
+    sourceType,
+    sourceEvidenceId,
+    reportedUncertainty: unit === 'dB'
+      ? { unit: 'dB', valueDb: value }
+      : { unit: 'percent', valuePercent: value },
+    distribution: 'normal',
+    divisor: 1,
+    referencePlane: unit === 'percent' ? 'calculated DUT PAE' : 'DUT output or stated isolation planes',
+    sensitivityCoefficient: 1,
+    correlations: [],
+  };
+}
+
+export const CAPSTONE_UNCERTAINTY_COMPONENTS = {
+  pae: [
+    uncertaintyComponent('capstone-pae-repeatability', 'PAE repeatability', 0.3, 'percent', 'capstone-pae-repeatability-study', 'repeatability-study'),
+    uncertaintyComponent('capstone-pae-rf-dc-model', 'RF/DC correction propagation', 0.4, 'percent', 'capstone-pae-rf-dc-propagation', 'model'),
+  ],
+  aclr: [
+    uncertaintyComponent('capstone-aclr-repeatability', 'ACLR repeatability', 0.2, 'dB', 'capstone-aclr-repeatability-study', 'repeatability-study'),
+    uncertaintyComponent('capstone-aclr-residual', 'Analyzer/path residual', 0.15, 'dB', 'capstone-aclr-residual-study', 'model'),
+  ],
+  isolation: [{
+    ...uncertaintyComponent('capstone-isolation-expanded', 'TX-to-RX isolation calibration', 1.5, 'dB', 'capstone-independent-isolation', 'calibration-certificate'),
+    divisor: 2,
+  }],
+} as const;
+
+const CAPSTONE_POUT_EVIDENCE = CAPSTONE_MEASUREMENT_POINT.metricEvidence.find(
+  (evidence): evidence is Extract<DvtMetricEvidence, { metric: 'pout' }> => evidence.metric === 'pout',
+)!;
+const CAPSTONE_DC_EVIDENCE = CAPSTONE_MEASUREMENT_POINT.metricEvidence.find(
+  (evidence): evidence is Extract<DvtMetricEvidence, { metric: 'dc' }> => evidence.metric === 'dc',
+)!;
+const CAPSTONE_TX_NOISE_EVIDENCE = CAPSTONE_MEASUREMENT_POINT.metricEvidence.find(
+  (evidence): evidence is Extract<DvtMetricEvidence, { metric: 'tx-noise' }> => evidence.metric === 'tx-noise',
+)!;
+
+export const CAPSTONE_DESENSE_EVIDENCE: DvtDesenseRiskEvidence = {
+  measurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+  txCarrierFrequencyHz: CAPSTONE_MEASUREMENT_POINT.waveform.centerFrequencyHz,
+  txWaveformId: CAPSTONE_MEASUREMENT_POINT.waveform.waveformId,
+  txOutputPowerDbm: CAPSTONE_POUT_EVIDENCE.correctedPowerDbm,
+  txModeId: CAPSTONE_MEASUREMENT_POINT.dutState.stateId,
+  supplyStateId: CAPSTONE_MEASUREMENT_POINT.supplyStateId,
+  supplyMetricEvidenceId: 'dc',
+  supplyVoltageV: CAPSTONE_DC_EVIDENCE.correctedVoltageV,
+  supplyCurrentA: CAPSTONE_DC_EVIDENCE.correctedCurrentA,
+  supplyRegulationMode: DVT_CAPSTONE_OPERATING_PROFILE.supplyRegulationMode,
+  frequencyHz: 1_840_000_000,
+  rxFrequencyRangeHz: { startHz: 1_805_000_000, stopHz: 1_880_000_000 },
+  noiseMeasurementFrequencyHz: 1_840_000_000,
+  isolationMeasurementFrequencyHz: 1_840_000_000,
+  noiseSourcePlane: 'pamid-tx-output',
+  noiseMeasurementPlane: 'pamid-tx-output',
+  rxBranchPlane: 'pamid-rx-branch',
+  isolationTxPlane: 'pamid-tx-output',
+  isolationRxPlane: 'pamid-rx-branch',
+  isolationDirection: 'tx-to-rx',
+  txToRxIsolationDb: DVT_CAPSTONE_OPERATING_PROFILE.desenseIsolationDb,
+  noiseMeasurement: CAPSTONE_TX_NOISE_EVIDENCE.correctedNoise,
+  txNoiseMetricEvidenceId: 'tx-noise',
+  terminationState: 'source-connected',
+  dutPathState: 'pa-on',
+  noiseIncludesTxToRxIsolation: false,
+  noiseExpandedUncertaintyDb: 1.2,
+  isolationExpandedUncertaintyDb: 1.5,
+  isolationEvidenceId: 'capstone-independent-isolation',
+  analyzerFloorDensityDbmPerHz: -165,
+  floorEvidenceId: 'capstone-source-terminated-floor',
+  floorExpandedUncertaintyDb: 1,
+  minimumFloorHeadroomDb: 6,
+  terminatedBaselineEvidenceId: 'capstone-source-terminated-baseline',
+  paOffLeakageEvidenceId: 'capstone-pa-off-leakage',
+  noiseCorrectionId: 'capstone-rx-noise-path-correction',
+};
+
+export const CAPSTONE_SOURCE_RECORDS: DvtConclusionSourceRecords = {
+  stationManifest: CAPSTONE_STATION_MANIFEST,
+  requiredCapabilityIds: ['capstone-lte-b3-fdd-sequence'],
+  stationAsOfIso: '2026-07-17T08:00:01.600Z',
+  measurementPoint: CAPSTONE_MEASUREMENT_POINT,
+  sourceAssetId: 'capstone-source-n5182b',
+  decisionSources: [
+    {
+      metricId: 'pae-guardband-ready-2026-07-r2',
+      metricKind: 'pae',
+      sourceMetricEvidenceIds: ['pin', 'pout', 'dc'],
+      sourceExternalEvidenceIds: ['capstone-state-repeatability-2026-07-r2'],
+      uncertaintyComponents: CAPSTONE_UNCERTAINTY_COMPONENTS.pae,
+      coverageFactor: 2,
+      decisionRule: {
+        direction: 'lower-bound',
+        lowerLimit: { unit: 'percent', valuePercent: 45 },
+      },
+    },
+    {
+      metricId: 'aclr-guardband-2026-07-r2',
+      metricKind: 'aclr-native',
+      sourceMetricEvidenceIds: ['aclr'],
+      sourceExternalEvidenceIds: ['capstone-aclr-attenuation-step', 'capstone-pout-backoff-recovery'],
+      uncertaintyComponents: CAPSTONE_UNCERTAINTY_COMPONENTS.aclr,
+      coverageFactor: 2,
+      decisionRule: {
+        direction: 'upper-bound',
+        upperLimit: { unit: 'dBc', valueDbc: -30 },
+        valueConvention: 'analyzer-negative-dbc',
+      },
+    },
+    {
+      metricId: 'desense-isolation-risk-guardband-2026-07-r2',
+      metricKind: 'desense-isolation',
+      sourceMetricEvidenceIds: ['tx-noise'],
+      sourceExternalEvidenceIds: ['capstone-independent-isolation'],
+      uncertaintyComponents: CAPSTONE_UNCERTAINTY_COMPONENTS.isolation,
+      coverageFactor: 2,
+      decisionRule: {
+        direction: 'lower-bound',
+        lowerLimit: { unit: 'dB', valueDb: 50 },
+      },
+    },
+  ],
+  diagnosticEvidenceSources: [
+    {
+      caseId: 'gain-pae-fail',
+      evidenceId: 'known-path-recheck',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['pin', 'pout'],
+      sourceExternalEvidenceIds: ['capstone-input-path-verification', 'capstone-output-path-verification'],
+      decisionMetricId: 'pae-guardband-ready-2026-07-r2',
+    },
+    {
+      caseId: 'gain-pae-fail',
+      evidenceId: 'gain-mode-query-back',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['pin', 'pout'],
+      sourceExternalEvidenceIds: ['capstone-dut-mode-query-back'],
+      decisionMetricId: 'pae-guardband-ready-2026-07-r2',
+    },
+    {
+      caseId: 'gain-pae-fail',
+      evidenceId: 'synchronized-rf-dc',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['pin', 'pout', 'dc'],
+      sourceExternalEvidenceIds: ['capstone-state-repeatability-2026-07-r2'],
+      decisionMetricId: 'pae-guardband-ready-2026-07-r2',
+    },
+    {
+      caseId: 'evm-aclr-fail',
+      evidenceId: 'passive-through-residual',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['evm', 'aclr'],
+      sourceExternalEvidenceIds: ['capstone-through-evm-residual', 'capstone-passive-through-aclr-residual'],
+      decisionMetricId: 'aclr-guardband-2026-07-r2',
+    },
+    {
+      caseId: 'evm-aclr-fail',
+      evidenceId: 'attenuation-step-check',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['aclr'],
+      sourceExternalEvidenceIds: ['capstone-aclr-attenuation-step'],
+      decisionMetricId: 'aclr-guardband-2026-07-r2',
+    },
+    {
+      caseId: 'evm-aclr-fail',
+      evidenceId: 'pout-backoff-recovery',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['pout', 'evm', 'aclr'],
+      sourceExternalEvidenceIds: ['capstone-pout-backoff-recovery'],
+      decisionMetricId: 'aclr-guardband-2026-07-r2',
+    },
+    {
+      caseId: 'desense-risk-budget',
+      evidenceId: 'terminated-floor-baseline',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['tx-noise'],
+      sourceExternalEvidenceIds: [
+        'capstone-source-terminated-floor',
+        'capstone-source-terminated-baseline',
+        'capstone-pa-off-leakage',
+        RX_NOISE_FRONT_END_SETUP_ID,
+      ],
+      decisionMetricId: 'desense-isolation-risk-guardband-2026-07-r2',
+    },
+    {
+      caseId: 'desense-risk-budget',
+      evidenceId: 'independent-isolation',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['tx-noise'],
+      sourceExternalEvidenceIds: ['capstone-independent-isolation'],
+      decisionMetricId: 'desense-isolation-risk-guardband-2026-07-r2',
+    },
+    {
+      caseId: 'desense-risk-budget',
+      evidenceId: 'rx-branch-risk-budget',
+      sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId,
+      sourceMetricEvidenceIds: ['tx-noise'],
+      sourceExternalEvidenceIds: [
+        'capstone-independent-isolation',
+        'capstone-source-terminated-floor',
+        'capstone-source-terminated-baseline',
+        'capstone-pa-off-leakage',
+        'capstone-rx-noise-path-correction',
+        RX_NOISE_FRONT_END_SETUP_ID,
+      ],
+      decisionMetricId: 'desense-isolation-risk-guardband-2026-07-r2',
+    },
+  ],
+  externalEvidenceRegistry: [
+    { evidenceId: 'capstone-input-path-verification', evidenceKind: 'station-verification', sourceAssetId: 'capstone-vna-e5080b' },
+    { evidenceId: 'capstone-output-path-verification', evidenceKind: 'station-verification', sourceAssetId: 'capstone-vna-e5080b' },
+    { evidenceId: 'capstone-dut-mode-query-back', evidenceKind: 'diagnostic-observation', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-state-repeatability-2026-07-r2', evidenceKind: 'station-verification', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-settling-verification-2026-07-r2', evidenceKind: 'station-verification', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-passive-through-aclr-residual', evidenceKind: 'diagnostic-observation', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-through-evm-residual', evidenceKind: 'diagnostic-observation', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-aclr-attenuation-step', evidenceKind: 'diagnostic-observation', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-pout-backoff-recovery', evidenceKind: 'diagnostic-observation', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-source-terminated-floor', evidenceKind: 'baseline', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-source-terminated-baseline', evidenceKind: 'baseline', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-pa-off-leakage', evidenceKind: 'baseline', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-independent-isolation', evidenceKind: 'desense-isolation', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-rx-noise-path-correction', evidenceKind: 'correction', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: RX_NOISE_FRONT_END_SETUP_ID, evidenceKind: 'station-verification', sourceAssetId: 'capstone-analyzer-n9020b' },
+    { evidenceId: 'capstone-pae-repeatability-study', evidenceKind: 'uncertainty', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-pae-rf-dc-propagation', evidenceKind: 'uncertainty', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-aclr-repeatability-study', evidenceKind: 'uncertainty', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+    { evidenceId: 'capstone-aclr-residual-study', evidenceKind: 'uncertainty', sourceMeasurementPointId: CAPSTONE_MEASUREMENT_POINT.pointId },
+  ],
+  desenseEvidence: CAPSTONE_DESENSE_EVIDENCE,
+};

@@ -1,0 +1,161 @@
+---
+title: "FDD PAMiD DVT 결과를 어떻게 방어할까?"
+shortTitle: "Blind DVT conclusion"
+question: "Fail 원인을 단정하지 않고도 다음 engineering decision을 방어하려면 무엇을 써야 할까?"
+description: "한 requalified multi-metric point에서 Gain·PAE, EVM·ACLR, Tx-noise·desense-risk 세 investigation thread의 가설과 예상 signature를 고정하고 evidence로 순위를 갱신해 한 페이지 DVT conclusion을 완성한다."
+order: 6
+estimatedMinutes: 90
+prerequisites:
+  - "cw-two-tone-lte"
+  - "uncertainty-guardband"
+outcomes:
+  - "Fail 증상에서 우선 가설과 가장 정보량이 큰 다음 측정을 선택하고 예상 signature를 evidence 공개 전에 고정할 수 있다."
+  - "False-positive, 반증 evidence와 남은 uncertainty를 기록해 Confirmed, Strongly indicated, Unresolved confidence를 방어할 수 있다."
+  - "현재 bench의 Tx-noise/isolation evidence를 실제 Rx sensitivity·BLER 측정과 구분해 desense risk budget으로만 결론 낼 수 있다."
+concepts:
+  - "blind diagnosis"
+  - "hypothesis ranking"
+  - "diagnostic signature"
+  - "false positive"
+  - "desense risk budget"
+  - "DVT conclusion"
+topology: "lte-fdd-pamid"
+profile: "Capstone · evidence before conclusion"
+equipmentContext:
+  source: "Qualified N5182B LTE FDD stimulus와 source residual baseline"
+  dut: "가상 gain mode·bias state·duplexer path를 가진 Band 3 계열 LTE FDD PAMiD 교육 모듈"
+  analyzer: "N9020B spectrum/conditional EVM, E5080B path evidence, U2061XA power와 N6705C/N6752A DC evidence"
+standards:
+  - "3GPP TS 36.101 V17.6.0 §6.2, §6.6"
+  - "3GPP TS 36.521-1 V17.7.0 §6"
+references:
+  - title: "ETSI TS 136 101 V17.6.0 — E-UTRA UE radio transmission and reception"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/17.06.00_60/ts_136101v170600p.pdf"
+    kind: "standard"
+  - title: "ETSI TS 136 521-1 V17.7.0 — E-UTRA UE conformance specification"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/136500_136599/13652101/17.07.00_60/ts_13652101v170700p.pdf"
+    kind: "standard"
+  - title: "Characterizing the Key Performance Indicators of Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3122-1770/application-notes/Characterizing-the-Key-Performance-Indicators-of-Power-Amplifiers.pdf"
+    kind: "application-note"
+labId: "blind-fdd-capstone"
+progressId: "dvt:fdd-dvt-conclusion"
+crossLinks:
+  - label: "PAMiD impairment responsibility"
+    href: "/cellular/pamid/impairment-responsibility/"
+    note: "Transceiver, PA, passive path와 analyzer 책임을 분리합니다."
+  - label: "Tx noise와 RX desense 관계"
+    href: "/cellular/pamid/tx-noise-rx-desense/"
+    note: "Isolation과 RX-band noise budget을 실제 receiver test와 구분합니다."
+  - label: "EVM fail 진단"
+    href: "/cellular/diagnostics/evm-fail/"
+    note: "Reference/equalization과 source·PA·analyzer false-positive를 확인합니다."
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import DvtLab from '../../components/astro/DvtLab.astro';
+import Definition from '../../components/astro/Definition.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+Senior DVT 결론은 “PA 문제로 보임”이 아니다. 어느 조건에서 무엇이 fail했고, station과 measurement point가 유효했으며, 어떤 가설을 어떤 signature로 분리했고, 남은 불확실성이 다음 결정에 어떤 위험을 남기는지 한 페이지에서 추적할 수 있어야 한다. 이 capstone의 세 case는 서로 다른 DUT point 세 개가 아니라, **한 requalified multi-metric point에서 시작한 세 investigation thread**다.
+
+<LessonLayer level="intuition" title="Evidence를 보기 전에 예상 signature를 먼저 고정하자">
+
+## Blind diagnosis의 순서
+
+1. 주어진 symptom과 유효성 evidence만 읽는다.
+2. 가능한 source·path·DUT·analyzer 가설을 우선순위로 적는다.
+3. 가장 정보량이 큰 다음 측정 하나를 고른다.
+4. 각 가설이 맞다면 나타날 signature를 evidence 공개 전에 고정한다.
+5. Evidence를 공개하고 지지·반증·중립으로 분류한다.
+6. 가설 순위를 갱신하고 false-positive와 남은 uncertainty를 적는다.
+
+<DvtLab labId="blind-fdd-capstone" progressId="dvt:fdd-dvt-conclusion" />
+
+<Definition term="Confirmed">
+대체 가설을 직접 분리하는 독립 evidence가 있고, 반복·correction·uncertainty와 capability가 결론을 지지한다. 교육 case 안에서만 사용하는 confidence이며 실제 failure analysis sign-off를 자동 대체하지 않는다.
+</Definition>
+
+<Definition term="Strongly indicated">
+여러 evidence가 한 가설을 일관되게 지지하지만 직접 원인 측정 또는 중요한 대체 가설 제거가 남아 있다.
+</Definition>
+
+<Definition term="Unresolved">
+Evidence가 서로 충돌하거나 station capability/uncertainty 때문에 후보 순위를 실질적으로 좁히지 못했다. 추측으로 PASS/FAIL 원인을 채우지 않고 다음 측정을 요구한다.
+</Definition>
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="한 multi-metric point의 세 investigation thread를 같은 진단 계약으로 닫는다">
+
+세 thread는 같은 point ID, waveform/checksum, corrected Pout, DUT mode, supply state와 acquisition group을 공유한다. 각 step은 source metric evidence와 별도 verification evidence를 연결하고, 마지막 decision은 그 thread에 연결된 원본에서 다시 계산한다. 독자가 화면의 evidence를 검토한 뒤 다른 fixture의 숫자로 결론을 받는 구조는 허용하지 않는다.
+
+## Case 1 · Gain·PAE fail
+
+초기 후보는 path correction drift, generic gain-mode 적용 실패, supply CC와 thermal droop다. 가장 정보량이 큰 측정은 symptom에 따라 달라진다.
+
+- Measured Pin/Pout correction을 known path에서 재검증하면 path drift와 DUT 변화가 갈린다.
+- Control state query-back와 low-power gain을 비교하면 mode 적용 실패 후보를 좁힌다. 이 case의 mismatch는 **수정 전 선행 diagnostic observation**으로 보존되며, 최종 synchronized point는 correction 후 intended와 queried mode가 일치해야 VALID다.
+- VDD/IDD, CV/CC와 시간에 따른 gain을 함께 보면 supply limit·droop 후보를 분리한다.
+- Fixture temperature sensor가 실제로 없으면 thermal mechanism을 직접 확인했다고 쓰지 않는다.
+
+PAE fail은 PSU 숫자만으로 결론 내리지 않는다. 이 교육 fixture의 Pin, Pout, VDD, IDD는 한 acquisition group의 독립 record다. 공통 trigger·DUT state와 허용 trigger repeatability를 만족해야 같은 valid point로 결합할 수 있으며, 서로 겹친 aperture라고 표현하지 않는다.
+
+## Case 2 · EVM·ACLR fail
+
+초기 후보는 source residual, PA peak compression·memory, analyzer ACLR input-range artifact와 EVM demodulation artifact다.
+
+- Passive through의 동일 waveform residual이 나쁘면 DUT 이전 문제를 우선한다.
+- Analyzer attenuation step의 현재 evidence는 corrected ACLR delta·repeatability·uncertainty·mixer/noise headroom만 검증한다. 이 step이 attenuation-invariant이면 ACLR input-range artifact 후보만 낮춘다.
+- EVM demodulation artifact를 낮추려면 별도의 demod attenuation step, corrected EVM delta, application/license, reference/equalization/normalization, residual과 EVM uncertainty evidence가 필요하다.
+- Pout back-off에서 EVM·ACLR이 함께 회복되고 AM-AM/AM-PM signature가 있으면 PA 비선형 후보가 강해진다.
+- Tone spacing, record 시작/끝과 upper/lower regrowth 차이는 memory 후보를 좁힌다.
+
+EVM application/license, reference waveform, equalization, normalization과 residual이 확인되지 않으면 EVM evidence는 CONDITIONAL이다. ACLR과 spectrum evidence만으로 같은 결론을 가장하지 않는다.
+
+## Case 3 · Tx noise·Rx desense risk
+
+초기 후보는 PA RX-band noise, duplexer/isolation 부족, bench leakage와 analyzer floor다. 현재 pinned bench는 receiver sensitivity나 BLER를 직접 측정하지 않으므로 실제 desense 값을 산출하지 않는다.
+
+- PA Off/On과 source terminated baseline으로 analyzer floor·bench leakage를 분리한다.
+- DUT-plane RX-band noise와 independently verified duplexer/isolation evidence를 budget에 넣되 둘을 같은 source라고 쓰지 않는다. `tx-noise`는 risk를 지지하는 metric evidence이고, isolation 판정의 실제 measurement source는 별도 isolation evidence ID다.
+- Analyzer preamp/attenuation, RBW/integration bandwidth와 correction을 고정한다.
+- 실제 RX chain, wanted signal, receiver gain state와 BLER evidence가 없다는 사실을 남긴다.
+
+결과 제목은 **desense risk budget**이다. `actual Rx desense = x dB` 또는 `receiver sensitivity fail confirmed`라고 쓰지 않는다.
+
+<MeasurementNote title="한 번에 여러 설정을 바꾸면 evidence의 정보량이 사라진다" kind="warning">
+Waveform, Pin, gain mode, attenuation과 bias를 동시에 바꾸지 않는다. 다음 측정은 우선 가설 두 개 이상이 서로 다른 signature를 내도록 설계하고, 바뀐 control과 결과를 ledger에 남긴다.
+</MeasurementNote>
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="한 페이지 conclusion은 claim, evidence와 boundary를 함께 보여준다">
+
+## 필수 report 구조
+
+| 항목 | 기록 내용 |
+|---|---|
+| Scope | LTE FDD Band 3 계열 교육 profile, waveform·frequency·power·module state |
+| Station | Manifest version, READY/CONDITIONAL/BLOCKED, calibration/verification ID |
+| Symptom | Metric, reference plane, native sign, limit direction과 가상 allocation |
+| Validity | VALID/INVALID/INCONCLUSIVE와 instrument status·cleanup |
+| Decision | Measurement interval과 PASS/FAIL/INCONCLUSIVE rule |
+| Hypotheses | 초기 순위, 선택한 분리 측정과 고정한 expected signature |
+| Evidence | 지지·반증·중립, correction와 uncertainty |
+| Conclusion | Confirmed/Strongly indicated/Unresolved confidence |
+| Residual risk | False-positive, missing capability, 다음 측정·owner |
+
+결론 문장은 다음 형식을 따른다.
+
+> **무엇을 관찰했는가 → 어떤 독립 evidence가 어느 후보를 지지/반증하는가 → 현재 confidence는 무엇인가 → 아직 무엇을 말할 수 없는가 → 다음 engineering action은 무엇인가**
+
+예를 들어 `ACLR fail confirmed`보다 `Qualified through residual과 attenuation-step invariance가 source/analyzer 후보를 낮췄고, Pout back-off에서 AM-AM·ACLR가 함께 회복돼 PA compression이 strongly indicated되지만 thermal state 직접 측정은 남아 있다`가 더 방어 가능하다.
+
+TS 36.101과 TS 36.521-1은 완성 UE requirement/conformance의 조건을 추적하는 근거다. 이 capstone의 target과 case data는 명시적인 가상 project allocation이며 실제 PAMiD vendor register, 고객 데이터 또는 certification verdict를 포함하지 않는다.
+
+</LessonLayer>

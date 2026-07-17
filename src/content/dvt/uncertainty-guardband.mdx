@@ -1,0 +1,145 @@
+---
+title: "불확도와 guardband로 어떻게 판정할까?"
+shortTitle: "Uncertainty · guardband"
+question: "측정값이 limit 안에 있어도 왜 PASS가 아닐 수 있을까?"
+description: "Type A/B와 상관 항을 DUT-plane uncertainty budget으로 결합하고 upper-bound, lower-bound, range 계약에 따라 PASS, FAIL, INCONCLUSIVE를 판정한다."
+order: 4
+estimatedMinutes: 70
+prerequisites:
+  - "synchronized-test-point"
+outcomes:
+  - "Repeatability, calibration, path, mismatch, directivity와 drift를 Type A/B uncertainty component로 분해할 수 있다."
+  - "상관된 항을 독립 항처럼 단순 RSS하지 않고 covariance 또는 공통 source group을 명시할 수 있다."
+  - "Upper/lower/range limit와 ACLR sign convention을 명시하고 uncertainty interval로 PASS, FAIL, INCONCLUSIVE를 판정할 수 있다."
+concepts:
+  - "Type A uncertainty"
+  - "Type B uncertainty"
+  - "correlated uncertainty"
+  - "expanded uncertainty"
+  - "guardband"
+  - "decision rule"
+topology: "lte-fdd-pamid"
+profile: "Decision gate · k=2 educational budget"
+equipmentContext:
+  source: "Qualified N5182B stimulus와 DUT-plane Pin correction budget"
+  dut: "Band 3 계열 LTE FDD PAMiD의 가상 gain·P1dB·PAE·ACLR·EVM allocation"
+  analyzer: "N9020B, E5080B, U2061XA, N6705C/N6752A의 calibration·path·repeatability evidence"
+standards:
+  - "3GPP TS 36.101 V17.6.0 §6.2, §6.6 — UE requirement context"
+  - "3GPP TS 36.521-1 V17.7.0 §6 — conformance context"
+references:
+  - title: "JCGM 100:2008 — Evaluation of measurement data, Guide to the expression of uncertainty in measurement"
+    organization: "JCGM / BIPM"
+    url: "https://www.bipm.org/documents/20126/2071204/JCGM_100_2008_E.pdf"
+    kind: "standard"
+  - title: "ILAC-G8:09/2019 — Guidelines on Decision Rules and Statements of Conformity"
+    organization: "ILAC"
+    url: "https://ilac.org/?ddownload=122722"
+    kind: "standard"
+  - title: "ETSI TS 136 101 V17.6.0 — E-UTRA UE radio transmission and reception"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/17.06.00_60/ts_136101v170600p.pdf"
+    kind: "standard"
+labId: "uncertainty-decision"
+progressId: "dvt:uncertainty-guardband"
+crossLinks:
+  - label: "Power sensor correction·uncertainty"
+    href: "/instruments/power-sensor/correction-uncertainty/"
+    note: "Frequency response, mismatch와 coverage factor의 장비별 근거를 확인합니다."
+  - label: "PAMiD 규격을 module 언어로"
+    href: "/cellular/foundations/reading-3gpp-requirements/"
+    note: "완성 UE limit와 내부 module allocation의 책임 경계를 확인합니다."
+  - label: "ACLR fail 진단"
+    href: "/cellular/diagnostics/aclr-sem-fail/"
+    note: "Bandwidth·reference와 analyzer false-positive를 분리합니다."
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import DvtLab from '../../components/astro/DvtLab.astro';
+import Definition from '../../components/astro/Definition.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+Measured gain이 lower limit보다 `0.1 dB` 높다는 사실만으로 PASS를 선언할 수 없다. DUT-plane correction과 repeatability를 합친 uncertainty interval이 limit를 가로지르면, 현재 evidence가 말할 수 있는 결론은 **INCONCLUSIVE**다.
+
+<LessonLayer level="intuition" title="측정값을 점이 아니라 근거가 있는 interval로 보자">
+
+<Definition term="Type A evaluation">
+동일하거나 통제된 조건에서 반복 측정한 분포를 통계적으로 평가한다. Sample 표준편차, 평균의 표준불확도와 자유도를 어떤 조건에서 얻었는지 기록한다.
+</Definition>
+
+<Definition term="Type B evaluation">
+Calibration certificate, data sheet, path model, resolution, mismatch, directivity와 drift처럼 반복 series 외 정보로 standard uncertainty를 평가한다. 이름이 Type B라는 이유로 항상 더 크거나 보수적인 값은 아니다.
+</Definition>
+
+<DvtLab labId="uncertainty-decision" progressId="dvt:uncertainty-guardband" />
+
+## 판정 방향을 metric 이름에서 추측하지 않는다
+
+- **upper-bound:** EVM처럼 측정값이 작을수록 좋은 metric. 허용 영역은 upper limit 이하이다.
+- **lower-bound:** Positive main/adjacent ACLR ratio나 minimum Pout처럼 클수록 좋은 metric. 허용 영역은 lower limit 이상이다.
+- **range:** Gain window처럼 lower와 upper limit 사이가 허용 영역이다.
+
+ACLR은 가장 쉽게 부호가 뒤집힌다. Analyzer가 `adjacent − main`을 음의 dBc로 반환하면 더 음수일수록 좋으므로 native metric은 `upper-bound`다. Project가 `main − adjacent`의 양의 dB ratio로 normalize하면 클수록 좋으므로 별도 metric은 `lower-bound`다. 두 값을 모두 저장하되 comparator를 공유하지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Metric마다 reference plane과 공통 원인을 가진 budget을 만든다">
+
+## 1. Measurand를 먼저 고정한다
+
+`Pout`의 uncertainty인지, `gain = Pout − Pin`인지, `PAE`인지에 따라 component와 correlation이 달라진다. Frequency, waveform, power, aperture, reference plane과 correction ID가 다른 결과의 budget을 재사용하지 않는다.
+
+## 2. Component ledger를 만든다
+
+| Component | 흔한 평가 | 상관 확인 질문 |
+|---|---|---|
+| 반복성·reconnect | Type A | 같은 cable state를 공유하는가? |
+| Sensor calibration factor | Type B | Pin/Pout이 같은 sensor·certificate를 쓰는가? |
+| Path loss·coupler factor | Type B + 반복성 | 같은 VNA calibration과 cable을 공유하는가? |
+| Mismatch | Type B/model | Γ와 phase 정보가 공통인가? |
+| Analyzer level·linearity | Type B + residual | Main/adjacent channel에 공통으로 작용하는가? |
+| VDD·IDD | Type B + repeatability | PAE의 Pdc에 공통 time drift가 있는가? |
+| Thermal drift | Time-series/Type A 또는 model | 여러 metric을 같은 방향으로 움직이는가? |
+
+모든 항을 무조건 independent RSS로 결합하면 공통 calibration source나 drift를 놓친다. 반대로 같은 장비라는 이유만으로 완전 상관이라고 두지도 않는다. 공통 source group 또는 correlation coefficient의 근거를 budget에 남긴다.
+
+## 3. Standard에서 expanded uncertainty로
+
+독립 항만 있는 단순 경우의 combined standard uncertainty는 `u_c = √Σ(c_i u_i)²`다. 상관 항이 있으면 covariance term `2 c_i c_j u_i u_j ρ_ij`를 포함한다. `c_i`는 measurand equation의 sensitivity coefficient다.
+
+교육 기본 사례는 `U = k × u_c`, `k = 2`를 사용하지만 이를 자동으로 “95% 보장”이라고 쓰지 않는다. 실제 report에는 distribution, degrees of freedom, coverage factor와 coverage 해석을 표시한다.
+
+## 4. Interval로 세 상태를 판정한다
+
+측정값 `y`와 expanded uncertainty `U`에서 교육 interval을 `[y−U, y+U]`로 둔다.
+
+- Interval 전체가 허용 영역 안: **PASS**
+- Interval 전체가 허용 영역 밖: **FAIL**
+- Interval이 limit와 겹침: **INCONCLUSIVE**
+
+이 규칙은 합의된 project decision rule이다. 고객·인증기관의 guardband rule이 별도로 있으면 그 rule, risk allocation과 보고 문구가 우선한다.
+
+<MeasurementNote title="Correction과 uncertainty를 이중 계산하지 않는다" kind="uncertainty">
+Calibration certificate의 correction을 result에 적용했다면 budget에는 그 correction의 residual uncertainty를 넣는다. Correction 값 전체를 다시 uncertainty로 더하지 않는다. 반대로 correction을 적용하지 않고 uncertainty로만 숨기는 것도 measurand 정의를 바꿀 수 있다.
+</MeasurementNote>
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Gain·PAE·ACLR·EVM은 서로 다른 uncertainty 구조를 가진다">
+
+## Gain과 P1dB
+
+Gain은 dB 차이이므로 Pin/Pout의 공통 path 또는 calibration 항이 일부 상쇄되거나 강화될 수 있다. P1dB는 한 점의 power uncertainty뿐 아니라 linear-fit 구간, step size, interpolation, thermal hysteresis와 stop rule에 민감하다. P1dB uncertainty를 단일 power sensor accuracy로 대체하지 않는다.
+
+## PAE
+
+PAE는 watt-domain의 `Pout`, `Pin`, `VDD`, `IDD` 함수다. 각 sensitivity가 operating point에 따라 달라지고 RF·DC aperture mismatch가 추가된다. dBm uncertainty를 그대로 더해 percent uncertainty라고 쓰지 않는다.
+
+## ACLR와 EVM
+
+ACLR에는 main/adjacent integration bandwidth, noise correction, analyzer linearity와 source residual이 중요하다. Native negative dBc와 positive ratio를 섞지 않는다. EVM에는 reference waveform, equalization, normalization, synchronization, application/license와 through residual을 함께 기록한다.
+
+TS 36.101과 TS 36.521-1은 완성 UE requirement와 conformance context다. 이 lesson의 가상 PAMiD allocation, uncertainty budget과 decision rule은 교육용 project contract이며 실제 certification judgement를 대신하지 않는다.
+
+</LessonLayer>

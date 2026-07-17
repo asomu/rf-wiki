@@ -253,6 +253,21 @@ Cross-RAT Atlas, GSM Time Structure Explorer, GSM Module PvT Workbench, LTE/NR R
 
 `GSM module 측정` 페이지의 PvT Workbench에서는 6개 증상 시나리오와 7개 parameter를 사용합니다. 먼저 PASS 또는 첫 fail 영역을 예측한 뒤 trace를 공개하고, upper/lower corridor, 첫 violation, worst margin과 가능한 control stage를 연결합니다. 여기서 PvT는 Power versus Time이며 process·voltage·temperature corner를 뜻하는 환경 PVT와 다릅니다. 표시 corridor는 진단 순서를 학습하기 위한 상대 전력 모델이므로 공식 conformance mask나 시험 report로 사용하지 않습니다.
 
+## 6.6 PAMiD/TxM Module DVT 시니어 경로 사용하기
+
+상단 `DVT 시니어 경로` 또는 `/dvt/`에서 LTE FDD PAMiD 합성 학습을 엽니다. 기존 RF·장비·Cellular 내용을 반복하지 않고 다음 여섯 판단을 순서대로 닫습니다.
+
+1. 현재 pinned 5종과 accessory·application 조건을 `READY / CONDITIONAL / BLOCKED`로 판정합니다.
+2. DUT 대신 through와 known attenuator로 station residual·drift·재연결 반복성을 검증합니다.
+3. Pin, Pout, V/I, spectrum과 장비 상태를 한 transaction으로 묶어 `VALID / INVALID / INCONCLUSIVE`를 판정합니다.
+4. Upper/lower/range limit 방향과 uncertainty interval로 `PASS / FAIL / INCONCLUSIVE`를 결정합니다.
+5. CW, two-tone과 LTE가 보여주는 compression·IM3·memory·ACLR/EVM 차이를 비교합니다.
+6. 세 blind case에서 예상 signature를 먼저 고정하고 한 페이지 교육용 DVT conclusion을 완성합니다.
+
+대표 사례는 Band 3 계열 1.7 GHz LTE UE uplink 교육 프로필이며 표시 target은 가상 project allocation입니다. EVM·SEM·GCA는 실제 option/application/license와 residual을 확인할 때만 사용합니다. 세 번째 case는 Tx RX-band noise와 isolation을 이용한 `desense risk budget`이며 실제 receiver sensitivity·BLER 또는 Rx desense 측정이 아닙니다.
+
+Report는 브라우저 안의 HTML preview와 복사 가능한 교육용 conclusion만 제공합니다. 고객 데이터, 파일 import/export와 live instrument 연결은 없습니다.
+
 ## 7. 검색과 용어 사전 사용하기
 
 ### 전체 검색
@@ -300,7 +315,8 @@ SYST:ERR?
 - 포트가 달라도 서로 다른 origin이므로 진도가 공유되지 않습니다.
 - 홈의 진행 숫자는 완료한 simulator 수가 아니라 완료한 학습 축 `0 / 6`입니다.
 - 다섯 장비 허브는 각각 `instrument:sg:*`, `instrument:sa:*`, `instrument:vna:*`, `instrument:sensor:*`, `instrument:psu:*` namespaced lab ID로 5개 chapter 진도를 별도로 표시합니다.
-- Cellular 허브는 `cellular:foundations:*`, `cellular:pamid:*`, `cellular:gsm:*`, `cellular:lte:*`, `cellular:nr:*`, `cellular:diagnostics:*`로 57개 질문의 진도를 별도로 표시합니다.
+- Cellular 허브는 `cellular:foundations:*`, `cellular:pamid:*`, `cellular:gsm:*`, `cellular:lte:*`, `cellular:nr:*`, `cellular:diagnostics:*`로 59개 질문의 진도를 별도로 표시합니다.
+- DVT 허브는 `dvt:<slug>`로 6개 판단 lesson의 진도를 별도로 표시합니다. Static lesson 2개는 자기 설명, interactive lesson 4개는 prediction·evidence·설명 완료 뒤 저장됩니다.
 - 순서를 건너뛸 수 있지만 `이어서 학습`은 가장 앞의 미완료 축을 가리킵니다.
 
 전체 진도를 지우는 별도 화면 버튼은 없습니다. 브라우저 개발자 도구의 Console에서 다음 명령을 실행하면 현재 주소의 진도를 초기화할 수 있습니다.

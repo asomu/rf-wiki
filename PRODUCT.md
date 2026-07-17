@@ -29,7 +29,9 @@ RF 개념 트랙의 완성 범위는 다음 여섯 학습 축이다.
 
 `3GPP·PAMiD` 트랙은 GSM/GPRS/EDGE, LTE single-carrier와 NR FR1 single-carrier의 UE uplink를 완성 module nominal DVT 관점에서 연결한다. 공통 기초 8개, PAMiD 구조·제어 10개, GSM 9개, LTE 11개, NR 11개, 증상별 진단 10개의 짧은 질문형 페이지로 구성한다. 사용자는 time/frequency 구조와 modulation을 외우는 데서 끝나지 않고, 해당 waveform이 GSM PA+ASM, FDD PAMiD 또는 TDD TxM의 어느 경로와 상태를 통과하며 측정 fail을 어느 stage에서 분리해야 하는지 설명한다.
 
-Cellular 본문 기준은 3GPP Release 17이다. 표준 숫자는 exact minor version과 clause/table, RAT·direction·band·bandwidth·modulation 조건, UE minimum/conformance/계산값 구분을 함께 기록한다. Generic MIPI RFFE, APT/ET, DPD와 CFR은 공개된 역할과 실무 원리를 설명하되 제조사 register map이나 compliance transmitter를 흉내 내지 않는다. WCDMA, CA/EN-DC 상세, UL MIMO, FR2/OTA, propagation·fading, production test와 실제 DVT report는 현재 범위 밖이다.
+`PAMiD/TxM Module DVT 시니어 경로`는 기존 개념·장비·Cellular 콘텐츠를 실제 engineering decision으로 합성하는 네 번째 최상위 트랙이다. 1차 범위는 LTE FDD PAMiD, Band 3 계열 1.7 GHz UE uplink 교육 프로필이며 `bench capability → station qualification → synchronized test point → uncertainty/guardband → CW·two-tone·LTE 비교 → blind DVT conclusion`의 6개 lesson으로 구성한다. 장비·option·accessory를 `READY / CONDITIONAL / BLOCKED`로 판정하고, 측정점을 `VALID / INVALID / INCONCLUSIVE`로 검증한 뒤 가상 project allocation에 `PASS / FAIL / INCONCLUSIVE`를 적용한다.
+
+Cellular와 DVT 본문 기준은 3GPP Release 17이다. 표준 숫자는 exact minor version과 clause/table, RAT·direction·band·bandwidth·modulation 조건, UE minimum/conformance/계산값 구분을 함께 기록한다. Generic MIPI RFFE, APT/ET, DPD와 CFR은 공개된 역할과 실무 원리를 설명하되 제조사 register map이나 compliance transmitter를 흉내 내지 않는다. WCDMA, CA/EN-DC 상세, UL MIMO, FR2/OTA, propagation·fading, production test, 고객 데이터와 실제 sign-off report는 현재 범위 밖이다. DVT report는 내장 결정론적 사례에 대한 HTML preview와 복사 가능한 교육용 conclusion만 제공한다.
 
 웹에서는 내장 검증 시나리오와 결정론적 SCPI state model만 실행한다. Cellular IQ와 resource grid도 구조 학습용 결정론적 시각화이며 coding·scrambling·reference sequence를 포함한 compliance waveform이 아니다. 실제 장비 제어는 사용자의 로컬 Python·PyVISA 예제로 분리하고 source/output enable은 장비별 별도 실행 권한을 요구한다. 브라우저 직접 장비 연결, 실측 파일 import, 로그인, 서버, telemetry와 라이브 AI 채팅은 포함하지 않는다. 모든 시뮬레이터는 교육용 모델이며 실제 장비 정확도나 compliance 판정을 대신하지 않는다.
 

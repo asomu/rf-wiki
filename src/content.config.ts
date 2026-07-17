@@ -170,4 +170,41 @@ const cellularLesson = defineCollection({
   }),
 });
 
-export const collections = { lesson, instrumentLesson, cellularLesson };
+const dvtLesson = defineCollection({
+  loader: glob({ base: './src/content/dvt', pattern: '**/*.{md,mdx}' }),
+  schema: z.object({
+    title: z.string(),
+    shortTitle: z.string(),
+    question: z.string(),
+    description: z.string(),
+    order: z.number().int().min(1).max(6),
+    estimatedMinutes: z.number().int().positive(),
+    prerequisites: z.array(z.string()).default([]),
+    outcomes: z.array(z.string()).min(2),
+    concepts: z.array(z.string()).min(2),
+    topology: z.literal('lte-fdd-pamid'),
+    profile: z.string(),
+    equipmentContext: z.object({
+      source: z.string(),
+      dut: z.string(),
+      analyzer: z.string(),
+    }),
+    standards: z.array(z.string()).default([]),
+    references: z.array(referenceSchema).min(1),
+    labId: z.enum([
+      'station-qualification',
+      'synchronized-test-point',
+      'uncertainty-decision',
+      'blind-fdd-capstone',
+    ]).optional(),
+    crossLinks: z.array(z.object({
+      label: z.string(),
+      href: z.string().startsWith('/'),
+      note: z.string(),
+    })).default([]),
+    progressId: z.string().regex(/^dvt:[a-z0-9-]+$/),
+    status: z.enum(['ready', 'draft']),
+  }),
+});
+
+export const collections = { lesson, instrumentLesson, cellularLesson, dvtLesson };

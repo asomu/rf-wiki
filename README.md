@@ -15,6 +15,9 @@ RF Wiki는 RF 엔지니어가 장비 설정, 물리 신호, 계산 모델과 화
 - PA 비선형성, stability, source/load-pull
 - 계측장비 스터디: Keysight N5182B MXG, N9020B MXA, E5080B ENA, U2061XA power sensor, N6705C + N6752A power system의 장비별 5개 챕터, 총 25개 챕터에서 기본 동작·SCPI·PyVISA와 PA bench workflow 제공
 - 3GPP·PAMiD: Release 17 기준 Bit→IQ→RF→IQ→Bit 공통 기초, PAMiD anatomy/control, GSM/GPRS/EDGE와 PvT 실습, LTE PUSCH, NR FR1 PUSCH와 증상별 진단을 59개 질문형 페이지로 제공
+- PAMiD/TxM Module DVT: LTE FDD Band 3 계열 교육 프로필에서 capability, station qualification, synchronized test point, uncertainty·guardband, CW/two-tone/LTE 비교와 blind conclusion을 6개 lesson으로 제공
+
+현재 학습 계약은 `RF 6 + 장비 25 + Cellular 59 + DVT 6 = 96`개 항목입니다. DVT 사례의 target은 3GPP가 정한 PAMiD 단품 limit가 아니라 명시적인 가상 project allocation입니다.
 
 웹은 내장된 결정론적 RF·SCPI 시나리오만 실행합니다. 서버, 로그인, telemetry, 실측 파일 import, 브라우저 직접 장비 제어와 라이브 AI는 범위가 아닙니다. 실제 장비 제어는 `examples/` 아래 장비별 로컬 Python package로 분리되어 있으며 기본 실행은 모두 dry-run입니다.
 
@@ -42,16 +45,21 @@ npm run audit:lighthouse
 npm run test:all
 ~~~
 
-`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 기존 RF·장비 대표 화면과 Cellular 허브·GSM PvT·NR allocation·EVM 진단을 합친 16개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
+`npm run build`는 Astro 정적 사이트를 만든 뒤 Pagefind index를 생성합니다. `npm run test:e2e`는 이 production build를 정적 preview로 열어 검사하므로 dev-server의 cold compilation이나 이전 세션 상태에 의존하지 않습니다. `npm run audit:lighthouse`는 production build의 기존 RF·장비·Cellular 대표 화면과 DVT station·uncertainty·blind conclusion을 합친 19개 경로를 mobile profile로 검사해 Performance 90+, Accessibility 95+, CLS 0.1 이하를 강제하고 로컬 HTML/JSON report를 `output/lighthouse/`에 남깁니다.
 
-### 2026-07-17 구현 체크포인트
+### 2026-07-17 DVT 시니어 경로 최종 검증
 
-- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·59개 ready question
-- TypeScript/React unit: 39 files, 279 tests 통과
+- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·59개 ready question, DVT 6개 lesson으로 총 96개
+- Astro typecheck: 234 files, 0 errors·warnings·hints
+- TypeScript/React unit: 44 files, 324 tests 통과
 - Python safety suite: 5개 package, 총 114 tests 통과
-- Production build: 109 pages, Pagefind 108 pages·16,950 words index 통과
-- Browser E2E: 59개 Cellular route, 4개 viewport overflow, axe, keyboard·진도와 visual baseline 포함
-- Lighthouse: 16개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0038 이하
+- Production build: 118 pages, Pagefind 117 pages·18,765 words index 통과
+- Browser E2E: 663 tests 통과. 전체 route, 1440/1024/390px overflow·visual, 200% zoom, keyboard, reduced motion, axe와 `dvt:` 진도 포함
+- Visual baselines: 105개 PNG 무결성 검사와 DVT 핵심 3페이지의 1440/1024/390px 비교 통과
+- Lighthouse: 19개 경로 모두 Performance 97–100, Accessibility 100, CLS 0.0038 이하
+- 전문 리뷰: RF/PA와 계측·불확도 reviewer 모두 `GO`, BLOCKER/HIGH/MEDIUM finding 없음
+
+공개 사이트는 검증된 exact commit으로 새 Sites version을 저장한 뒤 사용자 승인 전까지 기존 공개 version을 유지합니다.
 
 ### OpenAI Sites 배포 빌드
 
@@ -68,6 +76,7 @@ npm run build:sites
 - `src/content/lessons/` — MDX lesson과 frontmatter
 - `src/content/instruments/` — 장비별 MDX chapter
 - `src/content/cellular-lessons.json` — 59개 Cellular 질문형 lesson registry
+- `src/content/dvt/` — 6개 LTE FDD PAMiD DVT 합성 lesson
 - `src/components/astro/` — 정적 학습·문서 컴포넌트
 - `src/components/simulators/` — React simulator island
 - `src/components/plots/` — 반응형 SVG view

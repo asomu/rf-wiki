@@ -1,0 +1,149 @@
+---
+title: "CW·Two-tone·LTE 변조 신호는 무엇을 다르게 보여줄까?"
+shortTitle: "CW · Two-tone · LTE"
+question: "같은 Pout에서 세 stimulus가 서로 다른 fail 원인을 보여주는 이유는 무엇일까?"
+description: "CW compression·PAE, two-tone IM2/IM3와 memory, LTE AM-AM/AM-PM·ACLR·conditional EVM을 비교해 source, path, DUT와 analyzer distortion을 분리한다."
+order: 5
+estimatedMinutes: 75
+prerequisites:
+  - "uncertainty-guardband"
+  - "pa-pull"
+outcomes:
+  - "CW, two-tone과 LTE modulated stimulus가 각각 드러내는 PA 비선형성과 놓치는 현상을 설명할 수 있다."
+  - "Tone별 power와 composite power, IM2/IM3, IIP3/OIP3의 convention을 명시하고 compression 근처 extrapolation을 거절할 수 있다."
+  - "Same Pin과 same Pout 비교를 구분하고 source·driver·coupler·analyzer-generated distortion을 residual test로 분리할 수 있다."
+concepts:
+  - "CW compression"
+  - "two-tone intermodulation"
+  - "IIP3 and OIP3"
+  - "memory effect"
+  - "AM-AM and AM-PM"
+  - "modulated ACLR and EVM"
+topology: "lte-fdd-pamid"
+profile: "Stimulus gate · comparable operating point"
+equipmentContext:
+  source: "N5182B의 qualified low-level CW, equal two-tone와 LTE 20 MHz waveform"
+  dut: "Band 3 계열 LTE FDD PAMiD 교육 모듈, generic gain mode와 fixed bias state"
+  analyzer: "N9020B spectrum/conditional IQ, U2061XA average power와 N6705C/N6752A DC readback"
+standards:
+  - "3GPP TS 36.211 V17.4.0 §5 — LTE uplink waveform context"
+  - "3GPP TS 36.101 V17.6.0 §6.6 — UE output RF spectrum context"
+references:
+  - title: "Characterizing the Key Performance Indicators of Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3122-1770/application-notes/Characterizing-the-Key-Performance-Indicators-of-Power-Amplifiers.pdf"
+    kind: "application-note"
+  - title: "ETSI TS 136 211 V17.4.0 — E-UTRA physical channels and modulation"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_TS/136200_136299/136211/17.04.00_60/ts_136211v170400p.pdf"
+    kind: "standard"
+  - title: "N9020B MXA Signal Analyzer Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+progressId: "dvt:cw-two-tone-lte"
+crossLinks:
+  - label: "PA load-pull과 AM-AM/AM-PM"
+    href: "/learn/pa-pull/"
+    note: "Compression, memory와 Pout·PAE·EVM trade-off의 큰 그림을 확인합니다."
+  - label: "MXA PA spectrum 분석"
+    href: "/instruments/sa-mxa/pa-spectrum-analysis/"
+    note: "Analyzer attenuation step과 EVM·ACLR 조건을 장비 관점에서 확인합니다."
+  - label: "IQ magnitude·phase·PAPR"
+    href: "/cellular/foundations/iq-magnitude-phase-psd-papr/"
+    note: "CW와 OFDM envelope 통계의 차이를 확인합니다."
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import DvtStaticCompletion from '../../components/astro/DvtStaticCompletion.astro';
+import DvtStimulusLinkedViews from '../../components/astro/DvtStimulusLinkedViews.astro';
+import Definition from '../../components/astro/Definition.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+CW에서 gain과 PAE가 좋아도 LTE ACLR이 fail할 수 있다. Two-tone IM3가 낮아도 긴 LTE record에서 memory가 나타날 수 있다. 세 stimulus는 서로의 대체물이 아니라, 각각 다른 교육용 operating-point fixture에서 PA의 서로 다른 failure signature를 보여 주는 probe다. 직접 수치를 비교할 때는 DUT-plane Pin 또는 Pout 중 하나를 같게 고정하고 correction과 uncertainty를 함께 맞춰야 한다.
+
+<LessonLayer level="intuition" title="신호마다 PA에 묻는 질문이 다르다">
+
+## CW는 정적 transfer와 power limit를 선명하게 본다
+
+한 carrier의 amplitude가 일정하므로 Pin을 sweep하면 small-signal gain, gain compression, P1dB, Psat 경향, DC current와 PAE를 비교하기 쉽다. 반면 envelope가 거의 움직이지 않아 modulation peak compression, constellation error와 adjacent-channel regrowth를 직접 보여주지 않는다.
+
+## Two-tone은 비선형 차수와 memory의 방향을 본다
+
+`f1`, `f2` 두 tone을 넣으면 second-order `f1+f2`, `f2−f1`, third-order `2f1−f2`, `2f2−f1` product가 생긴다. Fundamental에 가까운 IM3는 output filter로 분리하기 어려워 in-band linearity의 유용한 probe가 된다.
+
+Equal tone에서 각 tone이 `P_tone` dBm이면 ideal total composite power는 약 `P_tone + 3.01 dB`다. “Input power −10 dBm”이 tone당 값인지 composite 값인지 쓰지 않으면 다른 시험과 3 dB 어긋난다.
+
+## LTE waveform은 실제 envelope 통계와 demodulation sensitivity를 본다
+
+LTE 20 MHz uplink waveform은 시간에 따라 amplitude와 phase가 바뀐다. PA의 AM-AM, AM-PM, electrical/thermal memory가 constellation, ACLR, EVM과 current에 함께 나타난다. 결과는 waveform allocation, modulation, sample rate, filtering, runtime scaling, record와 PAPR 조건에 의존한다.
+
+<Definition term="Same Pin comparison">
+세 stimulus의 DUT-plane average input power를 같게 맞춘다. Waveform peak와 PA output이 다를 수 있어 “같은 excitation statistics”는 아니다.
+</Definition>
+
+<Definition term="Same Pout comparison">
+세 stimulus의 DUT-plane average output power를 같게 맞춘다. 필요한 Pin과 gain compression이 달라질 수 있으며 efficiency와 distortion trade-off를 output target 관점에서 비교한다.
+</Definition>
+
+<DvtStimulusLinkedViews />
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="Residual→linear region→compression 순서로 stimulus를 바꾼다">
+
+## 1. Source와 analyzer residual을 먼저 만든다
+
+Passive through에서 CW level linearity, two-tone IM3 floor와 LTE ACLR/EVM residual을 측정한다. Driver, coupler, attenuator와 load가 expected peak/composite power에서 선형인지 확인한다. N9020B attenuation-step test로 analyzer-generated IM3/ACLR을 분리한다.
+
+## 2. CW sweep로 safe operating envelope를 찾는다
+
+- Low drive에서 reference gain을 fit한다.
+- Pin을 작은 step으로 올리며 Pout, gain, current, PAE와 dwell을 기록한다.
+- Measured Pin이 setpoint를 따라가는지 확인해 source compression을 분리한다.
+- Current, temperature metadata, Pout와 compression stop condition 중 하나라도 먼저 닿으면 sweep를 멈춘다.
+- P1dB는 linear extrapolation과 actual gain의 1 dB 차이이며 step/interpolation uncertainty를 붙인다.
+
+## 3. Two-tone을 linear region에서 먼저 해석한다
+
+Fundamental과 IM3 level 차이를 `ΔIM3_dB`라고 하면, 충분히 작은 신호에서 단순 extrapolated OIP3는 `P_fund,out + ΔIM3/2`로 계산할 수 있다. IIP3도 input-referred fundamental을 사용한다. 이 값은 실제로 그 power까지 PA를 구동한다는 뜻이 아니다.
+
+- Tone spacing을 여러 값으로 바꾸되 center frequency와 tone당/composite convention을 고정한다.
+- Upper/lower IM3를 따로 저장한다. 비대칭이면 frequency response, bias network, thermal/electrical memory와 setup imbalance 후보를 본다.
+- Input 1 dB 증가에 fundamental 약 1 dB, IM3 약 3 dB라는 slope가 유지되는 구간만 extrapolation에 쓴다.
+- Compression 근처에서 slope가 무너지면 IP3 숫자를 보고용 선형성 지표로 연장하지 않는다.
+
+## 4. LTE로 operating-point trade-off를 닫는다
+
+CW와 two-tone에서 안전한 back-off를 정한 뒤 LTE waveform을 적용한다. Same Pin과 same Pout 결과를 별도 table에 둔다. Pout, gain, current, PAE, main/adjacent power, conditional EVM을 같은 valid point에 저장한다.
+
+- Outer constellation point가 radial하게 안쪽으로 당겨지면 AM-AM compression 후보를 본다.
+- Magnitude가 클수록 phase error가 회전하면 AM-PM 후보를 본다.
+- ACLR은 나빠지는데 EVM 변화가 작으면 out-of-band regrowth, integration 조건과 analyzer range를 다시 본다.
+- Burst/record 앞뒤가 달라지면 source ALC·trigger와 PA electrical/thermal memory를 분리한다.
+
+<MeasurementNote title="DPD가 distortion source를 없앴다고 단정하지 않는다" kind="warning">
+DPD 전후 비교는 waveform, target Pin/Pout, coefficient/version, training capture, analyzer reference/equalization과 thermal state를 고정해야 한다. ACLR 개선과 PAE·EVM·peak 변화가 함께 어떤 trade-off를 만드는지 본다.
+</MeasurementNote>
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="세 시험을 하나의 PA transfer와 spectral evidence로 연결한다">
+
+CW gain compression은 quasi-static AM-AM의 한 축을 제공한다. Two-tone은 polynomial-like nonlinear response의 near-carrier intermodulation을 강조하지만 실제 wideband modulation의 envelope probability와 long-memory를 모두 대표하지 않는다. LTE EVM·ACLR은 실제 reference·equalization·normalization·integration 조건을 포함해 system-level waveform quality를 본다.
+
+따라서 결론은 다음처럼 제한한다.
+
+| 관찰 | 강한 후보 | 아직 남는 분리 측정 |
+|---|---|---|
+| CW P1dB가 이르게 발생 | Bias/gain mode, path correction, source/DUT compression | Measured Pin linearity, DC/thermal state |
+| IM3가 tone spacing에 따라 변함 | Electrical/thermal memory, frequency response | Source residual, upper/lower symmetry |
+| LTE ACLR/EVM만 악화 | Peak compression, AM-PM, wideband memory | Through residual, attenuation step, waveform condition |
+| Same Pout에서 current가 다름 | Waveform-dependent efficiency/memory | Aperture, duty, thermal repeatability |
+
+TS 36.211 clause 5는 LTE uplink waveform structure의 normative 근거이고 TS 36.101 clause 6.6은 완성 UE output spectrum requirement의 context다. Two-tone IP3나 이 lesson의 가상 PAMiD target을 3GPP가 규정한다고 표현하지 않는다.
+
+</LessonLayer>
+
+<DvtStaticCompletion progressId="dvt:cw-two-tone-lte" prompt="CW는 정상인데 LTE ACLR이 악화된 사례에서, 가장 먼저 분리할 source·DUT·analyzer evidence와 아직 결론낼 수 없는 한계를 설명하세요." />

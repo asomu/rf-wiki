@@ -1,0 +1,294 @@
+---
+import {
+  DEFAULT_EDUCATIONAL_PA,
+  generatePaTransferCurve,
+  transformNormalizedPaSample,
+} from '../../lib/rf/pa';
+import { calculateDvtPaExpectedValues } from '../../lib/rf/dvt';
+import { dbmToWatts, dbToPowerRatio, wattsToDbm } from '../../lib/rf/units';
+
+const sweep = generatePaTransferCurve(-12, 8, 2, DEFAULT_EDUCATIONAL_PA).map((point) => ({
+  pinDbm: point.inputPowerDbm as number,
+  poutDbm: point.outputPowerDbm as number,
+  gainDb: point.gainDb as number,
+  currentA: (point.dcPowerWatts as number) / DEFAULT_EDUCATIONAL_PA.drainVoltageV,
+  paePercent: point.paePercent,
+  aclrDbc: point.aclrDbc as number,
+}));
+const expected = calculateDvtPaExpectedValues();
+const marker = sweep.reduce((closest, point) => (
+  Math.abs(point.pinDbm - expected.p1dbInputPowerDbm) < Math.abs(closest.pinDbm - expected.p1dbInputPowerDbm)
+    ? point
+    : closest
+), sweep[0]!);
+
+const amMarkers = [0.2, 0.5, 0.8, 1, 1.2].map((magnitude) => {
+  const result = transformNormalizedPaSample({ re: magnitude, im: 0 }, DEFAULT_EDUCATIONAL_PA);
+  return {
+    inputMagnitude: result.inputMagnitudeNormalized,
+    outputMagnitude: result.outputMagnitudeNormalized,
+    compressionDb: result.compressionDb as number,
+    phaseDeg: result.phaseShiftDegrees as number,
+  };
+});
+
+const modulatedPoint = sweep.find(({ pinDbm }) => pinDbm === 4) ?? marker;
+const adjacentPowerDbm = wattsToDbm(
+  dbmToWatts(modulatedPoint.poutDbm) * dbToPowerRatio(modulatedPoint.aclrDbc),
+);
+const spectrum = [
+  { offsetMhz: -3, powerDbm: expected.im3OutputPowerDbm, label: 'IM3 lower', shape: 'diamond' },
+  { offsetMhz: -1, powerDbm: expected.twoTonePerToneOutputPowerDbm, label: 'f1', shape: 'circle' },
+  { offsetMhz: 1, powerDbm: expected.twoTonePerToneOutputPowerDbm, label: 'f2', shape: 'circle' },
+  { offsetMhz: 3, powerDbm: expected.im3OutputPowerDbm, label: 'IM3 upper', shape: 'diamond' },
+] as const;
+
+const plot = { left: 46, right: 304, top: 24, bottom: 150 } as const;
+const xMin = -12;
+const xMax = 8;
+const x = (value: number) => plot.left + (value - xMin) / (xMax - xMin) * (plot.right - plot.left);
+const metricDefinitions = [
+  { id: 'gain', title: 'Gain vs Pin', unit: 'dB', values: sweep.map((point) => point.gainDb), min: 22, max: 27, value: (point: typeof sweep[number]) => point.gainDb },
+  { id: 'pout', title: 'Pout vs Pin', unit: 'dBm', values: sweep.map((point) => point.poutDbm), min: 12, max: 32, value: (point: typeof sweep[number]) => point.poutDbm },
+  { id: 'current', title: 'IDD vs Pin', unit: 'A', values: sweep.map((point) => point.currentA), min: 0, max: 1.3, value: (point: typeof sweep[number]) => point.currentA },
+  { id: 'pae', title: 'PAE vs Pin', unit: '%', values: sweep.map((point) => point.paePercent), min: 0, max: 55, value: (point: typeof sweep[number]) => point.paePercent },
+] as const;
+
+const yFor = (value: number, min: number, max: number) => plot.bottom - (value - min) / (max - min) * (plot.bottom - plot.top);
+const linePath = (metric: typeof metricDefinitions[number]) => sweep
+  .map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(point.pinDbm).toFixed(1)} ${yFor(metric.value(point), metric.min, metric.max).toFixed(1)}`)
+  .join(' ');
+const format = (value: number, digits = 1) => value.toFixed(digits);
+const amPhaseY = (phaseDeg: number) => 110 + Math.min(10, Math.max(0, -phaseDeg)) / 10 * 58;
+const channelY = (powerDbm: number) => 174 - (powerDbm + 20) / 60 * 140;
+---
+
+<section class="dvt-linked-views" aria-labelledby="dvt-linked-views-title">
+  <header>
+    <div>
+      <p class="data-label">Deterministic Linked Views</p>
+      <h3 id="dvt-linked-views-title">한 PA 교육 모델을 서로 다른 operating-point fixture에서 읽습니다.</h3>
+    </div>
+    <p>교육 설정 · gain {DEFAULT_EDUCATIONAL_PA.smallSignalGainDb} dB · Psat {DEFAULT_EDUCATIONAL_PA.saturationOutputPowerDbm} dBm · VDD {DEFAULT_EDUCATIONAL_PA.drainVoltageV} V</p>
+  </header>
+
+  <div class="dvt-linked-views__kpi" aria-label="PA sweep linked views">
+    {metricDefinitions.map((metric) => (
+      <figure>
+        <figcaption>{metric.title}</figcaption>
+        <svg viewBox="0 0 320 180" role="img" aria-labelledby={`${metric.id}-plot-title ${metric.id}-plot-desc`}>
+          <title id={`${metric.id}-plot-title`}>{metric.title}</title>
+          <desc id={`${metric.id}-plot-desc`}>Pin −12 dBm에서 8 dBm까지의 교육용 PA sweep. 마름모는 P1dB 근처 marker다.</desc>
+          <line class="axis" x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} />
+          <line class="axis" x1={plot.left} y1={plot.bottom} x2={plot.right} y2={plot.bottom} />
+          {[metric.min, (metric.min + metric.max) / 2, metric.max].map((tick) => (
+            <g>
+              <line class="grid" x1={plot.left} y1={yFor(tick, metric.min, metric.max)} x2={plot.right} y2={yFor(tick, metric.min, metric.max)} />
+              <text x="40" y={yFor(tick, metric.min, metric.max) + 4} text-anchor="end">{format(tick, metric.id === 'current' ? 1 : 0)}</text>
+            </g>
+          ))}
+          {[-12, -2, 8].map((tick) => <text x={x(tick)} y="168" text-anchor="middle">{tick}</text>)}
+          <path class="trace trace--forward" d={linePath(metric)} />
+          <path class="marker marker--reference" d={`M ${x(marker.pinDbm)} ${yFor(metric.value(marker), metric.min, metric.max) - 5} l 5 5 l -5 5 l -5 -5 z`} />
+          <text class="direct-label" x={x(marker.pinDbm) - 6} y={yFor(metric.value(marker), metric.min, metric.max) - 9} text-anchor="end">{format(metric.value(marker), metric.id === 'current' ? 2 : 1)} {metric.unit}</text>
+          <text x="176" y="178" text-anchor="middle">Pin (dBm)</text>
+          <text x="10" y="18">{metric.unit}</text>
+        </svg>
+      </figure>
+    ))}
+  </div>
+
+  <div class="dvt-linked-views__detail">
+    <figure>
+      <figcaption>Two-tone fundamental과 IM3</figcaption>
+      <p>1 MHz offset의 두 tone은 각각 {expected.twoTonePerToneOutputPowerDbm} dBm, total composite는 {expected.twoToneCompositeOutputPowerDbm.toFixed(2)} dBm입니다. IM3는 마름모·점선으로 구분합니다.</p>
+      <svg viewBox="0 0 420 220" role="img" aria-labelledby="imd-spectrum-title imd-spectrum-desc">
+        <title id="imd-spectrum-title">Two-tone output spectrum</title>
+        <desc id="imd-spectrum-desc">Center frequency 기준 ±1 MHz에 fundamental 원형 marker, ±3 MHz에 upper와 lower IM3 마름모 marker가 있다.</desc>
+        <line class="axis" x1="52" y1="24" x2="52" y2="174" />
+        <line class="axis" x1="52" y1="174" x2="398" y2="174" />
+        {[-40, -20, 0, 20].map((tick) => {
+          const y = 174 - (tick + 40) / 60 * 140;
+          return <g><line class="grid" x1="52" y1={y} x2="398" y2={y} /><text x="45" y={y + 4} text-anchor="end">{tick}</text></g>;
+        })}
+        {spectrum.map((item) => {
+          const sx = 225 + item.offsetMhz * 48;
+          const sy = 174 - (item.powerDbm + 40) / 60 * 140;
+          return (
+            <g>
+              <line class:list={['spectrum-stem', { 'spectrum-stem--imd': item.shape === 'diamond' }]} x1={sx} y1="174" x2={sx} y2={sy} />
+              {item.shape === 'circle'
+                ? <circle class="marker--forward" cx={sx} cy={sy} r="5" />
+                : <path class="marker--reverse" d={`M ${sx} ${sy - 6} l 6 6 l -6 6 l -6 -6 z`} />}
+              <text class:list={['direct-label', { 'direct-label--reverse': item.shape === 'diamond' }]} x={sx} y={sy - 10} text-anchor="middle">{item.label} · {item.powerDbm} dBm</text>
+              <text x={sx} y="194" text-anchor="middle">{item.offsetMhz}</text>
+            </g>
+          );
+        })}
+        <text x="225" y="214" text-anchor="middle">Center offset (MHz)</text>
+        <text x="8" y="18">Power (dBm)</text>
+      </svg>
+    </figure>
+
+    <figure>
+      <figcaption>AM-AM과 AM-PM marker</figcaption>
+      <p>같은 normalized input magnitude에서 원형 AM-AM과 마름모 AM-PM을 직접 라벨합니다. 이 모델은 memoryless Rapp 교육 모델입니다.</p>
+      <svg viewBox="0 0 420 220" role="img" aria-labelledby="am-plot-title am-plot-desc">
+        <title id="am-plot-title">AM-AM and AM-PM markers</title>
+        <desc id="am-plot-desc">Normalized input magnitude에 따른 output magnitude와 signed negative phase shift. 두 trace는 분리된 plotting band와 직접 label을 사용한다.</desc>
+        <line class="axis" x1="52" y1="24" x2="52" y2="174" />
+        <line class="axis" x1="52" y1="174" x2="398" y2="174" />
+        <line class="grid" x1="52" y1="98" x2="398" y2="98" />
+        <line class="grid" x1="52" y1="110" x2="398" y2="110" />
+        <line class="grid" x1="52" y1="168" x2="398" y2="168" />
+        <text x="48" y="114" text-anchor="end">0°</text>
+        <text x="48" y="172" text-anchor="end">−10°</text>
+        <path class="trace trace--forward" d={amMarkers.map((item, index) => `${index === 0 ? 'M' : 'L'} ${52 + item.inputMagnitude / 1.2 * 330} ${94 - item.outputMagnitude / 1.2 * 62}`).join(' ')} />
+        <path class="trace trace--secondary" d={amMarkers.map((item, index) => `${index === 0 ? 'M' : 'L'} ${52 + item.inputMagnitude / 1.2 * 330} ${amPhaseY(item.phaseDeg)}`).join(' ')} />
+        {amMarkers.map((item) => {
+          const ax = 52 + item.inputMagnitude / 1.2 * 330;
+          const ay = 94 - item.outputMagnitude / 1.2 * 62;
+          const py = amPhaseY(item.phaseDeg);
+          return <g><circle class="marker--forward" cx={ax} cy={ay} r="4" /><path class="marker--secondary" d={`M ${ax} ${py - 4} l 4 4 l -4 4 l -4 -4 z`} /></g>;
+        })}
+        <text class="direct-label" x="390" y="40" text-anchor="end">AM-AM · output norm</text>
+        <text class="direct-label direct-label--secondary" x="390" y="164" text-anchor="end">AM-PM · signed −10…0°</text>
+        <text x="225" y="204" text-anchor="middle">Input magnitude (normalized)</text>
+        <text x="8" y="18">Normalized / deg</text>
+      </svg>
+    </figure>
+
+    <figure>
+      <figcaption>LTE main과 adjacent power</figcaption>
+      <p>LTE 전용 fixture는 Pin {modulatedPoint.pinDbm.toFixed(0)} dBm입니다. Two-tone expected fixture와 same-Pin 또는 same-Pout 비교가 아닙니다. ACLR은 analyzer native `adjacent − main` 음의 dBc convention입니다.</p>
+      <svg viewBox="0 0 420 220" role="img" aria-labelledby="channel-power-title channel-power-desc">
+        <title id="channel-power-title">LTE main and adjacent channel power</title>
+        <desc id="channel-power-desc">Main channel은 실선 사각형, lower와 upper adjacent는 점선 사각형으로 표시한다.</desc>
+        <line class="axis" x1="52" y1="24" x2="52" y2="174" />
+        <line class="axis" x1="52" y1="174" x2="398" y2="174" />
+        {[-20, 0, 20, 40].map((tick) => <g><line class="grid" x1="52" y1={channelY(tick)} x2="398" y2={channelY(tick)} /><text x="45" y={channelY(tick) + 4} text-anchor="end">{tick}</text></g>)}
+        <rect class="channel channel--adjacent" x="72" y={channelY(adjacentPowerDbm)} width="78" height={174 - channelY(adjacentPowerDbm)} />
+        <rect class="channel channel--main" x="172" y={channelY(modulatedPoint.poutDbm)} width="106" height={174 - channelY(modulatedPoint.poutDbm)} />
+        <rect class="channel channel--adjacent" x="300" y={channelY(adjacentPowerDbm)} width="78" height={174 - channelY(adjacentPowerDbm)} />
+        <text class="direct-label" x="225" y={channelY(modulatedPoint.poutDbm) - 8} text-anchor="middle">Main · {modulatedPoint.poutDbm.toFixed(1)} dBm</text>
+        <text class="direct-label direct-label--reverse" x="111" y={channelY(adjacentPowerDbm) - 8} text-anchor="middle">Lower adj · {adjacentPowerDbm.toFixed(1)} dBm</text>
+        <text class="direct-label direct-label--reverse" x="339" y={channelY(adjacentPowerDbm) - 8} text-anchor="middle">Upper adj · {adjacentPowerDbm.toFixed(1)} dBm</text>
+        <text x="225" y="204" text-anchor="middle">Channel allocation (20 MHz integration each)</text>
+        <text x="8" y="18">Power (dBm)</text>
+      </svg>
+    </figure>
+  </div>
+
+  <section class="dvt-linked-views__summary" aria-labelledby="dvt-linked-summary-title">
+    <h4 id="dvt-linked-summary-title">Fixture별 marker 요약</h4>
+    <p>P1dB 근처 marker에서 gain은 {marker.gainDb.toFixed(1)} dB, Pout은 {marker.poutDbm.toFixed(1)} dBm, IDD는 {marker.currentA.toFixed(2)} A, PAE는 {marker.paePercent.toFixed(1)}%입니다. Two-tone expected fixture는 OIP3 {expected.twoToneOip3Dbm} dBm, IM3 {expected.im3Dbc.toFixed(0)} dBc입니다. 값은 방향 학습용이며 실제 PAMiD target이나 compliance waveform이 아닙니다.</p>
+  </section>
+
+  <details class="dvt-linked-views__table">
+    <summary>동등한 데이터 표 보기</summary>
+    <div>
+      <table>
+        <caption>PA sweep · 교육 설정</caption>
+        <thead><tr><th>Pin<br />(dBm)</th><th>Gain<br />(dB)</th><th>Pout<br />(dBm)</th><th>IDD<br />(A)</th><th>PAE<br />(%)</th></tr></thead>
+        <tbody>{sweep.map((point) => <tr><td>{point.pinDbm.toFixed(0)}</td><td>{point.gainDb.toFixed(1)}</td><td>{point.poutDbm.toFixed(1)}</td><td>{point.currentA.toFixed(2)}</td><td>{point.paePercent.toFixed(1)}</td></tr>)}</tbody>
+      </table>
+      <table>
+        <caption>AM-AM · AM-PM marker</caption>
+        <thead><tr><th>Input norm</th><th>Output norm</th><th>Compression (dB)</th><th>Phase (deg)</th></tr></thead>
+        <tbody>{amMarkers.map((item) => <tr><td>{item.inputMagnitude.toFixed(1)}</td><td>{item.outputMagnitude.toFixed(3)}</td><td>{item.compressionDb.toFixed(2)}</td><td>{item.phaseDeg.toFixed(2)}</td></tr>)}</tbody>
+      </table>
+      <table>
+        <caption>Two-tone spectrum · {expected.twoTonePerToneOutputPowerDbm} dBm/tone · {expected.twoToneCompositeOutputPowerDbm.toFixed(2)} dBm composite</caption>
+        <thead><tr><th>Label</th><th>Offset (MHz)</th><th>Power (dBm)</th></tr></thead>
+        <tbody>{spectrum.map((item) => <tr><td>{item.label}</td><td>{item.offsetMhz}</td><td>{item.powerDbm}</td></tr>)}</tbody>
+      </table>
+      <table>
+        <caption>LTE main·adjacent power · Pin {modulatedPoint.pinDbm.toFixed(0)} dBm</caption>
+        <thead><tr><th>Channel</th><th>Power (dBm)</th><th>표기</th></tr></thead>
+        <tbody>
+          <tr><td>Main</td><td>{modulatedPoint.poutDbm.toFixed(1)}</td><td>실선·사각형</td></tr>
+          <tr><td>Lower adjacent</td><td>{adjacentPowerDbm.toFixed(1)}</td><td>점선·사각형</td></tr>
+          <tr><td>Upper adjacent</td><td>{adjacentPowerDbm.toFixed(1)}</td><td>점선·사각형</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<style>
+  .dvt-linked-views {
+    width: 100%;
+    margin-block: var(--space-12);
+    padding: var(--space-6);
+    border: var(--stroke-hairline) solid var(--color-rule-strong);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+  }
+
+  .dvt-linked-views > header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding-block-end: var(--space-4);
+    border-bottom: var(--stroke-hairline) solid var(--color-rule);
+  }
+
+  .dvt-linked-views > header h3 { margin: var(--space-1) 0 0; }
+  .dvt-linked-views > header > p { max-width: var(--layout-lab); margin: 0; color: var(--color-muted); font-size: var(--font-size-data); text-align: end; }
+
+  .dvt-linked-views__kpi,
+  .dvt-linked-views__detail {
+    display: grid;
+    gap: var(--space-4);
+    margin-block-start: var(--space-6);
+  }
+
+  .dvt-linked-views__kpi { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dvt-linked-views__detail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dvt-linked-views figure { min-width: 0; margin: 0; }
+  .dvt-linked-views figcaption { font-weight: var(--font-weight-semibold); }
+  .dvt-linked-views figure > p { margin: var(--space-2) 0 0; color: var(--color-muted); font-size: var(--font-size-data); line-height: var(--line-height-data); }
+  .dvt-linked-views svg { display: block; width: 100%; min-width: 0; margin-block-start: var(--space-2); background: var(--color-instrument); color: var(--color-instrument-ink); }
+  .dvt-linked-views svg text { fill: var(--color-instrument-muted); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+  .dvt-linked-views svg .direct-label { fill: var(--color-forward-bright); }
+  .dvt-linked-views svg .direct-label--reference { fill: var(--color-reference-bright); }
+  .dvt-linked-views svg .direct-label--reverse { fill: var(--color-reverse-bright); }
+  .dvt-linked-views svg .direct-label--secondary { fill: var(--color-secondary-bright); }
+  .axis { stroke: var(--color-instrument-muted); stroke-width: 1; }
+  .grid { stroke: var(--color-instrument-grid); stroke-width: 1; stroke-dasharray: 3 5; opacity: 0.45; }
+  .trace { fill: none; stroke-width: 2.5; }
+  .trace--forward { stroke: var(--color-forward-bright); }
+  .trace--secondary { stroke: var(--color-secondary-bright); stroke-dasharray: 7 4; }
+  .marker--forward { fill: var(--color-forward-bright); stroke: var(--color-instrument); stroke-width: 1.5; }
+  .marker--reference { fill: var(--color-reference-bright); stroke: var(--color-instrument); stroke-width: 1.5; }
+  .marker--reverse { fill: var(--color-reverse-bright); stroke: var(--color-instrument); stroke-width: 1.5; }
+  .marker--secondary { fill: var(--color-secondary-bright); stroke: var(--color-instrument); stroke-width: 1.5; }
+  .spectrum-stem { stroke: var(--color-forward-bright); stroke-width: 3; }
+  .spectrum-stem--imd { stroke: var(--color-reverse-bright); stroke-width: 2; stroke-dasharray: 7 4; }
+  .channel--main { fill: color-mix(in srgb, var(--color-forward-bright) 44%, transparent); stroke: var(--color-forward-bright); stroke-width: 2; }
+  .channel--adjacent { fill: color-mix(in srgb, var(--color-reverse-bright) 22%, transparent); stroke: var(--color-reverse-bright); stroke-width: 2; stroke-dasharray: 7 4; }
+
+  .dvt-linked-views__summary { margin-block-start: var(--space-6); padding-block: var(--space-4); border-block: var(--stroke-hairline) solid var(--color-rule); }
+  .dvt-linked-views__summary h4 { margin: 0; font-size: var(--font-size-title); }
+  .dvt-linked-views__summary p { margin: var(--space-2) 0 0; }
+  .dvt-linked-views__table { margin-block-start: var(--space-4); }
+  .dvt-linked-views__table summary { min-height: var(--target-min); padding-block: var(--space-3); cursor: pointer; font-weight: var(--font-weight-semibold); }
+  .dvt-linked-views__table > div { display: grid; gap: var(--space-6); }
+  .dvt-linked-views__table table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--font-size-data); }
+  .dvt-linked-views__table caption { padding-block: var(--space-3); text-align: start; font-weight: var(--font-weight-semibold); }
+  .dvt-linked-views__table th,
+  .dvt-linked-views__table td { padding: var(--space-2); border-bottom: var(--stroke-hairline) solid var(--color-rule); text-align: start; overflow-wrap: anywhere; }
+
+  @media (max-width: 1100px) {
+    .dvt-linked-views__kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dvt-linked-views__detail { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 600px) {
+    .dvt-linked-views { padding: var(--space-4); }
+    .dvt-linked-views > header { display: block; }
+    .dvt-linked-views > header > p { margin-block-start: var(--space-3); text-align: start; }
+    .dvt-linked-views__kpi { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

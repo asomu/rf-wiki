@@ -8,6 +8,7 @@ const root = configuredRoot
   ? pathToFileURL(path.resolve(configuredRoot) + path.sep)
   : new URL('../src/content/lessons/', import.meta.url);
 const instrumentRoot = new URL('../src/content/instruments/', import.meta.url);
+const dvtRoot = new URL('../src/content/dvt/', import.meta.url);
 const minimumReady = Number(process.env.RF_WIKI_MINIMUM_READY ?? 6);
 if (!Number.isSafeInteger(minimumReady) || minimumReady < 0) {
   console.error('RF_WIKI_MINIMUM_READY must be a non-negative integer.');
@@ -105,6 +106,7 @@ for (const file of files) {
 
 let instrumentReadyCount = 0;
 let cellularReadyCount = 0;
+let dvtReadyCount = 0;
 if (!configuredRoot) {
   const instrumentContracts = [
     {
@@ -328,6 +330,101 @@ if (!configuredRoot) {
   if (cellularLessons.length !== expectedCellularTotal) {
     errors.push(`Expected exactly ${expectedCellularTotal} cellular lessons, found ${cellularLessons.length}.`);
   }
+
+  const dvtContracts = new Map([
+    ['bench-capability', { order: 1, labId: undefined }],
+    ['station-qualification', { order: 2, labId: 'station-qualification' }],
+    ['synchronized-test-point', { order: 3, labId: 'synchronized-test-point' }],
+    ['uncertainty-guardband', { order: 4, labId: 'uncertainty-decision' }],
+    ['cw-two-tone-lte', { order: 5, labId: undefined }],
+    ['fdd-dvt-conclusion', { order: 6, labId: 'blind-fdd-capstone' }],
+  ]);
+  let dvtFiles = [];
+  try {
+    dvtFiles = await listContentFiles(dvtRoot);
+  } catch {
+    errors.push('DVT lesson directory is missing.');
+  }
+  if (dvtFiles.length !== dvtContracts.size) {
+    errors.push(`Expected exactly ${dvtContracts.size} DVT lessons, found ${dvtFiles.length}.`);
+  }
+
+  const foundDvtSlugs = new Set();
+  const foundDvtProgressIds = new Set();
+  for (const fileUrl of dvtFiles) {
+    const source = await readFile(fileUrl, 'utf8');
+    const file = path.basename(fileUrl.pathname);
+    const slug = path.basename(file, path.extname(file));
+    const contract = dvtContracts.get(slug);
+    if (!contract) {
+      errors.push(`DVT/${file} uses an unplanned lesson slug.`);
+      continue;
+    }
+    if (foundDvtSlugs.has(slug)) errors.push(`DVT/${file} duplicates slug ${slug}.`);
+    foundDvtSlugs.add(slug);
+
+    const frontmatterMatch = source.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!frontmatterMatch?.[1]) {
+      errors.push(`DVT/${file} is missing YAML frontmatter.`);
+      continue;
+    }
+    let frontmatter;
+    try {
+      frontmatter = parse(frontmatterMatch[1]);
+    } catch (error) {
+      errors.push(`DVT/${file} has invalid YAML frontmatter: ${error.message}`);
+      continue;
+    }
+
+    const expectedProgressId = `dvt:${slug}`;
+    if (frontmatter.order !== contract.order) errors.push(`DVT/${file} must declare order: ${contract.order}.`);
+    if (frontmatter.progressId !== expectedProgressId) errors.push(`DVT/${file} progressId must be ${expectedProgressId}.`);
+    if (foundDvtProgressIds.has(frontmatter.progressId)) errors.push(`DVT/${file} duplicates progressId ${String(frontmatter.progressId)}.`);
+    foundDvtProgressIds.add(frontmatter.progressId);
+    if (frontmatter.topology !== 'lte-fdd-pamid') errors.push(`DVT/${file} must keep topology lte-fdd-pamid.`);
+    if (frontmatter.status !== 'ready') errors.push(`DVT/${file} must be ready; found ${String(frontmatter.status)}.`);
+    else dvtReadyCount += 1;
+    if (!Array.isArray(frontmatter.references) || frontmatter.references.length === 0) {
+      errors.push(`DVT/${file} is missing authoritative references.`);
+    }
+    if (/\bTODO\b/i.test(source)) errors.push(`DVT/${file} is ready but still contains TODO content.`);
+
+    const layers = [...source.matchAll(lessonLayerPattern)].map((match) => match[1]);
+    if (layers.length !== expectedLayerOrder.length || layers.some((layer, index) => layer !== expectedLayerOrder[index])) {
+      const found = layers.length > 0 ? layers.join(' → ') : 'none';
+      errors.push(`DVT/${file} must contain exactly one intuition → bench → theory LessonLayer sequence; found ${found}.`);
+    }
+
+    if (contract.labId) {
+      const labMarker = `<DvtLab labId="${contract.labId}" progressId="${expectedProgressId}"`;
+      if (frontmatter.labId !== contract.labId) errors.push(`DVT/${file} must declare labId: "${contract.labId}".`);
+      if (!source.includes("import DvtLab from '../../components/astro/DvtLab.astro'")) errors.push(`DVT/${file} must import DvtLab.`);
+      if (!source.includes(labMarker)) errors.push(`DVT/${file} must place ${labMarker} /> in the lesson flow.`);
+      if (source.split('<DvtLab').length - 1 !== 1) errors.push(`DVT/${file} must contain exactly one DvtLab.`);
+      const intuitionStart = source.search(/<LessonLayer\b[^>]*\blevel\s*=\s*["']intuition["']/);
+      const intuitionClose = source.indexOf('</LessonLayer>', intuitionStart);
+      const labStart = source.indexOf(labMarker);
+      if (intuitionStart < 0 || intuitionClose < 0 || labStart < intuitionStart || labStart > intuitionClose) {
+        errors.push(`DVT/${file} must place DvtLab inside intuition before bench.`);
+      }
+    } else {
+      if (frontmatter.labId !== undefined) errors.push(`DVT/${file} must remain a static lesson without labId.`);
+      const completionMarker = `<DvtStaticCompletion progressId="${expectedProgressId}"`;
+      if (!source.includes("import DvtStaticCompletion from '../../components/astro/DvtStaticCompletion.astro'")) {
+        errors.push(`DVT/${file} must import DvtStaticCompletion.`);
+      }
+      if (!source.includes(completionMarker)) errors.push(`DVT/${file} must include its static completion boundary.`);
+      if (source.split('<DvtStaticCompletion').length - 1 !== 1) errors.push(`DVT/${file} must contain exactly one DvtStaticCompletion.`);
+    }
+  }
+  for (const slug of dvtContracts.keys()) {
+    if (!foundDvtSlugs.has(slug)) errors.push(`Missing DVT lesson: ${slug}.`);
+  }
+
+  const totalLearningItems = readyCount + instrumentReadyCount + cellularReadyCount + dvtReadyCount;
+  if (totalLearningItems !== 96) {
+    errors.push(`Expected exactly 96 total learning items, found ${totalLearningItems}.`);
+  }
 }
 
 if (readyCount < minimumReady) {
@@ -341,4 +438,5 @@ console.log(`Content contract OK: ${readyCount} ready lessons, ${draftCount} hid
 if (!configuredRoot) {
   console.log(`Instrument content contract OK: ${instrumentReadyCount} ready chapters across 5 Keysight instruments.`);
   console.log(`Cellular content contract OK: ${cellularReadyCount} ready pages across 6 sections.`);
+  console.log(`DVT content contract OK: ${dvtReadyCount} ready lessons; 96 total learning items.`);
 }

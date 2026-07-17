@@ -7,9 +7,11 @@
 - 기존 RF 개념 6축과 진도 key `rf-wiki:v1:progress`는 유지된다.
 - 별도 `계측장비 스터디` 트랙이 `/instruments/`에 있다.
 - 다섯 Keysight 기준 장비의 허브와 장비별 5개 챕터, 총 25개 챕터가 학습 가능 상태다.
-- 별도 `3GPP·PAMiD` 트랙이 `/cellular/`에 있으며 Release 17 기준 질문형 페이지 57개가 모두 `ready` 상태다.
+- 별도 `3GPP·PAMiD` 트랙이 `/cellular/`에 있으며 Release 17 기준 질문형 페이지 59개가 모두 `ready` 상태다.
 - GSM 9번째 `GSM module 측정` 페이지에는 prediction-first Power-versus-Time Workbench가 통합되어 있다.
 - Cellular 진도는 `cellular:*` namespace로 저장되어 RF 6축과 장비 25개 chapter 진도와 합산되지 않는다.
+- 네 번째 `PAMiD/TxM Module DVT` 트랙이 `/dvt/`에 있으며 LTE FDD Band 3 계열 교육 profile의 6개 lesson이 `ready`다. 진도는 `dvt:<slug>` namespace다.
+- 현재 content contract는 `RF 6 + 장비 25 + Cellular 59 + DVT 6 = 96`개다.
 
 | 트랙 | 고정 기준 | Firmware context | 허브 | 진도 namespace |
 |---|---|---|---|---|
@@ -39,12 +41,16 @@
 | 공용 Python 다운로드 route | `src/pages/instruments/[instrument]/python-examples/` |
 | 결정론적 ZIP 생성 | `src/lib/downloads/mxg-pyvisa-package.mjs`, `src/lib/downloads/instrument-pyvisa-package.mjs` |
 | OpenAI Sites build | `scripts/build-sites.mjs`, `worker/index.js`, `.openai/hosting.json` |
-| Cellular schema·57개 질문 | `src/content.config.ts`의 `cellularLesson`, `src/content/cellular-lessons.json` |
+| Cellular schema·59개 질문 | `src/content.config.ts`의 `cellularLesson`, `src/content/cellular-lessons.json` |
 | Cellular section·source registry | `src/data/cellular.ts`, `src/data/cellular-specs.ts` |
 | GSM timing·PvT·PAMiD·진단 모델 | `src/lib/cellular/` |
 | Cellular route·layout | `src/pages/cellular/`, `src/layouts/CellularLessonLayout.astro` |
 | Cellular 시각화 | `src/components/cellular/`, `src/components/astro/CellularVisual.astro` |
 | Cellular public types | `src/types/cellular.ts` |
+| DVT schema·6개 MDX | `src/content.config.ts`의 `dvtLesson`, `src/content/dvt/` |
+| DVT route·layout·static view | `src/pages/dvt/`, `src/layouts/DvtLessonLayout.astro`, `src/components/astro/Dvt*.astro` |
+| DVT React labs | `src/components/dvt/` |
+| DVT pure model·types | `src/lib/rf/dvt.ts`, `src/types/dvt.ts` |
 
 N9020B·E5080B·U2061XA·N6705C는 `INSTRUMENT_PYVISA_PACKAGES` registry와 공용 dynamic route를 사용한다. N5182B는 먼저 만들어진 전용 builder·route를 유지하지만, `build:sites`에서는 다섯 package를 같은 checksum·manifest·추출 후 dry-run·fake-transport 절차로 검증한다.
 
@@ -62,6 +68,8 @@ N9020B·E5080B·U2061XA·N6705C는 `INSTRUMENT_PYVISA_PACKAGES` registry와 공�
 10. SG·SA·VNA·sensor·PSU의 역할을 섞지 않는다. SA가 spectrum power·IQ·ACLR을 취득할 수 있어도 RF Pin/Pout·DC power·PAE를 혼자 만든다고 표현하지 않고 실제 측정 장비와 계산의 주인을 명시한다.
 11. Cellular IQ/resource view는 교육용이며 compliance waveform이 아니다. GSM/LTE/NR의 전체 coding·scrambling·reference sequence transmitter와 certification 판정을 구현했다고 표현하지 않는다.
 12. Generic MIPI 상태에 실제 제조사 register 의미를 부여하지 않는다. GSM PA+ASM, FDD PAMiD와 TDD TxM의 path·duplex 조건을 서로 섞지 않는다.
+13. DVT target은 가상 project allocation이다. EVM·SEM·GCA는 option/application/license와 residual 확인 전 CONDITIONAL이며, Tx noise/isolation 결과를 actual Rx desense·sensitivity·BLER로 확대하지 않는다.
+14. DVT 웹 사례는 내장 결정론적 데이터만 사용한다. Report는 HTML preview와 복사 가능한 교육용 conclusion이며 파일 import/export, backend와 live instrument bridge를 추가하지 않는다.
 
 ## 디자인·학습 계약
 
@@ -86,19 +94,20 @@ npm run build:sites
 
 `npm test`에는 design/content contract, visual-baseline integrity, Astro typecheck, TypeScript unit, 다섯 Python fake-transport suite, hosting tests와 production build가 포함된다. `npm run test:e2e`는 production build를 만든 뒤 정적 preview에서 실행하므로 오래된 Astro dev server를 재사용하지 않는다. `build:sites`는 배포 산출물뿐 아니라 다섯 장비 ZIP의 checksum·manifest를 검사하고 추출된 package의 dry-run과 tests도 실행한다.
 
-### 2026-07-17 검증 체크포인트
+### 2026-07-17 DVT 확장 검증 체크포인트
 
-- Content contract: RF lesson 6개, Keysight 장비 5개·25개 ready chapter, Cellular 6개 section·57개 ready question
-- TypeScript/React unit: 39 files, 279 tests 통과
-- Python fake transport·example: 5개 package, 총 114 tests 통과
-- Production build: 109 pages, Pagefind 108 pages·16,950 words index 통과
-- Browser E2E: 510개 통과. 57개 Cellular route, 1440/1024/200%/390px overflow, axe, keyboard·독립 진도, 72개 visual baseline을 포함한다.
-- Lighthouse: 기존 RF·장비와 Cellular 허브·GSM PvT·NR allocation·EVM 진단을 합친 16개 경로 모두 Performance 98–100, Accessibility 100, CLS 0.0038 이하를 실측했다.
-- Sites package pipeline: 다섯 장비 archive의 checksum·manifest·추출 후 dry-run·test를 검증하도록 구성됐다.
+- Content contract: RF 6개, Keysight 장비 25개, Cellular 59개, DVT 6개로 총 96개 통과
+- Astro typecheck: 234 files, 0 errors, 0 warnings, 0 hints 통과
+- Vitest: 44 files, 324 tests; Python safety: 5 packages, 114 tests; hosting: 3 tests 통과
+- Production build: 118 pages, Pagefind 117 pages·18,765 words index 통과
+- Browser E2E: 663 tests, 105 visual baselines, 1440/1024/390px, 200% zoom, keyboard, reduced motion와 axe 통과
+- Lighthouse: 19 routes, Performance 97–100, Accessibility 100, CLS 0.0038 이하 통과
+- RF/PA와 계측·불확도 전문 reviewer 모두 `GO`; BLOCKER/HIGH/MEDIUM finding 없음
+- Sites는 검증된 exact commit으로 새 version을 저장하되 공개 version 전환은 사용자 승인 전까지 보류한다.
 
 ### 다음 변경에서 다시 열어야 하는 QA
 
-Cellular lesson, 시각화, global navigation 또는 token을 바꾸면 해당 화면만 확인하고 끝내지 않는다. `npm test → npm run test:e2e → npm run audit:lighthouse → npm run build:sites` 순서로 전체 회귀를 다시 닫고, 의도된 시각 변경일 때만 visual baseline을 갱신한다. 신규 표준 수치는 `src/data/cellular-specs.ts`의 exact version·clause·applicability·source kind를 먼저 추가한다.
+Cellular/DVT lesson, 시각화, global navigation 또는 token을 바꾸면 해당 화면만 확인하고 끝내지 않는다. `npm test → npm run test:e2e → npm run audit:lighthouse → npm run build:sites` 순서로 전체 회귀를 다시 닫고, 의도된 시각 변경일 때만 visual baseline을 갱신한다. 신규 표준 수치는 exact version·clause·applicability와 source kind를 먼저 고정한다.
 
 ## 다음 장비를 추가하는 순서
 

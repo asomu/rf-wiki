@@ -1,0 +1,60 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+export interface Props {
+  lessons: readonly CollectionEntry<'dvtLesson'>[];
+}
+
+const { lessons } = Astro.props;
+const entries = [...lessons]
+  .sort((a, b) => a.data.order - b.data.order)
+  .map(({ id, data }) => ({ id: data.progressId, title: data.shortTitle, question: data.question, href: `/dvt/${id}/` }));
+const first = entries[0];
+---
+
+<section class="cellular-progress dvt-progress" data-dvt-progress data-progress-entries={JSON.stringify(entries)} aria-labelledby="dvt-progress-title">
+  <div>
+    <p class="data-label">현재 DVT 판단 단계</p>
+    <h2 id="dvt-progress-title" data-progress-title>{first?.title ?? '학습 준비'}</h2>
+    <p data-progress-question>{first?.question ?? '완료할 lesson이 없습니다.'}</p>
+  </div>
+  <div class="cellular-progress__meter">
+    <p><strong data-progress-count>0</strong> / {entries.length}</p>
+    <div class="progress-track" role="progressbar" aria-label={`DVT 시니어 경로 0/${entries.length}`} aria-valuemin="0" aria-valuemax={entries.length} aria-valuenow="0" data-progress-bar><span style="--progress: 0%" data-progress-fill></span></div>
+    {first && <a class="button-primary" href={first.href} data-progress-action>첫 판단 시작</a>}
+  </div>
+</section>
+
+<script>
+  import { isLabComplete, readLearningProgress } from '../../lib/progress';
+
+  interface DvtProgressEntry { id: string; title: string; question: string; href: string }
+
+  const updateDvtProgress = (root: HTMLElement) => {
+    const entries = JSON.parse(root.dataset.progressEntries ?? '[]') as DvtProgressEntry[];
+    const progress = readLearningProgress(window.localStorage);
+    const completed = entries.filter((entry) => isLabComplete(progress, entry.id));
+    const next = entries.find((entry) => !isLabComplete(progress, entry.id)) ?? entries.at(-1);
+    const count = root.querySelector<HTMLElement>('[data-progress-count]');
+    const bar = root.querySelector<HTMLElement>('[data-progress-bar]');
+    const fill = root.querySelector<HTMLElement>('[data-progress-fill]');
+    const title = root.querySelector<HTMLElement>('[data-progress-title]');
+    const question = root.querySelector<HTMLElement>('[data-progress-question]');
+    const action = root.querySelector<HTMLAnchorElement>('[data-progress-action]');
+    if (count) count.textContent = String(completed.length);
+    bar?.setAttribute('aria-valuenow', String(completed.length));
+    bar?.setAttribute('aria-label', `DVT 시니어 경로 ${completed.length}/${entries.length}`);
+    fill?.style.setProperty('--progress', `${entries.length === 0 ? 0 : completed.length / entries.length * 100}%`);
+    if (next && title && question && action) {
+      title.textContent = next.title;
+      question.textContent = completed.length === entries.length
+        ? '블라인드 conclusion까지 모든 판단 단계를 닫았습니다.'
+        : next.question;
+      action.href = next.href;
+      action.textContent = completed.length === 0 ? '첫 판단 시작' : completed.length === entries.length ? 'Capstone 다시 보기' : '다음 판단 계속';
+    }
+  };
+
+  document.querySelectorAll<HTMLElement>('[data-dvt-progress]').forEach(updateDvtProgress);
+  window.addEventListener('rf-wiki:progress-changed', () => document.querySelectorAll<HTMLElement>('[data-dvt-progress]').forEach(updateDvtProgress));
+</script>

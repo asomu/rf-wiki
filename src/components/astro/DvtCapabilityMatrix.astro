@@ -1,0 +1,149 @@
+---
+const capabilities = [
+  {
+    question: 'LTE 20 MHz FDD stimulus',
+    owner: 'N5182B-506 + 656',
+    state: 'READY',
+    condition: 'Nominal 80 MHz RF bandwidth 안에서 waveform ID·checksum·runtime scaling을 고정한다.',
+  },
+  {
+    question: 'Spectrum · ACP/ACLR · OBW',
+    owner: 'N9020B Spectrum Analyzer application',
+    state: 'READY',
+    condition: 'DUT-plane correction, attenuation-step residual과 overload state를 함께 저장한다.',
+  },
+  {
+    question: 'LTE EVM · SEM',
+    owner: 'N9020B + 해당 measurement application',
+    state: 'CONDITIONAL',
+    condition: '설치된 application/license, waveform applicability와 through-path residual을 확인해야 한다.',
+  },
+  {
+    question: 'S-parameter · fixture path loss',
+    owner: 'E5080B-2K0',
+    state: 'READY',
+    condition: '유효한 calibration, verification standard와 DUT reference plane이 필요하다.',
+  },
+  {
+    question: 'Gain compression application',
+    owner: 'E5080B',
+    state: 'CONDITIONAL',
+    condition: 'S96086B 등 실제 설치 option/license 확인 전에는 core VNA sweep과 구분한다.',
+  },
+  {
+    question: 'Average · burst power',
+    owner: 'U2061XA',
+    state: 'READY',
+    condition: 'Sensor connector power와 DUT-plane correction, aperture·gate를 분리한다.',
+  },
+  {
+    question: '광대역 true PAPR · CCDF',
+    owner: 'U2061XA 또는 analyzer IQ',
+    state: 'CONDITIONAL',
+    condition: 'U2061XA peak path는 최대 5 MHz다. 충분한 analyzer IQ bandwidth와 record가 없으면 BLOCKED다.',
+  },
+  {
+    question: 'DC · slow transient',
+    owner: 'N6705C + N6752A',
+    state: 'READY',
+    condition: 'CV/CC·protection state, aperture와 RF 측정 timestamp를 함께 기록한다.',
+  },
+  {
+    question: 'ET envelope · 완전 동시 V/I',
+    owner: '현재 pinned bench',
+    state: 'BLOCKED',
+    condition: '적합한 scope/current probe·ET source가 없는 상태에서는 측정했다고 결론 내리지 않는다.',
+  },
+] as const;
+---
+
+<section class="dvt-capability" aria-labelledby="dvt-capability-title">
+  <header>
+    <p class="data-label">Educational station manifest</p>
+    <h3 id="dvt-capability-title">장비 이름이 아니라 조건까지 갖춰졌을 때만 READY입니다.</h3>
+  </header>
+  <ul>
+    {capabilities.map((item) => (
+      <li data-state={item.state}>
+        <div>
+          <strong>{item.question}</strong>
+          <span>{item.owner}</span>
+        </div>
+        <b>{item.state}</b>
+        <p>{item.condition}</p>
+      </li>
+    ))}
+  </ul>
+  <p class="dvt-capability__boundary">이 표는 실제 보유 accessory·license를 선언하지 않습니다. 실물 station manifest와 verification evidence로 각 상태를 다시 판정해야 합니다.</p>
+</section>
+
+<style>
+  .dvt-capability {
+    width: 100%;
+    margin-block: var(--space-12);
+    padding-block: var(--space-6);
+    border-block: var(--stroke-hairline) solid var(--color-rule-strong);
+  }
+
+  .dvt-capability header h3 {
+    margin: var(--space-1) 0 var(--space-4);
+  }
+
+  .dvt-capability ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .dvt-capability li {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+    align-items: baseline;
+    padding-block: var(--space-3);
+    border-top: var(--stroke-hairline) solid var(--color-rule);
+    gap: var(--space-4);
+  }
+
+  .dvt-capability li div,
+  .dvt-capability li span {
+    display: block;
+  }
+
+  .dvt-capability li span,
+  .dvt-capability li p,
+  .dvt-capability__boundary {
+    color: var(--color-muted);
+    font-size: var(--font-size-label);
+    line-height: var(--line-height-label);
+  }
+
+  .dvt-capability li p {
+    margin: 0;
+  }
+
+  .dvt-capability li b {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-data);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .dvt-capability li[data-state='READY'] b { color: var(--color-success); }
+  .dvt-capability li[data-state='CONDITIONAL'] b { color: var(--color-reference); }
+  .dvt-capability li[data-state='BLOCKED'] b { color: var(--color-reverse); }
+
+  .dvt-capability__boundary {
+    margin-block: var(--space-4) 0;
+    padding-block-start: var(--space-3);
+    border-top: var(--stroke-hairline) dashed var(--color-rule-strong);
+  }
+
+  @media (max-width: 760px) {
+    .dvt-capability li {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .dvt-capability li p {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

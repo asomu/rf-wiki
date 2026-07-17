@@ -1,0 +1,34 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import DvtCrossLinks from '../../components/astro/DvtCrossLinks.astro';
+import LessonReferences from '../../components/astro/LessonReferences.astro';
+import DvtLessonLayout from '../../layouts/DvtLessonLayout.astro';
+
+export async function getStaticPaths() {
+  const lessons = await getCollection('dvtLesson', ({ data }) => data.status === 'ready');
+  return lessons.map((lesson) => ({
+    params: { slug: lesson.id },
+    props: { lesson, lessons },
+  }));
+}
+
+interface Props {
+  lesson: CollectionEntry<'dvtLesson'>;
+  lessons: readonly CollectionEntry<'dvtLesson'>[];
+}
+
+const { lesson, lessons } = Astro.props;
+const { Content } = await render(lesson);
+const { data } = lesson;
+---
+
+<DvtLessonLayout lesson={lesson} lessons={lessons}>
+  <Content />
+  <DvtCrossLinks links={data.crossLinks} />
+  <LessonReferences
+    outcomes={data.outcomes}
+    equipmentContext={data.equipmentContext}
+    standards={data.standards}
+    references={data.references}
+  />
+</DvtLessonLayout>

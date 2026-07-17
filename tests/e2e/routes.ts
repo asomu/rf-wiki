@@ -29,6 +29,31 @@ export const cellularRoutes: readonly AppRoute[] = cellularLessons.map((lesson) 
   heading: exactHeading(lesson.title),
 }));
 
+export const dvtRoutes: readonly AppRoute[] = [
+  { path: '/dvt/bench-capability/', heading: /이 bench로 무엇을 측정할 수 있을까/ },
+  {
+    path: '/dvt/station-qualification/',
+    heading: /DUT를 연결하기 전에 station을 어떻게 검증할까/,
+    labId: 'dvt:station-qualification',
+  },
+  {
+    path: '/dvt/synchronized-test-point/',
+    heading: /한 test point를 다섯 장비가 어떻게 공동으로 만들까/,
+    labId: 'dvt:synchronized-test-point',
+  },
+  {
+    path: '/dvt/uncertainty-guardband/',
+    heading: /불확도와 guardband로 어떻게 판정할까/,
+    labId: 'dvt:uncertainty-guardband',
+  },
+  { path: '/dvt/cw-two-tone-lte/', heading: /CW.*Two-tone.*LTE 변조 신호는 무엇을 다르게 보여줄까/ },
+  {
+    path: '/dvt/fdd-dvt-conclusion/',
+    heading: /FDD PAMiD DVT 결과를 어떻게 방어할까/,
+    labId: 'dvt:fdd-dvt-conclusion',
+  },
+] as const;
+
 const representativeCellularRoutes: readonly AppRoute[] = [
   { path: '/cellular/', heading: /파형 구조에서 PAMiD fail stage/ },
   {
@@ -71,6 +96,8 @@ export const appRoutes: readonly AppRoute[] = [
   { path: '/search/', heading: /장비 화면에서 본 단어/ },
   { path: '/glossary/', heading: /공식보다 먼저, 화면에서 어떤 뜻인지/ },
   { path: '/instruments/', heading: /장비 한 대를 신호 경로와 프로그램 상태/ },
+  { path: '/dvt/', heading: /방어 가능한 DVT 결론/ },
+  ...dvtRoutes,
   ...representativeCellularRoutes,
   ...instrumentRoutes,
   { path: '/instruments/sg-mxg/python-examples/', heading: /먼저 명령을 출력하고, 두 번 허용/ },

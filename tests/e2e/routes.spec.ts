@@ -1,8 +1,28 @@
 import { expect, test } from '@playwright/test';
-import { appRoutes, cellularRoutes, smokeViewports } from './routes';
+import { appRoutes, cellularRoutes, dvtRoutes, smokeViewports } from './routes';
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
+});
+
+test.describe('all 6 DVT lesson routes', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  for (const route of dvtRoutes) {
+    test(`${route.path} is generated, linked, and has no horizontal overflow`, async ({ page, request }) => {
+      const response = await page.goto(route.path);
+      expect(response?.ok()).toBe(true);
+      await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        await page.evaluate(() => document.documentElement.clientWidth + 1),
+      );
+      const internalLinks = await page.locator('main a[href^="/"]').evaluateAll((anchors) => (
+        [...new Set(anchors.map((anchor) => (anchor as HTMLAnchorElement).getAttribute('href')).filter(Boolean))] as string[]
+      ));
+      for (const href of internalLinks) {
+        expect((await request.get(href)).ok(), `${href} should resolve from ${route.path}`).toBe(true);
+      }
+    });
+  }
 });
 
 test.describe(`all ${cellularRoutes.length} cellular lesson routes`, () => {
@@ -26,17 +46,25 @@ const staticEducationalVisuals = [
   { path: '/cellular/pamid/dpd-cfr/', selector: '.dpd-flow' },
   { path: '/cellular/lte/qam-modulations/', selector: '.constellation-guide' },
   { path: '/cellular/nr/pi2-bpsk-qam/', selector: '.constellation-guide' },
+  { path: '/dvt/cw-two-tone-lte/', selector: '.dvt-linked-views', tableCount: 4 },
 ] as const;
 
 test.describe('static educational visuals', () => {
   test.use({ viewport: { width: 390, height: 844 } });
+
+  test('DVT capability and stimulus lessons ship without React islands', async ({ page }) => {
+    for (const path of ['/dvt/bench-capability/', '/dvt/cw-two-tone-lte/']) {
+      await page.goto(path);
+      await expect(page.locator('main astro-island')).toHaveCount(0);
+    }
+  });
 
   for (const scenario of staticEducationalVisuals) {
     test(`${scenario.path} keeps its visual static, linked and table-backed`, async ({ page, request }) => {
       await page.goto(scenario.path);
       const visual = page.locator(scenario.selector);
       await expect(visual).toBeVisible();
-      await expect(visual.locator('table')).toHaveCount(1);
+      await expect(visual.locator('table')).toHaveCount('tableCount' in scenario ? scenario.tableCount : 1);
       await expect(visual.locator('astro-island')).toHaveCount(0);
 
       const internalLinks = await visual.locator('a[href^="/"]').evaluateAll((anchors) => (

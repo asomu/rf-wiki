@@ -9,7 +9,7 @@
 - 기준 저장소: `/Users/mark/Documents/rf-wiki`
 - 공개 사이트: `https://rf-wiki-precision-lab.mark-jang.chatgpt.site/cellular/`
 - 별도 GSM PvT 프로토타입: `/Users/mark/Documents/New project`
-- 통합 원칙: 별도 프로토타입의 검증된 모델은 RF Wiki의 기존 57개 Cellular 구조 안으로 흡수하고, 중복 사이트나 중복 진도를 만들지 않는다.
+- 통합 원칙: 기존 RF 6개, 장비 25개와 Cellular 59개는 유지하고, 실제 판단을 합성하는 DVT 6개만 독립 `/dvt/` 트랙과 `dvt:*` 진도로 추가한다.
 
 ## 완료 판정 규칙
 
@@ -31,15 +31,16 @@
 |---|---:|---|---|
 | RF 기초 | 6 lessons | 구현·사용자 관점 감사 완료 | 없음 |
 | 계측기 | 5대 × 5 chapters = 25 | 구현·사용자 관점 감사 완료 | 없음 |
-| Cellular foundations | 6 pages | 구현·시각 밀도 감사 완료 | 없음 |
+| Cellular foundations | 8 pages | Bit→IQ→RF→IQ→Bit 확장·감사 완료 | 없음 |
 | PAMiD | 10 pages | 구현·DVT/diagnostics 연결 감사 완료 | 없음 |
 | GSM/GPRS/EDGE | 9 pages | 구현·PvT 심화 실습 통합 완료 | 없음 |
 | LTE | 11 pages | 구현·grid/PAMiD 흐름 감사 완료 | 없음 |
 | NR FR1 | 11 pages | 구현·numerology/BWP/RB100/TDD 감사 완료 | 없음 |
 | Diagnostics | 10 pages | 구현·PvT violation 연결 완료 | 없음 |
+| PAMiD/TxM DVT | 6 lessons | LTE FDD 1차 구현 | 전체 품질·전문 리뷰·배포 게이트 |
 | 검색·용어·진도·문서 | 공통 | 전체 연결·회귀 완료 | 공개본 검증 |
 
-즉, 현재 사이트에는 GSM만 있는 것이 아니다. RF 기초 6개, 계측기 25개, Cellular/PAMiD 57개가 기준 저장소에 모두 남아 있다. GSM PvT는 별도 프로토타입에 있던 심화 경험을 기존 GSM 9번째 페이지로 통합하는 보강 작업이다.
+현재 학습 계약은 RF 기초 6개, 계측기 25개, Cellular/PAMiD 59개와 DVT 6개, 총 96개다. DVT는 기존 설명을 복제하지 않고 `capability → station validity → synchronized point → uncertainty/guardband → stimulus comparison → blind conclusion`으로 연결한다.
 
 ## 단계별 실행 체크리스트
 
@@ -54,12 +55,12 @@
 
 - [x] RF 기초 6개 lesson이 모두 `ready`이고 고유 route/progress ID를 가진다.
 - [x] 5개 계측기 트랙의 25개 chapter가 모두 `ready`이다.
-- [x] Cellular/PAMiD 57개 페이지가 승인된 분량 `6+10+9+11+11+10`과 일치한다.
-- [x] 57개 페이지에 최소 1개 규격/근거, 3단계 설명, 확인 문제가 존재한다.
+- [x] Cellular/PAMiD 59개 페이지가 승인된 분량 `8+10+9+11+11+10`과 일치한다.
+- [x] 59개 페이지에 최소 1개 규격/근거, 3단계 설명, 확인 문제가 존재한다.
 - [x] 기존 대표 시각 회귀 기준선 66개가 유효하다.
 - [x] 기준선 전체 테스트를 통과했다.
 
-기준선 증거(2026-07-17): Astro 194 files/0 errors, Vitest 37 files/268 tests, Python 계측기 5 packages 통과, 109 static pages, Pagefind 108 pages/16,792 words.
+이 수치는 DVT 확장 이전 기준선이다. DVT 6개가 포함된 최종 route·test·Pagefind 수치는 Phase 7 전체 검증 뒤 갱신한다.
 
 ### Phase 2 — 사용자 관점 콘텐츠 깊이 감사
 
@@ -81,9 +82,9 @@
 - [x] N6705C/N6752A supply 5개 chapter의 bias/CV-CC/remote sense/DC power 흐름을 점검했다.
 - [x] 각 장비 트랙의 SCPI/PyVISA 예제가 dry-run 우선 안전 계약을 지키는지 점검했다.
 
-#### Cellular/PAMiD 57개
+#### Cellular/PAMiD 59개
 
-- [x] Foundations 6개가 waveform·duplex·multiple access·metric 기준면을 충분히 설명하는지 점검했다.
+- [x] Foundations 8개가 Bit→IQ→RF→IQ→Bit, coding·receiver와 metric 기준면을 충분히 설명하는지 점검했다.
 - [x] PAMiD 10개가 module anatomy·state control·reference plane·DVT 책임 분리를 충분히 설명하는지 점검했다.
 - [x] GSM 9개가 frame/timeslot/burst/GMSK/EDGE/multislot/module DVT까지 자연스럽게 연결되는지 점검했다.
 - [x] LTE 11개가 time/grid/RB/modulation/SC-FDMA/power/PAMiD DVT까지 자연스럽게 연결되는지 점검했다.
@@ -106,7 +107,7 @@
 
 ### Phase 4 — 정보 구조와 학습 연속성
 
-- [x] 홈·학습 지도·section hub에서 전체 6+25+57 범위가 보이는지 확인했다.
+- [x] 홈·학습 지도·section hub에서 기존 6+25+59 범위가 보이는지 확인했다.
 - [x] 검색이 RF/장비/Cellular/PAMiD 핵심 용어와 새 PvT 실습을 찾는지 확인했다.
 - [x] Glossary 용어가 페이지 설명과 모순되지 않는지 확인했다.
 - [x] 진도 저장과 lesson 완료가 중복 ID 없이 유지되는지 확인했다.
@@ -139,9 +140,31 @@
 | 날짜 | 단계 | 결과 |
 |---|---|---|
 | 2026-07-17 | Phase 0 | 이전 대화·저장소·공개 사이트 범위 복구 완료 |
-| 2026-07-17 | Phase 1 | 6+25+57 구조 및 전체 자동 기준선 통과 |
-| 2026-07-17 | Phase 2 | 88개 학습 항목 사용자 관점 콘텐츠 감사 완료 |
+| 2026-07-17 | Phase 1 | 6+25+59 구조 및 전체 자동 기준선 통과 |
+| 2026-07-17 | Phase 2 | 기존 90개 학습 항목 사용자 관점 콘텐츠 감사 완료 |
 | 2026-07-17 | Phase 3 | 기존 GSM 9번째 페이지에 PvT Workbench 통합 완료 |
-| 2026-07-17 | Phase 4 | 홈 3트랙, PvT 검색·glossary, 독립 진도·문서 연결 완료 |
+| 2026-07-17 | Phase 4 | 기존 3트랙, PvT 검색·glossary, 독립 진도·문서 연결 완료 |
 | 2026-07-17 | Phase 5 | 510 E2E·72 visual·16 Lighthouse 포함 전체 품질 게이트 완료 |
 | 2026-07-17 | Phase 6 | 커밋 `4b7e00b`, Sites version 4 배포, 공개 8개 대표 경로와 PvT 예측→FAIL 진단 흐름 검증 완료 |
+
+### Phase 7 — PAMiD/TxM Module DVT 시니어 경로
+
+- [x] LTE FDD Band 3 계열 교육 프로필과 가상 project allocation 경계를 고정한다.
+- [x] `/dvt/`와 6개 연속 route, `dvt:*` progress ID를 추가한다.
+- [x] Capability, station qualification, synchronized point, uncertainty, stimulus 비교와 blind conclusion 콘텐츠를 작성한다.
+- [x] READY/CONDITIONAL/BLOCKED, VALID/INVALID/INCONCLUSIVE와 upper/lower/range decision 계약을 순수 모델로 구현한다.
+- [x] CW·two-tone·LTE static linked views에 축·단위·marker·직접 label·요약·표 대안을 제공한다.
+- [x] Four React lab의 prediction lock, keyboard completion, evidence 공개와 report completion을 검증한다.
+- [x] Content/design, typecheck, unit/Python, build/Pagefind와 Playwright 회귀를 통과한다.
+- [x] 1440/1024/390px, 200% zoom, reduced motion와 axe를 확인한다.
+- [x] RF/PA와 계측·불확도 전문 리뷰 후 severity별 수정과 전체 gate 재실행을 완료한다.
+- [ ] 검증된 exact commit으로 Sites version을 저장하고 공개 게시 전 사용자 승인을 받는다.
+
+최종 구현·품질 증거(2026-07-17): content contract `6 + 25 + 59 + 6 = 96`, Astro typecheck 234 files/0 diagnostics, Vitest 44 files/324 tests, Python 5 packages/114 tests, hosting 3 tests, production build 118 pages, Pagefind 117 pages/18,765 words, Playwright 663 tests, 105 visual baselines, Lighthouse 19 routes Performance 97–100/Accessibility 100/CLS ≤ 0.0038. RF/PA와 계측·불확도 reviewer는 모두 `GO`로 판정했고 BLOCKER/HIGH/MEDIUM finding은 없다.
+
+#### DVT 범위 경계
+
+- 현재 pinned 5종과 내장 결정론적 case만 사용하며 파일 import/export, backend와 live instrument bridge를 추가하지 않는다.
+- LTE/NR EVM·SEM과 E5080B GCA는 실제 application/option/license와 residual 확인 전 CONDITIONAL이다.
+- Tx RX-band noise와 duplexer/isolation evidence는 `desense risk budget`만 제공한다. 실제 receiver sensitivity·BLER 또는 Rx desense를 측정했다고 표현하지 않는다.
+- Temperature·ET·VSWR는 필요한 sensor/scope/tuner가 확보된 후 별도 milestone로 확장한다.

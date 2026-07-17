@@ -139,6 +139,30 @@ describe('learning progress', () => {
       nextModuleId: 'pamid-path',
     });
   });
+
+  it('keeps DVT lesson completions in their own stable namespace', () => {
+    const progress = parseLearningProgress(JSON.stringify({
+      frequency: { completed: true },
+      'instrument:sg:mxg-safe-cw': { completed: true },
+      'cellular:lte:qam-modulations': { completed: true },
+      'dvt:bench-capability': { completed: true },
+      'dvt:station-qualification': { completed: true },
+    }));
+
+    expect(summarizeModuleProgress(curriculum, progress)).toMatchObject({
+      completedModuleIds: ['foundations'],
+      completedCount: 1,
+    });
+    expect(summarizeModuleProgress([
+      { id: 'bench-capability', completionLabIds: ['dvt:bench-capability'] },
+      { id: 'station-qualification', completionLabIds: ['dvt:station-qualification'] },
+      { id: 'synchronized-test-point', completionLabIds: ['dvt:synchronized-test-point'] },
+    ], progress)).toMatchObject({
+      completedModuleIds: ['bench-capability', 'station-qualification'],
+      completedCount: 2,
+      nextModuleId: 'synchronized-test-point',
+    });
+  });
 });
 
 describe('lesson publication', () => {

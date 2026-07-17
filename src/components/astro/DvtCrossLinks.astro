@@ -1,0 +1,20 @@
+---
+export interface DvtCrossLink {
+  label: string;
+  href: string;
+  note: string;
+}
+
+export interface Props {
+  links: readonly DvtCrossLink[];
+}
+
+const { links } = Astro.props;
+---
+
+{links.length > 0 && (
+  <aside class="cellular-cross-links" aria-labelledby="dvt-cross-links-title">
+    <h2 id="dvt-cross-links-title">세부 원리와 장비 조작은 기존 페이지에서 이어집니다.</h2>
+    <ul>{links.map((link) => <li><a href={link.href}>{link.label}</a><span>{link.note}</span></li>)}</ul>
+  </aside>
+)}

@@ -55,5 +55,11 @@ const lessons = await getCollection('cellularLesson', ({ data }) => data.status 
       <h2>교육용 구조·계산 모델이며 certification 판정을 대신하지 않습니다.</h2>
       <p>Single-carrier UE uplink와 nominal RF DVT, GSM power-versus-time 진단을 다룹니다. WCDMA, CA/EN-DC, UL MIMO, FR2/OTA, propagation, 환경 PVT(process·voltage·temperature) corner, VSWR sweep·reliability, 실제 PAMiD register map과 신규 SCPI 자동화는 포함하지 않습니다.</p>
     </aside>
+
+    <aside class="cellular-scope-note" aria-labelledby="cellular-to-dvt-title">
+      <p class="data-label">다음 합성 경로</p>
+      <h2 id="cellular-to-dvt-title">파형과 fail signature를 실제 DVT 판정 흐름에 연결합니다.</h2>
+      <p>Cellular 트랙에서 익힌 LTE uplink·PAMiD 경계를 station capability, 불확도, 다음 분리 측정과 한 페이지 결론으로 압축하려면 <a href="/dvt/">Module DVT 시니어 경로</a>로 이어가세요.</p>
+    </aside>
   </main>
 </BaseLayout>

@@ -32,16 +32,25 @@ test('keyboard skip link and search preserve a visible focus path', async ({ pag
   await expect(page.locator('[data-search-entry]:visible').first()).toBeVisible();
 });
 
-test('home exposes all 88 learning items and PvT is discoverable from search and glossary', async ({ page }) => {
+test('home exposes all 96 learning items and DVT/PvT content is discoverable', async ({ page }) => {
   await page.goto('/');
 
+  await expect(page.locator('.home-heading')).toContainText('4개 트랙 · 96개 학습 항목');
   const trackIndex = page.locator('.home-track-index');
   await expect(trackIndex).toContainText('6 RF');
   await expect(trackIndex).toContainText('25 장비');
   await expect(trackIndex).toContainText('59 Cellular');
+  await expect(trackIndex).toContainText('6 DVT');
   await expect(trackIndex.getByRole('link', { name: /RF 6축 전체 보기/ })).toHaveAttribute('href', '#curriculum');
   await expect(trackIndex.getByRole('link', { name: /Cellular 59개 전체 보기/ })).toHaveAttribute('href', '/cellular/');
   await expect(trackIndex.getByRole('link', { name: /장비 25개 전체 보기/ })).toHaveAttribute('href', '/instruments/');
+  await expect(trackIndex.getByRole('link', { name: /DVT 6개 전체 보기/ })).toHaveAttribute('href', '/dvt/');
+
+  await page.goto('/search/?q=guardband');
+  await expect(page.locator('#search-status')).toContainText(/guardband.*결과 [1-9]/i, { timeout: 10_000 });
+  await expect(
+    page.locator('[data-search-entry]:visible').filter({ hasText: '불확도와 guardband' }).first(),
+  ).toBeVisible();
 
   await page.goto('/search/?q=PvT');
   await expect(page.locator('#search-status')).toContainText(/PvT.*결과 [1-9]/, { timeout: 10_000 });
@@ -568,7 +577,7 @@ test('receiver recovery completes prediction, keyboard control, ledger and expla
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test('mobile primary navigation keeps one current track label and reveals four destinations', async ({ page }) => {
+test('mobile primary navigation keeps one current track label and reveals five destinations', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/cellular/nr/100mhz-rb100-location0/');
 
@@ -576,6 +585,7 @@ test('mobile primary navigation keeps one current track label and reveals four d
   await expect(mobileNav.getByText('3GPP·PAMiD', { exact: true }).first()).toBeVisible();
   await mobileNav.getByText('탐색', { exact: true }).click();
   await expect(mobileNav.getByRole('navigation', { name: '모바일 주요 탐색' })).toBeVisible();
-  await expect(mobileNav.getByRole('link')).toHaveCount(4);
+  await expect(mobileNav.getByRole('link')).toHaveCount(5);
+  await expect(mobileNav.getByRole('link', { name: 'Module DVT' })).toHaveAttribute('href', '/dvt/');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

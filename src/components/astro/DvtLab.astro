@@ -1,0 +1,22 @@
+---
+import {
+  BlindFddCapstoneLab,
+  StationQualificationLab,
+  SynchronizedTestPointLab,
+  UncertaintyDecisionLab,
+} from '../dvt';
+
+export interface Props {
+  labId: 'station-qualification' | 'synchronized-test-point' | 'uncertainty-decision' | 'blind-fdd-capstone';
+  progressId: `dvt:${string}`;
+}
+
+const { labId, progressId } = Astro.props;
+---
+
+<div class="lesson-lab-block dvt-lab-block">
+  {labId === 'station-qualification' && <StationQualificationLab client:visible progressId={progressId} />}
+  {labId === 'synchronized-test-point' && <SynchronizedTestPointLab client:visible progressId={progressId} />}
+  {labId === 'uncertainty-decision' && <UncertaintyDecisionLab client:visible progressId={progressId} />}
+  {labId === 'blind-fdd-capstone' && <BlindFddCapstoneLab client:visible progressId={progressId} />}
+</div>

@@ -11,13 +11,13 @@
 3. 식·규격·기준면이 결론과 어떻게 연결되는가?
 4. 결과가 이상할 때 다음에 무엇을 분리 측정해야 하는가?
 
-검사 대상은 RF 핵심 6개 MDX lesson, 5대 계측기의 25개 chapter, Cellular/PAMiD 57개 질문형 페이지다. frontmatter, 본문 구조, 시각 자료, 식, 교차 링크, 확인 문제, 진행 ID와 자동 검사를 함께 대조했다.
+검사 대상은 RF 핵심 6개 MDX lesson, 5대 계측기의 25개 chapter, Cellular/PAMiD 59개 질문형 페이지와 PAMiD/TxM DVT 시니어 경로 6개 lesson이다. Frontmatter, 본문 구조, 시각 자료, 식, 교차 링크, 확인 문제, 진행 ID와 자동 검사를 함께 대조했다.
 
 ## 결론
 
-승인된 현재 범위는 삭제되지 않았고 `6 + 25 + 57 = 88`개 학습 항목으로 모두 존재한다. 사용자가 GSM만 남았다고 느낀 원인은 홈의 대표 학습 지도가 RF 6축만 강조하고 계측기와 Cellular 전체 범위를 한눈에 보여주지 않았기 때문이다. 홈에 세 트랙 색인을 추가해 이 발견성 문제를 바로잡았다.
+승인된 현재 범위는 `6 + 25 + 59 + 6 = 96`개 학습 항목이다. 기존 RF·장비·Cellular 90개는 유지하고, 네 번째 최상위 `/dvt/` 트랙이 이미 배운 내용을 실제 PAMiD DVT 판단으로 합성한다.
 
-내용 깊이 측면에서는 RF 6개와 계측기 25개가 원리·벤치·기준면·안전·자동화까지 연결되어 있고, Cellular 57개도 직관·조작/해석·수식/규격·확인 문제 계약을 지킨다. 가장 큰 실제 결손은 GSM module 측정에서 power-versus-time fail을 직접 예측하고 해석하는 시각 실습이었다. 이를 기존 GSM 9번째 페이지에 통합했다.
+내용 깊이 측면에서는 RF 6개와 계측기 25개가 원리·벤치·기준면·안전·자동화까지 연결되어 있고, Cellular 59개도 직관·조작/해석·수식/규격·확인 문제 계약을 지킨다. DVT 6개는 기존 설명을 반복하지 않고 `requirement → station validity → DUT-plane measurement → correction/uncertainty → evidence-based diagnosis → engineering decision`의 결손을 닫는다.
 
 ## RF 핵심 6개
 
@@ -30,7 +30,7 @@
 | Power·coupling | incident/accepted/delivered, coupling·insertion·isolation·directivity | 혼동하기 쉬운 전력 용어의 convention이 분리됨 |
 | PA·pull | 비선형성, 안정도, source/load-pull, EVM·ACLR·효율 trade-off | 측정 의사결정과 모델 한계가 충분히 연결됨 |
 
-본문 길이는 약 1,688–2,699단어 범위이며 모든 축이 `직관 → 실습 → bench → 이론/규격 → 자기 설명` 흐름, 기준면, convention과 교육 모델 한계를 가진다. 따라서 새 페이지를 늘리기보다 현재 interactive lab을 반복해 조건 변화의 방향을 설명하게 하는 것이 더 효과적이다.
+RF 핵심 본문은 `직관 → 실습 → bench → 이론/규격 → 자기 설명` 흐름, 기준면, convention과 교육 모델 한계를 가진다. 개념을 더 세분하는 대신 DVT 시니어 경로에서 기존 축을 한 measurement decision으로 합성하는 것이 다음 학습 효과가 크다.
 
 ## 계측기 25개
 
@@ -44,11 +44,11 @@
 
 모든 트랙은 출력/바이어스가 기본 OFF인 dry-run-first 예제, query-back, error/status 확인과 실제 bench의 interlock 한계를 명시한다. 장비별 5개 chapter를 더 늘리기보다 공통 PA bench에서 `SG → DUT/supply → sensor/SA/VNA` 측정값을 한 기록으로 묶는 후속 실습이 다음 우선순위다.
 
-## Cellular/PAMiD 57개
+## Cellular/PAMiD 59개
 
 | Section | 페이지 | 시각 자료 | 식 | 교차 링크 | 사용자 관점 판정 |
 |---|---:|---:|---:|---:|---|
-| Foundations | 6 | 3 | 5 | 4 | waveform·duplex·multiple access·기준면의 공통 언어가 충분함 |
+| Foundations | 8 | 5 | 7 | 6 | Bit→IQ→RF→IQ→Bit, coding·receiver와 기준면의 공통 언어가 충분함 |
 | PAMiD | 10 | 6 | 6 | 7 | anatomy·control state·reference plane·DVT 책임이 연결됨 |
 | GSM | 9 | 7 | 6 | 3 | frame→slot→burst→GMSK/EDGE→multislot→module PvT가 자연스럽게 이어짐 |
 | LTE | 11 | 4 | 9 | 6 | grid·RB·DFT-s-OFDM·power와 PAMiD DVT를 연결함 |
@@ -67,7 +67,22 @@
 - `PvT = Power versus Time`을 glossary에 넣고 환경 `PVT = process·voltage·temperature`와 구분했다.
 - 공식 conformance mask가 아닌 교육용 상대 전력 모델임을 페이지·실습·사용자 가이드에 반복해 표시했다.
 - switching transient diagnostics로 이어지는 분리 측정 경로를 추가했다.
-- 홈에서 RF 6, Cellular/PAMiD 57, 계측기 25 전체 범위를 직접 열 수 있게 했다.
+- 홈에서 RF 6, Cellular/PAMiD 59, 계측기 25와 DVT 6의 네 트랙을 직접 열 수 있게 한다.
+
+## PAMiD/TxM DVT 시니어 경로 6개
+
+| Lesson | 닫는 판단 | 핵심 경계 |
+|---|---|---|
+| Bench capability | READY / CONDITIONAL / BLOCKED | Option·application·accessory 보유를 가정하지 않음 |
+| Station qualification | Known path로 residual·drift 검증 | Calibration 성공과 independent verification을 구분 |
+| Synchronized test point | VALID / INVALID / INCONCLUSIVE | 값과 instrument state·timestamp·correction을 함께 commit |
+| Uncertainty·guardband | PASS / FAIL / INCONCLUSIVE | Upper/lower/range comparator와 ACLR native sign을 명시 |
+| CW·Two-tone·LTE | Compression·IM3·memory·modulated quality | Tone/composite, same Pin/Pout와 residual을 구분 |
+| Blind conclusion | Confirmed / Strongly indicated / Unresolved | Tx noise 결과를 실제 Rx desense가 아닌 risk budget으로 제한 |
+
+대표 profile은 LTE FDD Band 3 계열 1.7 GHz UE uplink다. Page target은 가상 project allocation이며 TS 36.101/36.521-1의 완성 UE requirement를 개별 PAMiD target으로 바꾸지 않는다. NR FDD와 NR TDD TxM은 후속 milestone로 분리한다.
+
+RF/PA와 계측·불확도 전문 리뷰는 모두 `GO`로 종료됐다. TX-noise analyzer front-end 설정 provenance까지 typed evidence로 보강했으며 BLOCKER/HIGH/MEDIUM finding은 남아 있지 않다.
 
 ## 유지해야 할 경계
 
@@ -82,9 +97,9 @@
 
 1. **APT/ET 동기 overlay** — RF envelope, supply voltage/current와 timing skew를 한 time axis에 겹쳐 efficiency와 distortion 원인을 분리한다.
 2. **DPD 전후 비교** — AM/AM·AM/PM, constellation, ACLR/EVM을 before/after linked view로 보여준다.
-3. **통합 bench record** — SG 설정, DUT bias, Pin/Pout, current, EVM/ACLR, 기준면과 불확도를 한 JSON/CSV 기록으로 내보낸다.
+3. **통합 bench record** — SG 설정, DUT bias, Pin/Pout, current, EVM/ACLR, 기준면과 불확도를 내장 사례의 HTML preview와 복사 가능한 교육용 conclusion으로 묶는다. 파일 import/export는 하지 않는다.
 4. **실패 경로 replay** — Diagnostics에서 고른 증상을 관련 장비 chapter와 PvT/SA/VNA 실습의 preset으로 연다.
-5. **범위 확장 milestone** — WCDMA, CA, FR2/OTA는 현 57개를 흐리지 않도록 별도 정보 구조와 규격 계약을 먼저 만든다.
+5. **범위 확장 milestone** — NR FDD, NR TDD TxM, temperature·ET·VSWR는 필요한 장비 capability와 별도 정보 구조를 먼저 만든다. WCDMA, CA, FR2/OTA도 현 트랙에 섞지 않는다.
 
 ## 최종 판정
 

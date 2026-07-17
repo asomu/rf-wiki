@@ -1,0 +1,141 @@
+---
+title: "한 test point를 다섯 장비가 어떻게 공동으로 만들까?"
+shortTitle: "Synchronized test point"
+question: "Pin, Pout, DC와 spectrum이 언제 같은 DUT 상태를 설명한다고 말할 수 있을까?"
+description: "Preflight부터 Commit까지 한 measurement transaction을 구성하고 장비 상태·correction·timestamp를 결과와 함께 VALID, INVALID, INCONCLUSIVE로 판정한다."
+order: 3
+estimatedMinutes: 65
+prerequisites:
+  - "station-qualification"
+outcomes:
+  - "다섯 장비의 설정·query-back·acquisition·correction을 한 test-point transaction으로 설계할 수 있다."
+  - "VALID, INVALID, INCONCLUSIVE를 측정값의 좋고 나쁨과 분리해 판정할 수 있다."
+  - "RF·DC·spectrum evidence의 aperture와 timestamp 차이를 기록하고 동시 측정이라고 과장하지 않을 수 있다."
+concepts:
+  - "measurement transaction"
+  - "query-back"
+  - "correction identity"
+  - "timestamp alignment"
+  - "measurement validity"
+  - "safe cleanup"
+topology: "lte-fdd-pamid"
+profile: "Transaction gate · five-instrument point"
+equipmentContext:
+  source: "N5182B LTE FDD waveform·frequency·allocation·checksum과 source-level query-back"
+  dut: "승인된 safe-bias sequence와 gain mode를 가진 Band 3 계열 FDD PAMiD 교육 모듈"
+  analyzer: "U2061XA forward-coupler Pin, N9020B corrected channel-power Pout·spectrum/conditional EVM, N6705C/N6752A V/I, E5080B path-correction verification evidence"
+standards:
+  - "3GPP TS 36.211 V17.4.0 §5"
+  - "3GPP TS 36.101 V17.6.0 §6.2, §6.6"
+references:
+  - title: "ETSI TS 136 211 V17.4.0 — E-UTRA physical channels and modulation"
+    organization: "ETSI / 3GPP"
+    url: "https://www.etsi.org/deliver/etsi_TS/136200_136299/136211/17.04.00_60/ts_136211v170400p.pdf"
+    kind: "standard"
+  - title: "Characterizing the Key Performance Indicators of Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/3122-1770/application-notes/Characterizing-the-Key-Performance-Indicators-of-Power-Amplifiers.pdf"
+    kind: "application-note"
+  - title: "Measuring Power Added Efficiency of RF Power Amplifiers"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/7018-01656/application-notes/5989-7293.pdf"
+    kind: "application-note"
+labId: "synchronized-test-point"
+progressId: "dvt:synchronized-test-point"
+crossLinks:
+  - label: "MXG PA 시험 프로그램"
+    href: "/instruments/sg-mxg/pa-test-program/"
+    note: "Safe state machine과 DUT-plane Pin calibration을 장비 관점에서 확인합니다."
+  - label: "Power sensor PA power budget"
+    href: "/instruments/power-sensor/pa-power-budget/"
+    note: "Forward power, correction과 PAE의 장비 의존성을 확인합니다."
+  - label: "Power supply PA DC power"
+    href: "/instruments/power-supply/pa-dc-power/"
+    note: "RF와 V/I aperture를 같은 state에 묶는 방법을 확인합니다."
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import DvtLab from '../../components/astro/DvtLab.astro';
+import DvtTransactionFlow from '../../components/astro/DvtTransactionFlow.astro';
+import Definition from '../../components/astro/Definition.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+`Pout = 27.8 dBm`, `IDD = 0.82 A`, `ACLR = 34 dB`가 같은 화면에 있어도 같은 DUT 상태에서 얻은 값이라는 보장은 없다. 한 test point는 여러 숫자의 행이 아니라, 설정·시간·장비 상태·correction이 함께 유효한 **transaction**이다.
+
+<LessonLayer level="intuition" title="결과를 저장하기 전에 그 결과를 만든 상태를 먼저 저장하자">
+
+<Definition term="Measurement point transaction">
+한 stimulus와 DUT state를 설정하고, settle 후 관련 장비를 획득하며, 오류·overload·trigger·correction을 검증한 뒤에만 결과 한 행을 commit하는 원자적 학습 단위다.
+</Definition>
+
+<DvtLab labId="synchronized-test-point" progressId="dvt:synchronized-test-point" />
+
+<DvtTransactionFlow />
+
+## 세 validity 상태는 spec 결과와 독립이다
+
+- **VALID:** 측정값과 이를 만든 instrument state, timing, correction이 모두 유효하다. 그 다음에야 PASS/FAIL 판정을 계산한다.
+- **INVALID:** overload, unlevel, stale fetch, trigger miss, correction 범위 이탈, RF/bias state 불일치처럼 측정 과정이 깨졌다. 숫자가 좋아 보여도 폐기한다.
+- **INCONCLUSIVE:** acquisition 자체는 유효하지만 capability 또는 uncertainty 때문에 requirement에 대한 결론을 낼 수 없다.
+
+따라서 `VALID FAIL`과 `VALID PASS`가 모두 가능하고, `INVALID PASS`라는 결론은 없다. Invalid result는 diagnostic record에는 남겨도 승인 결과 table에 섞지 않는다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="한 point의 state, value와 evidence를 같은 ID로 묶는다">
+
+## 1. Preflight와 capability
+
+- 모든 장비 identity, required option/application, error queue와 reference lock을 확인한다.
+- RF와 bias가 안전 상태인지 query-back한다. Software Off를 external attenuation·fuse·interlock 대체물로 쓰지 않는다.
+- Waveform ID/checksum, LTE bandwidth·allocation, RF frequency와 generic gain mode를 recipe에 고정한다.
+- Correction ID의 frequency, level, path configuration과 expiry가 현재 point를 덮는지 확인한다.
+
+## 2. Safe bias와 stimulus
+
+DUT별 승인 sequence, voltage/current limit와 protection을 적용한다. Idle current, CV/CC state와 unexpected oscillation을 낮은 drive에서 확인한 뒤 source target을 올린다. Source에는 target setpoint와 query-back actual state를 모두 저장하고, gain 계산은 보정된 DUT-plane measured Pin을 사용한다.
+
+## 3. Settle과 acquire
+
+Settle은 고정 sleep 하나가 아니다. Source ALC/waveform, DUT electrical·thermal memory, PSU settling, analyzer trigger가 결과 허용 오차 안에 들어오는 조건이다. 각 장비에 다음 metadata를 붙인다.
+
+| Evidence | 필수 조건 |
+|---|---|
+| Pin | DUT input plane, target와 measured, correction ID |
+| Pout | DUT output plane, analyzer channel-power integration, raw analyzer-input channel power와 corrected DUT-plane power |
+| VDD·IDD | terminal/sense plane, CV/CC, aperture와 timestamp |
+| Spectrum | center/span 또는 measurement setup, RBW/integration BW, attenuation·overload |
+| ACLR | native analyzer sign, main/adjacent integration, normalized ratio |
+| Conditional EVM | application/license, reference/equalization/normalization, residual |
+| Tx noise | RX-band integration, preamp/attenuation, analyzer floor baseline |
+| Trigger | source·polarity, trigger index, latency, dwell, timestamp |
+
+Fixture temperature는 실제 sensor가 있을 때만 optional metadata다. N6705C/N6752A가 temperature를 제공한다고 가정하지 않는다.
+
+## 4. Validate, correct, commit
+
+Validation은 raw value에 correction을 적용하기 전에 장비 상태부터 검사한다. Overload, unlevel, error queue, stale data, missing trigger, RF Off during fetch, CC transition과 correction extrapolation 중 하나라도 있으면 INVALID다.
+
+Correction은 값과 함께 ID, sign convention, range, source와 uncertainty를 저장한다. 예를 들어 coupler의 coupled-port reading에 `+C dB`를 더해 main-line power로 환산했다면 port naming과 signed correction을 기록한다. 값만 복사하면 다음 사람이 반대 부호를 적용할 수 있다.
+
+Commit은 모든 결과가 모였다는 뜻이 아니라 **필수 evidence가 validation을 통과했다는 뜻**이다. Cleanup의 RF Off, abort와 safe bias-down 결과도 point 또는 run record에 포함한다. Cleanup 실패는 다음 point 진입을 막는다.
+
+<MeasurementNote title="Repeatable sequence는 겹친 aperture가 아니다" kind="uncertainty">
+각 장비 record는 독립 acquisition이다. 공통 acquisition-group ID, trigger reference, 고정 DUT/source state와 최대 trigger repeatability를 만족해야 한 point로 결합할 수 있다. Timestamp와 aperture metadata는 각 record의 provenance이며, 서로 다른 장비 record가 같은 시간 window에서 겹쳤다는 증거로 사용하지 않는다.
+</MeasurementNote>
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Result schema는 부호·단위·기준면을 잃지 않아야 한다">
+
+한 point의 공개 field는 `frequencyHz`, `targetPinDbm`, `measuredPinDbm`, `measuredPoutDbm`, `voltageV`, `currentA`, `temperatureC`처럼 단위를 이름에 포함한다. ACLR은 두 표현을 분리한다.
+
+- `nativeAclrDbc`: analyzer가 반환한 부호 convention을 그대로 보존
+- `aclrRatioDb`: main/adjacent의 positive ratio처럼 project가 정의한 normalized metric
+
+PAE는 RF Pin/Pout을 watt로 바꾸고 `Pdc = VDD × IDD`와 같은 point에서 계산한다. PSU readback만으로 PAE가 완성되지 않으며, 다른 aperture에서 얻은 Pout과 V/I를 결합하면 waveform duty나 droop가 섞일 수 있다.
+
+TS 36.211 clause 5는 LTE uplink physical signal 구조를 정의하는 근거이고 TS 36.101 clause 6은 완성 UE transmitter requirement의 근거다. 이 point schema와 가상 module allocation은 project measurement contract이며 3GPP가 특정 equalizer, instrument transaction이나 PAMiD result format을 규정한다고 표현하지 않는다.
+
+</LessonLayer>

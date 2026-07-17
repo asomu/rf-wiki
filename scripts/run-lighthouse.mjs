@@ -41,7 +41,10 @@ const routes = [
   { name: 'cellular-hub-mobile', path: '/cellular/' },
   { name: 'cellular-gsm-pvt-mobile', path: '/cellular/gsm/gsm-module-measurement/' },
   { name: 'cellular-nr-allocation-mobile', path: '/cellular/nr/100mhz-rb100-location0/' },
-  { name: 'cellular-evm-diagnostic-mobile', path: '/cellular/diagnostics/evm-fail/' }
+  { name: 'cellular-evm-diagnostic-mobile', path: '/cellular/diagnostics/evm-fail/' },
+  { name: 'dvt-station-qualification-mobile', path: '/dvt/station-qualification/' },
+  { name: 'dvt-uncertainty-decision-mobile', path: '/dvt/uncertainty-guardband/' },
+  { name: 'dvt-blind-capstone-mobile', path: '/dvt/fdd-dvt-conclusion/' }
 ];
 
 function run(command, args, options = {}) {

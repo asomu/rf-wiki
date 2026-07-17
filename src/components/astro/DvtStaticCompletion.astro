@@ -1,0 +1,70 @@
+---
+export interface Props {
+  progressId: `dvt:${string}`;
+  prompt: string;
+}
+
+const { progressId, prompt } = Astro.props;
+---
+
+<section class="cellular-check dvt-static-completion" data-dvt-static-completion data-progress-id={progressId} aria-labelledby={`${progressId}-title`}>
+  <header>
+    <p>학습 확인</p>
+    <h2 id={`${progressId}-title`}>판정과 한계를 자기 말로 닫으세요.</h2>
+  </header>
+  <div class="cellular-check__question">
+    <h3>{prompt}</h3>
+    <p>장비 또는 DUT stage, 관찰되는 값, 판정 근거와 남은 한계를 모두 포함합니다.</p>
+  </div>
+  <div class="cellular-check__explain">
+    <label for={`${progressId}-explanation`}>내 DVT 설명</label>
+    <textarea id={`${progressId}-explanation`} rows="5" maxlength="700" aria-describedby={`${progressId}-requirement`}></textarea>
+    <p id={`${progressId}-requirement`} class="cellular-check__requirement" aria-live="polite">원인 → stage → 결과 → 한계 순서로 적으세요.</p>
+    <button type="button" class="button-primary" disabled>이 페이지 완료</button>
+    <p class="cellular-check__complete" role="status" hidden>완료가 이 기기의 DVT 진도에 저장되었습니다.</p>
+  </div>
+</section>
+
+<script>
+  import { assessCausalExplanation } from '../../lib/learning/explanation';
+  import { isLabComplete, persistLabCompletion, readLearningProgress } from '../../lib/progress';
+
+  document.querySelectorAll<HTMLElement>('[data-dvt-static-completion]').forEach((root) => {
+    const progressId = root.dataset.progressId ?? '';
+    const textarea = root.querySelector<HTMLTextAreaElement>('textarea');
+    const requirement = root.querySelector<HTMLElement>('.cellular-check__requirement');
+    const button = root.querySelector<HTMLButtonElement>('button');
+    const complete = root.querySelector<HTMLElement>('.cellular-check__complete');
+    if (!progressId || !textarea || !requirement || !button || !complete) return;
+
+    const sync = () => {
+      const assessment = assessCausalExplanation(textarea.value);
+      button.disabled = !assessment.ready;
+      requirement.textContent = assessment.ready
+        ? '원인과 판정 경계가 준비되었습니다.'
+        : `설명에 ${assessment.missing.join(' · ')}을(를) 더 적으세요.`;
+    };
+
+    if (isLabComplete(readLearningProgress(window.localStorage), progressId)) {
+      complete.hidden = false;
+    }
+
+    textarea.addEventListener('input', sync);
+    button.addEventListener('click', () => {
+      if (button.disabled) return;
+      if (persistLabCompletion(window.localStorage, progressId)) {
+        complete.hidden = false;
+        window.dispatchEvent(new CustomEvent('rf-wiki:progress-changed'));
+      }
+    });
+    sync();
+  });
+</script>
+
+<style>
+  .dvt-static-completion .cellular-check__question p {
+    color: var(--color-muted);
+    font-size: var(--font-size-label);
+    line-height: var(--line-height-label);
+  }
+</style>

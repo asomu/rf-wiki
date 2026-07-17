@@ -1,0 +1,141 @@
+---
+title: "DUT를 연결하기 전에 station을 어떻게 검증할까?"
+shortTitle: "Station qualification"
+question: "Golden DUT 없이도 station이 거짓 fail을 만들지 않는다고 어떻게 증명할까?"
+description: "Passive through, known attenuator와 반복 측정으로 source·analyzer·sensor·VNA·trigger chain을 검증하고 station readiness를 예측한다."
+order: 2
+estimatedMinutes: 55
+prerequisites:
+  - "bench-capability"
+outcomes:
+  - "DUT 연결 전에 source linearity, analyzer-generated distortion, sensor drift, VNA calibration과 reconnect repeatability를 분리 검증할 수 있다."
+  - "Calibration expiry, cable movement, temperature와 firmware/application 변경이 station requalification을 요구하는 이유를 설명할 수 있다."
+  - "Station evidence를 READY, CONDITIONAL, BLOCKED로 판정하고 실제 DUT 결과와 분리해 기록할 수 있다."
+concepts:
+  - "station qualification"
+  - "through-path residual"
+  - "attenuation-step test"
+  - "reconnect repeatability"
+  - "trigger latency"
+  - "calibration verification"
+topology: "lte-fdd-pamid"
+profile: "Station gate · DUT disconnected"
+equipmentContext:
+  source: "N5182B-506 + 656의 low-level CW·two-tone·LTE waveform, output query-back와 unlevel 확인"
+  dut: "DUT 대신 passive through, known attenuator와 verification standard"
+  analyzer: "N9020B, E5080B, U2061XA, N6705C/N6752A와 10 MHz reference·trigger path"
+standards:
+  - "3GPP TS 36.521-1 V17.7.0 §6 — UE conformance context only"
+references:
+  - title: "N9020B MXA Signal Analyzer Specifications Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/zz/en/assets/9018-04846/technical-specifications/9018-04846.pdf"
+    kind: "vendor"
+  - title: "E5080B ENA Vector Network Analyzer Data Sheet"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/7018-06574/data-sheets/5992-3843.pdf"
+    kind: "vendor"
+  - title: "Keysight 2050/60 X-Series User's Guide"
+    organization: "Keysight Technologies"
+    url: "https://www.keysight.com/us/en/assets/9018-04734/user-manuals/9018-04734.pdf"
+    kind: "vendor"
+labId: "station-qualification"
+progressId: "dvt:station-qualification"
+crossLinks:
+  - label: "SA에서 PA compression 분리"
+    href: "/instruments/sa-mxa/pa-spectrum-analysis/"
+    note: "Analyzer attenuation-step residual과 through-path baseline을 자세히 봅니다."
+  - label: "VNA calibration과 기준면"
+    href: "/instruments/vna-ena/calibration-reference-plane/"
+    note: "Calibration과 independent verification의 차이를 확인합니다."
+  - label: "Sensor correction·uncertainty"
+    href: "/instruments/power-sensor/correction-uncertainty/"
+    note: "Zero, frequency response, path와 mismatch uncertainty를 분리합니다."
+status: "ready"
+---
+
+import LessonLayer from '../../components/astro/LessonLayer.astro';
+import DvtLab from '../../components/astro/DvtLab.astro';
+import Definition from '../../components/astro/Definition.astro';
+import MeasurementNote from '../../components/astro/MeasurementNote.astro';
+
+Station qualification은 DUT가 좋다는 것을 증명하는 단계가 아니다. DUT를 빼고도 source부터 receiver까지의 residual, drift와 재연결 오차를 관찰해 **bench가 스스로 fail signature를 만들지 않는지** 확인하는 단계다.
+
+<LessonLayer level="intuition" title="Golden DUT보다 먼저 known path로 station을 질문하자">
+
+## Calibration과 verification은 답하는 질문이 다르다
+
+<Definition term="Calibration">
+표준과 모델을 사용해 systematic error를 추정하고 correction 또는 reference plane을 설정하는 과정이다.
+</Definition>
+
+<Definition term="Verification">
+Calibration에 사용하지 않은 known artifact나 독립된 설정 변화로 결과가 허용 범위 안인지 확인하는 과정이다. Calibration이 성공했다는 메시지만으로 station을 READY로 만들지 않는다.
+</Definition>
+
+<DvtLab labId="station-qualification" progressId="dvt:station-qualification" />
+
+## Known path가 드러내는 failure signature
+
+- **Passive through:** source waveform residual, path loss, analyzer EVM/ACLR floor와 trigger alignment를 본다.
+- **Known attenuator:** measured loss와 phase, power linearity, correction sign과 frequency coverage를 확인한다.
+- **Attenuation-step test:** DUT-plane input이 같도록 correction한 뒤 analyzer input attenuation만 바꾼다. ACLR/EVM이 움직이면 analyzer-generated distortion 후보가 커진다.
+- **Repeated reconnect:** cable·connector를 승인된 torque로 다시 연결해 loss·phase와 measured power 분포를 만든다.
+- **Reference re-lock:** 10 MHz common reference를 lock/unlock 조건과 비교해 frequency offset·phase drift를 확인한다.
+
+Readiness는 체크박스 개수가 아니라 **중요한 failure가 검출 가능한가**로 판정한다. 예를 들어 source unlevel을 query하지 않았는데 through power만 nominal이면 capability가 아니라 detection gap이다.
+
+</LessonLayer>
+
+<LessonLayer level="bench" title="DUT를 빼고 장비별 residual을 독립적으로 만든다">
+
+## 1. Passive path와 source를 먼저 닫는다
+
+1. RF Off에서 cable, coupler, attenuator와 50 Ω load의 asset ID·방향·rating을 확인한다.
+2. 낮은 CW level에서 target setpoint와 DUT-plane measured power의 관계를 주파수별로 측정한다.
+3. 여러 level을 올리며 `Δmeasured / Δsetpoint`가 linear한 범위를 정한다.
+4. LTE waveform의 checksum, sample rate, runtime scaling과 PAPR 조건을 고정한다.
+5. Through에서 source residual EVM/ACLR을 측정하되 application/license와 analyzer residual 조건을 함께 기록한다.
+
+Source setpoint가 1 dB 움직일 때 measured DUT-plane Pin이 1 dB 움직이지 않으면 PA compression 시험에 들어가지 않는다. Cable correction으로 source compression을 숨기지 않는다.
+
+## 2. Analyzer가 distortion을 만들지 않는지 본다
+
+- External attenuation으로 connector damage·working limit를 먼저 보호한다.
+- Internal attenuation을 두 단계 이상 바꾸고 DUT plane으로 correction한 channel power·ACLR/EVM을 비교한다.
+- Preamp는 PA output 측정에서 기본 Off이며 noise floor 시험과 같은 setup으로 재사용하지 않는다.
+- Mixer/ADC overload, reference level, auto range, detector와 averaging state를 결과 행에 남긴다.
+- Low-level Tx noise에서는 analyzer floor와 preselector/preamp condition을 별도 baseline으로 만든다.
+
+## 3. Sensor와 VNA를 교차 확인한다
+
+U2061XA는 RF excitation이 제거된 상태에서 zero policy를 적용하고 frequency metadata, averaging/aperture와 external correction을 고정한다. Known CW에서 N9020B channel power와 비교할 때 두 장비의 reference plane·integration bandwidth·uncertainty가 같은지 먼저 맞춘다.
+
+E5080B는 calibration 후 verification standard 또는 known attenuator로 magnitude·phase를 확인한다. Calibration kit definition, connector 성별, torque, cable position과 frequency range를 기록한다. Gain Compression Application은 실제 option/license가 확인될 때만 qualification 범위에 넣는다.
+
+## 4. Trigger와 시간축을 검증한다
+
+Common 10 MHz reference lock 상태, trigger source·polarity·level, cable delay와 acquisition latency를 기록한다. 반복 edge에서 trigger index와 measured delay 분포가 허용 범위 안인지 본다. N6705C/N6752A의 V/I readback을 RF IQ와 완전 동시 sample이라고 부르지 않고, 각 장비 aperture와 timestamp가 허용하는 수준으로만 정렬한다.
+
+<MeasurementNote title="재검증을 발생시키는 변경을 station contract에 적는다" kind="calibration">
+Calibration expiry, cable·adapter 이동, connector 재체결, ambient/fixture temperature 변화, 장비 firmware 또는 measurement application 변경, option/license 변경, repair와 장시간 power cycle 뒤에는 영향받는 verification을 다시 실행한다. 모든 항목을 무조건 반복하기보다 변경이 통과하는 signal path를 기준으로 범위를 정한다.
+</MeasurementNote>
+
+</LessonLayer>
+
+<LessonLayer level="theory" title="Readiness는 결과가 아니라 검출 능력에 대한 주장이다">
+
+Station qualification limit는 3GPP가 직접 정하는 PAMiD 규격이 아니다. TS 36.521-1의 UE conformance condition은 필요한 waveform·measurement context를 확인하는 근거지만, bench residual tolerance와 recalibration rule은 project의 measurement assurance contract다.
+
+Qualification record에는 최소한 다음 네 숫자 묶음이 필요하다.
+
+- **Nominal:** known artifact 또는 through에서 기대한 값
+- **Measured:** correction 전 raw와 correction 후 result
+- **Tolerance/uncertainty:** 허용 차이와 coverage 설명
+- **Drift/repeatability:** 시간·재연결에 따른 분포
+
+단 한 번 tolerance 안에 들어왔다는 사실보다, 의도적으로 attenuation·level·connection을 바꿨을 때 예상 signature가 나타나는지가 중요하다. 예상하지 않은 변화가 있으면 CONDITIONAL, damage/working envelope나 required application이 없으면 BLOCKED다.
+
+Station READY는 DUT PASS를 보장하지 않는다. 단지 이후 DUT 결과가 bench 자체의 알려진 failure로 설명될 가능성을 충분히 낮췄다는 evidence다.
+
+</LessonLayer>

@@ -1,0 +1,129 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/astro/Breadcrumbs.astro';
+import DvtProgressSummary from '../../components/astro/DvtProgressSummary.astro';
+import DvtTransactionFlow from '../../components/astro/DvtTransactionFlow.astro';
+
+const lessons = (await getCollection('dvtLesson', ({ data }) => data.status === 'ready'))
+  .sort((a, b) => a.data.order - b.data.order);
+const totalMinutes = lessons.reduce((sum, lesson) => sum + lesson.data.estimatedMinutes, 0);
+---
+
+<BaseLayout title="PAMiD/TxM Module DVT 시니어 경로" description="장비 능력에서 blind DVT conclusion까지 LTE FDD PAMiD 판단을 연결하는 여섯 lesson" currentPath="/dvt/">
+  <main class="page-shell dvt-hub" data-pagefind-body>
+    <Breadcrumbs items={[{ label: 'RF Wiki', href: '/' }, { label: 'PAMiD DVT 시니어 경로' }]} />
+    <header class="page-heading dvt-hub__heading">
+      <p class="context-line"><span>LTE FDD first</span><span>Band 3 계열 1.7 GHz UL</span><span>6 lessons</span><span>약 {totalMinutes}분</span></p>
+      <h1>측정값을 모으는 데서 멈추지 않고, 그 값으로 방어 가능한 DVT 결론을 만듭니다.</h1>
+      <p>장비 capability, station validity, 동기화된 test point, uncertainty와 blind diagnosis를 한 evidence chain으로 연결합니다. 현재 pinned 5종 장비와 내장 결정론적 사례만 사용합니다.</p>
+    </header>
+
+    <DvtProgressSummary lessons={lessons} />
+
+    <section class="dvt-profile" aria-labelledby="dvt-profile-title">
+      <div>
+        <p class="data-label">Representative educational profile</p>
+        <h2 id="dvt-profile-title">FDD 경로와 가상 project allocation을 먼저 고정합니다.</h2>
+      </div>
+      <dl>
+        <div><dt>Topology</dt><dd>LTE FDD PAMiD · duplexer path</dd></div>
+        <div><dt>RF profile</dt><dd>Band 3 계열 1.7 GHz UE uplink · 20 MHz</dd></div>
+        <div><dt>Targets</dt><dd>교육용 가상 project allocation · 3GPP module limit 아님</dd></div>
+        <div><dt>Decision</dt><dd>PASS · FAIL · INCONCLUSIVE</dd></div>
+      </dl>
+      <p>NR TDD TxM의 switch timing·path는 이 경로에 섞지 않습니다. LTE FDD 완료 후 별도 milestone에서 다룹니다.</p>
+    </section>
+
+    <DvtTransactionFlow />
+
+    <section class="dvt-lesson-index" aria-labelledby="dvt-lesson-index-title">
+      <header>
+        <p class="data-label">6 judgments · 1 evidence chain</p>
+        <h2 id="dvt-lesson-index-title">앞 단계의 증거가 없으면 다음 단계의 숫자를 승인하지 않습니다.</h2>
+      </header>
+      <ol>
+        {lessons.map(({ id, data }) => (
+          <li>
+            <span>{String(data.order).padStart(2, '0')}</span>
+            <div>
+              <p>{data.profile}</p>
+              <h3><a href={`/dvt/${id}/`}>{data.shortTitle}</a></h3>
+              <strong>{data.question}</strong>
+              <p>{data.description}</p>
+            </div>
+            <div><b>{data.estimatedMinutes}분</b><a href={`/dvt/${id}/`}>판단 열기 →</a></div>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <aside class="dvt-scope" aria-labelledby="dvt-scope-title">
+      <p class="data-label">Scope boundary</p>
+      <h2 id="dvt-scope-title">교육용 결론은 실제 compliance 판정과 고객 DVT report를 대신하지 않습니다.</h2>
+      <p>EVM·SEM·GCA는 설치 option/application과 residual 검증이 확인될 때만 사용합니다. 현재 bench로 실제 receiver sensitivity·BLER를 재지 않으므로 세 번째 blind case는 <strong>Rx desense</strong>가 아닌 <strong>desense risk budget</strong>으로만 결론 냅니다. Temperature·ET·VSWR 측정도 현재 장비가 제공한다고 가정하지 않습니다.</p>
+    </aside>
+  </main>
+</BaseLayout>
+
+<style>
+  .dvt-hub__heading { margin-block-end: var(--space-12); }
+
+  .dvt-profile,
+  .dvt-scope {
+    display: grid;
+    gap: var(--space-6);
+    margin-block: var(--space-12);
+    padding-block: var(--space-8);
+    border-block: var(--stroke-hairline) solid var(--color-rule-strong);
+  }
+
+  .dvt-profile h2,
+  .dvt-scope h2 { margin: var(--space-1) 0 0; }
+
+  .dvt-profile dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    border-top: var(--stroke-hairline) solid var(--color-rule);
+  }
+
+  .dvt-profile dl div {
+    padding: var(--space-3);
+    border-bottom: var(--stroke-hairline) solid var(--color-rule);
+  }
+
+  .dvt-profile dt {
+    color: var(--color-muted);
+    font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono);
+  }
+
+  .dvt-profile dd { margin: var(--space-1) 0 0; }
+  .dvt-profile > p,
+  .dvt-scope > p:last-child { margin: 0; color: var(--color-muted); }
+
+  .dvt-lesson-index { margin-block: var(--space-16); }
+  .dvt-lesson-index > header { max-width: var(--layout-prose); margin-block-end: var(--space-6); }
+  .dvt-lesson-index h2 { margin: var(--space-1) 0 0; }
+  .dvt-lesson-index ol { margin: 0; padding: 0; border-top: var(--stroke-hairline) solid var(--color-rule-strong); list-style: none; }
+  .dvt-lesson-index li {
+    display: grid;
+    grid-template-columns: var(--space-8) minmax(0, 1fr) auto;
+    gap: var(--space-6);
+    padding-block: var(--space-6);
+    border-bottom: var(--stroke-hairline) solid var(--color-rule);
+  }
+  .dvt-lesson-index li > span { color: var(--color-active); font-family: var(--font-mono); }
+  .dvt-lesson-index li h3 { margin: var(--space-1) 0 var(--space-2); }
+  .dvt-lesson-index li p { margin: 0; color: var(--color-muted); }
+  .dvt-lesson-index li div > p:first-child { font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+  .dvt-lesson-index li div:last-child { display: flex; min-width: 128px; flex-direction: column; align-items: end; justify-content: space-between; gap: var(--space-3); }
+  .dvt-lesson-index li div:last-child b { color: var(--color-muted); font: var(--font-weight-medium) var(--font-size-data)/var(--line-height-data) var(--font-mono); }
+  .dvt-lesson-index li a { min-height: var(--target-min); }
+
+  @media (max-width: 760px) {
+    .dvt-profile dl { grid-template-columns: minmax(0, 1fr); }
+    .dvt-lesson-index li { grid-template-columns: var(--space-8) minmax(0, 1fr); }
+    .dvt-lesson-index li div:last-child { grid-column: 2; min-width: 0; align-items: start; }
+  }
+</style>

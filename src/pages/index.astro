@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
 import SignalSpine from '../components/astro/SignalSpine.astro';
 import { curriculum, totalEstimatedMinutes, totalLessonCount } from '../data/curriculum';
 import { instruments } from '../data/instruments';
@@ -7,7 +8,9 @@ import { cellularLessonCount } from '../data/cellular';
 
 const totalHours = Math.round(totalEstimatedMinutes / 60);
 const instrumentChapterCount = instruments.reduce((sum, instrument) => sum + instrument.chapters.length, 0);
-const totalLearningItems = totalLessonCount + instrumentChapterCount + cellularLessonCount;
+const dvtLessons = await getCollection('dvtLesson', ({ data }) => data.status === 'ready');
+const dvtLessonCount = dvtLessons.length;
+const totalLearningItems = totalLessonCount + instrumentChapterCount + cellularLessonCount + dvtLessonCount;
 const firstModule = curriculum[0]!;
 const progressModules = curriculum.map((module) => ({
   id: module.id,
@@ -28,7 +31,7 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
     <header class="home-heading">
       <p class="context-line">
         <span>개인 bench</span>
-        <span>3개 트랙 · {totalLearningItems}개 학습 항목</span>
+        <span>4개 트랙 · {totalLearningItems}개 학습 항목</span>
         <span>예측 → 조작 → 설명</span>
       </p>
       <h1>설정값 하나가 trace를 바꾸는 경로를 따라갑니다.</h1>
@@ -103,9 +106,9 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
       <header class="section-heading">
         <div>
           <p class="data-label">전체 사이트 범위</p>
-          <h2 id="home-track-index-title">전체 학습 자료를 세 트랙에서 이어갑니다.</h2>
+          <h2 id="home-track-index-title">전체 학습 자료를 네 트랙에서 이어갑니다.</h2>
         </div>
-        <p>{totalLessonCount} RF · {instrumentChapterCount} 장비 · {cellularLessonCount} Cellular</p>
+        <p>{totalLessonCount} RF · {instrumentChapterCount} 장비 · {cellularLessonCount} Cellular · {dvtLessonCount} DVT</p>
       </header>
       <ol>
         <li>
@@ -128,6 +131,13 @@ const spectrumIqCompletionNote = curriculum.find((module) => module.id === 'spec
           <p>SG·SA·VNA·power sensor·PSU를 장비별 5개 chapter와 dry-run-first PyVISA로 연결합니다.</p>
           <ul><li>안전 bring-up</li><li>SCPI state</li><li>PA workflow</li></ul>
           <a href="/instruments/">장비 25개 전체 보기 <span aria-hidden="true">→</span></a>
+        </li>
+        <li>
+          <header><span>04</span><p>Module DVT</p><strong>{dvtLessonCount} synthesis lessons</strong></header>
+          <h3>측정값을 유효한 DVT 결론으로 압축</h3>
+          <p>Capability·station qualification·동기 test point·불확도·PA evidence를 LTE FDD PAMiD 판단으로 연결합니다.</p>
+          <ul><li>Station validity</li><li>Guardband</li><li>Blind conclusion</li></ul>
+          <a href="/dvt/">DVT {dvtLessonCount}개 전체 보기 <span aria-hidden="true">→</span></a>
         </li>
       </ol>
     </section>

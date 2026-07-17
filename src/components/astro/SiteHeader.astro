@@ -9,8 +9,11 @@ const { currentPath = '/' } = Astro.props;
 const isLearning = currentPath === '/' || currentPath.startsWith('/learn/');
 const isInstruments = currentPath.startsWith('/instruments/');
 const isCellular = currentPath.startsWith('/cellular/');
+const isDvt = currentPath.startsWith('/dvt/');
 const isGlossary = currentPath.startsWith('/glossary');
-const currentNavLabel = isCellular
+const currentNavLabel = isDvt
+  ? 'Module DVT'
+  : isCellular
   ? '3GPP·PAMiD'
   : isInstruments
     ? '장비 스터디'
@@ -39,6 +42,7 @@ const currentNavLabel = isCellular
       <a href="/" aria-current={isLearning ? 'page' : undefined}>RF 개념</a>
       <a href="/cellular/" aria-current={isCellular ? 'page' : undefined}>3GPP·PAMiD</a>
       <a href="/instruments/" aria-current={isInstruments ? 'page' : undefined}>장비 스터디</a>
+      <a href="/dvt/" aria-current={isDvt ? 'page' : undefined}>Module DVT</a>
       <a href="/glossary/" aria-current={isGlossary ? 'page' : undefined}>용어 사전</a>
     </nav>
 
@@ -48,6 +52,7 @@ const currentNavLabel = isCellular
         <a href="/" aria-current={isLearning ? 'page' : undefined}>RF 개념</a>
         <a href="/cellular/" aria-current={isCellular ? 'page' : undefined}>3GPP·PAMiD</a>
         <a href="/instruments/" aria-current={isInstruments ? 'page' : undefined}>장비 스터디</a>
+        <a href="/dvt/" aria-current={isDvt ? 'page' : undefined}>Module DVT</a>
         <a href="/glossary/" aria-current={isGlossary ? 'page' : undefined}>용어 사전</a>
       </nav>
     </details>

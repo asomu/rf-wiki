@@ -78,6 +78,13 @@ await Promise.all([
   requireFile(resolve(client, 'cellular/lte/bandwidth-rb-location/index.html'), 'LTE resource lesson'),
   requireFile(resolve(client, 'cellular/nr/100mhz-rb100-location0/index.html'), 'NR allocation lesson'),
   requireFile(resolve(client, 'cellular/diagnostics/evm-fail/index.html'), 'PAMiD EVM diagnostic lesson'),
+  requireFile(resolve(client, 'dvt/index.html'), 'PAMiD DVT learning map'),
+  requireFile(resolve(client, 'dvt/bench-capability/index.html'), 'DVT bench capability lesson'),
+  requireFile(resolve(client, 'dvt/station-qualification/index.html'), 'DVT station qualification lesson'),
+  requireFile(resolve(client, 'dvt/synchronized-test-point/index.html'), 'DVT synchronized test-point lesson'),
+  requireFile(resolve(client, 'dvt/uncertainty-guardband/index.html'), 'DVT uncertainty decision lesson'),
+  requireFile(resolve(client, 'dvt/cw-two-tone-lte/index.html'), 'DVT stimulus comparison lesson'),
+  requireFile(resolve(client, 'dvt/fdd-dvt-conclusion/index.html'), 'DVT blind conclusion capstone'),
   requireFile(resolve(client, 'pagefind/pagefind.js'), 'Pagefind runtime'),
   requireFile(resolve(server, 'index.js'), 'server/index.js'),
   requireFile(resolve(metadata, 'hosting.json'), '.openai/hosting.json')
