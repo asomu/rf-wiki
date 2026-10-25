@@ -7,7 +7,7 @@
 이전 대화에서 합의한 RF 기초, 계측기, Cellular/PAMiD 학습 자료를 하나의 RF Wiki에 완성한다. 단순히 페이지 수를 채우는 것이 아니라 학습자가 **직관 → 벤치 절차 → 이론/규격 → 실습 → 확인 문제**의 흐름으로 이해하고, 실제 장비 측정에서 다음 행동을 결정할 수 있어야 한다.
 
 - 기준 저장소: `/Users/mark/Developer/rf/rf-wiki`
-- 공개 사이트: `https://rf-wiki-precision-lab.mark-jang.chatgpt.site/cellular/`
+- 공개 사이트: Cloudflare Pages로 이전 중 (`docs/deploy-cloudflare.md`). 이전 공개본은 `https://rf-wiki-precision-lab.mark-jang.chatgpt.site/cellular/` (OpenAI Sites v9)
 - 별도 GSM PvT 프로토타입: `/Users/mark/Developer/rf/rf-study-lab`
 - 통합 원칙: 기존 RF 6개, 장비 25개와 Cellular 59개는 유지하고, 실제 판단을 합성하는 DVT 6개만 독립 `/dvt/` 트랙과 `dvt:*` 진도로 추가한다.
 
@@ -180,3 +180,15 @@
 - LTE/NR EVM·SEM과 E5080B GCA는 실제 application/option/license와 residual 확인 전 CONDITIONAL이다.
 - Tx RX-band noise와 duplexer/isolation evidence는 `desense risk budget`만 제공한다. 실제 receiver sensitivity·BLER 또는 Rx desense를 측정했다고 표현하지 않는다.
 - Temperature·ET·VSWR는 필요한 sensor/scope/tuner가 확보된 후 별도 milestone로 확장한다.
+
+### Phase 8 — Cloudflare Pages 호스팅 이전
+
+OpenAI Sites는 ChatGPT/Codex 계정으로만 새 version을 올릴 수 있다. 2026-10-25 private 배포 시험에서 Codex가 모델 호출 단계(`model_not_found`)에서 거절되어 배포 단계에 도달하지 못했다. 그래서 무료 Cloudflare Pages Git 연동으로 공개 위치를 옮긴다. GitHub Pages는 `asomu.github.io` 사용자 사이트가 이미 있어 `/rf-wiki/` 하위 경로가 되고 내부 링크 약 260곳을 고쳐야 하므로 채택하지 않았다.
+
+- [x] `build:cloudflare`(공개 URL 검증·빌드·산출물 검사), `.node-version`, `404.astro`, `public/_headers`, hosting test를 추가한다.
+- [x] 로컬에서 `PUBLIC_SITE_URL` 미지정 시 실패, 지정 시 `dist/` 생성과 localhost 부재를 확인한다.
+- [x] 설정 절차를 `docs/deploy-cloudflare.md`와 README에 기록한다.
+- [ ] 사용자가 Cloudflare 가입 후 `asomu/rf-wiki`를 Pages 프로젝트로 연결한다.
+- [ ] 첫 production 배포 후 공개 URL에서 홈·Cellular·DVT·검색·ZIP 다운로드·404를 확인한다.
+- [ ] 확정된 공개 URL로 이 문서와 README의 공개 사이트 표기를 갱신한다.
+

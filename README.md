@@ -64,7 +64,17 @@ npm run test:all
 
 2026-07-18에 구현 commit `fa4427d`와 문서 동기화 commit `eeafb36`을 포함한 exact source로 Sites version 9를 공개 배포했습니다. 공개 홈, `/dvt/`, `/dvt/fdd-dvt-conclusion/`의 제목·링크·interactive control과 브라우저 오류 0건을 실제 URL에서 재검증했습니다.
 
-### OpenAI Sites 배포 빌드
+### Cloudflare Pages 배포 (기본)
+
+~~~bash
+PUBLIC_SITE_URL=https://rf-wiki.pages.dev npm run build:cloudflare
+~~~
+
+공개 배포는 Cloudflare Pages 무료 플랜의 Git 연동을 사용합니다. `main`에 push하면 Cloudflare가 `npm run build:cloudflare`로 빌드하고 `dist/`를 공개합니다. `build:cloudflare`는 `PUBLIC_SITE_URL`이 https 공개 주소인지 먼저 확인하고, 빌드 뒤 `404.html`·`_headers`·Pagefind 존재와 localhost 주소 부재를 검사합니다. 최초 설정 절차와 확인 방법은 [`docs/deploy-cloudflare.md`](docs/deploy-cloudflare.md)를 따릅니다.
+
+### OpenAI Sites 배포 빌드 (이전 방식)
+
+ChatGPT/Codex 계정으로만 새 version을 올릴 수 있어 기본 배포 경로에서 제외했습니다. 기존 Sites version 9 공개본의 재현 기록으로 남겨 둡니다.
 
 ~~~bash
 npm run test:hosting

@@ -45,7 +45,9 @@ npm run test:all             # test + test:e2e + audit:lighthouse
 
 Run a single vitest file: `npx vitest run tests/unit/<path>.test.ts`. Run a single Playwright spec: `npx playwright test tests/e2e/<path>.spec.ts`. `test:e2e` boots the app via `npm run preview` (production build, not dev server) so tests never depend on cold Vite compilation.
 
-`npm run build:sites` (`scripts/build-sites.mjs`) packages the same static output plus a Cloudflare Worker (`dist/server/index.js`) for OpenAI Sites hosting, and validates the five instrument PyVISA ZIP packages (checksums, dry-run, fake-transport tests) in the process. `.openai/hosting.json`'s `project_id` is fixed at first project creation — never regenerate or swap it.
+Public hosting is Cloudflare Pages via Git integration: `npm run build:cloudflare` (`scripts/build-cloudflare.mjs`) requires an https `PUBLIC_SITE_URL`, runs `npm run build`, and checks `dist/` for `404.html`, `_headers`, Pagefind, and no localhost URLs. Dashboard setup lives in `docs/deploy-cloudflare.md`.
+
+Legacy: `npm run build:sites` (`scripts/build-sites.mjs`) packages the same static output plus a Cloudflare Worker (`dist/server/index.js`) for OpenAI Sites hosting, and validates the five instrument PyVISA ZIP packages (checksums, dry-run, fake-transport tests) in the process. `.openai/hosting.json`'s `project_id` is fixed at first project creation — never regenerate or swap it.
 
 Scaffold a new lesson (writes into `src/content/lessons/`, refuses to overwrite, `--dry-run` writes nothing):
 
