@@ -6,9 +6,9 @@
 
 이전 대화에서 합의한 RF 기초, 계측기, Cellular/PAMiD 학습 자료를 하나의 RF Wiki에 완성한다. 단순히 페이지 수를 채우는 것이 아니라 학습자가 **직관 → 벤치 절차 → 이론/규격 → 실습 → 확인 문제**의 흐름으로 이해하고, 실제 장비 측정에서 다음 행동을 결정할 수 있어야 한다.
 
-- 기준 저장소: `/Users/mark/Documents/rf-wiki`
+- 기준 저장소: `/Users/mark/Developer/rf/rf-wiki`
 - 공개 사이트: `https://rf-wiki-precision-lab.mark-jang.chatgpt.site/cellular/`
-- 별도 GSM PvT 프로토타입: `/Users/mark/Documents/New project`
+- 별도 GSM PvT 프로토타입: `/Users/mark/Developer/rf/rf-study-lab`
 - 통합 원칙: 기존 RF 6개, 장비 25개와 Cellular 59개는 유지하고, 실제 판단을 합성하는 DVT 6개만 독립 `/dvt/` 트랙과 `dvt:*` 진도로 추가한다.
 
 ## 완료 판정 규칙

@@ -20,7 +20,7 @@ RF Wiki를 로컬에서 실행하고, 학습 화면을 읽고, 인터랙티브 �
 터미널에서 다음 명령을 실행합니다.
 
 ```bash
-cd /Users/mark/Documents/rf-wiki
+cd /Users/mark/Developer/rf/rf-wiki
 npm ci
 npm run dev -- --host 127.0.0.1 --port 4326
 ```
@@ -362,7 +362,7 @@ Codex의 제한된 sandbox에서 `listen EPERM`이 나타날 수 있습니다. �
    npm run dev -- --host 127.0.0.1 --port 4326
    ```
 
-다른 프로젝트의 process를 PID만 보고 종료하지 마세요. 먼저 실행 경로가 `/Users/mark/Documents/rf-wiki`인지 확인합니다.
+다른 프로젝트의 process를 PID만 보고 종료하지 마세요. 먼저 실행 경로가 `/Users/mark/Developer/rf/rf-wiki`인지 확인합니다.
 
 ### 설정이 계속 잠겨 있습니다
 
